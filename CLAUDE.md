@@ -4,38 +4,63 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**diff-pair-review** is a Claude Code plugin that provides AI-narrated code walkthroughs. It walks developers through diffs and codebases as if a staff engineer is pairing with them, using TTS narration. There is no build system, test suite, or package manager — the plugin is Markdown files (commands, agents, skills) plus Bash scripts (TTS).
+A Claude Code plugin that provides TTS-narrated code walkthroughs — walking through PRs, diffs, and codebases like a staff engineer pairing with you. No build step; the plugin is entirely markdown specs + shell scripts following Claude Code plugin conventions.
 
 ## Architecture
 
-The plugin follows Claude Code's plugin conventions:
+```
+commands/          User-facing CLI commands (markdown specs)
+  diff-review.md     /diff-review - walk through diffs ranked by importance
+  walkthrough.md     /walkthrough - guided codebase tour (8 sections)
 
-- **`.claude-plugin/plugin.json`** — Plugin manifest (name, version, metadata)
-- **`commands/`** — Two entry points: `diff-review.md` and `walkthrough.md`. These are the user-facing `/diff-review` and `/walkthrough` commands. They run on the Opus model and orchestrate agents.
-- **`agents/`** — Three Sonnet-model agents that do the analytical work:
-  - `diff-narrator.md` — Analyzes diffs, generates narration text
-  - `codebase-narrator.md` — Analyzes codebases for guided tours
-  - `domain-splitter.md` — Splits codebases into 2-4 domains for team mode (multi-voice)
-- **`lib/shared-instructions.md`** — Common instructions (navigation UI, display formatting) shared by both commands
-- **`skills/narration/`** — Narration quality guidelines: `SKILL.md` defines conversational style rules, `references/ranking.md` has the 1-7 importance scale, `references/voice-personas.md` has team mode voice assignments
-- **`scripts/tts.sh`** — TTS execution wrapper supporting macOS `say` (default) and OpenAI TTS API. Sources `scripts/lib/config.sh` (JSON config loader) and `scripts/lib/utils.sh` (logging)
-- **`config/tts.json`** — Default TTS settings (engine, voice, rate, verbosity)
+agents/            Claude-powered analysis agents (model: sonnet)
+  diff-narrator.md      Analyzes diffs, generates TTS-friendly narration
+  codebase-narrator.md  Analyzes codebase structure for walkthroughs
+  domain-splitter.md    Splits codebase into 2-4 domains for team mode
 
-## Key Design Patterns
+skills/narration/  Narration generation guidelines
+  SKILL.md             Core narration principles and verbosity levels
+  references/
+    ranking.md         Section importance ranking (1-7 scale)
+    voice-personas.md  Voice assignments for team mode
 
-**Importance ranking**: Diffs are ranked 1 (core business logic) through 7 (config/deps) and presented most-important-first. Boost/reduce factors adjust ranking based on security keywords, breaking changes, file size, etc. Defined in `skills/narration/references/ranking.md`.
+lib/               Shared cross-cutting instructions
+  shared-instructions.md  Navigation commands, display formatting, state tracking
 
-**Interactive navigation**: Both commands use a stateful session with commands: next, prev, detail, related, question, jump, list, done. All state is held in conversation context (no external state files). Defined in `lib/shared-instructions.md`.
+scripts/           Shell infrastructure
+  tts.sh             Universal TTS wrapper (macOS say + OpenAI API fallback)
+  lib/config.sh      Config file loader (JSON via jq)
+  lib/utils.sh       Shared shell utilities
 
-**TTS config cascade**: CLI flags > environment variables (`DIFF_REVIEW_TTS_*`) > `config/tts.json` > hardcoded defaults. The config loader in `scripts/lib/config.sh` implements this priority.
+config/tts.json    Default TTS configuration
+```
 
-**Team mode**: The `--team` flag triggers the domain-splitter agent to partition the codebase, then assigns distinct voices (Samantha/Daniel/Karen/Tom for macOS, alloy/echo/nova/fable for OpenAI) to each domain.
+## Key Execution Flows
 
-**Narration style**: Agents must produce TTS-friendly plain text — no markdown, no code blocks, sentences under 25 words, spell out abbreviations, say "slash" for path separators, explain WHY not WHAT.
+**Diff Review:** Parse target args → fetch diff (git/gh) → group files into logical sections → rank by importance (1=core logic, 7=config) → present overview → walk through sections with TTS narration → handle navigation commands
+
+**Walkthrough:** Parse scope → spawn 3 parallel Explore agents (architecture, entry points, patterns) → synthesize into 8 sections (overview → architecture → entry points → domain logic → data layer → integrations → testing → build/deploy) → present with TTS narration
+
+**Team Mode (`--team`):** Domain splitter agent divides content into 2-4 domains → each domain assigned a voice persona (Lead=Samantha/alloy, Backend=Daniel/echo, Frontend=Karen/nova, Infra=Tom/fable) → lead narrates transitions, specialists narrate their domains
+
+## TTS System
+
+`scripts/tts.sh` is the universal TTS wrapper. Config priority: CLI flags > env vars > `config/tts.json` > defaults.
+
+- **macOS `say`** (default): voice=Samantha, rate=200 WPM
+- **OpenAI TTS** (`DIFF_REVIEW_TTS_ENGINE=openai`): requires `OPENAI_API_KEY`, auto-falls back to `say` on failure
+- TTS runs asynchronously (non-blocking)
+- User overrides go in `config/tts.local.json` (gitignored)
+
+Key env vars: `DIFF_REVIEW_TTS_ENGINE`, `DIFF_REVIEW_TTS_VOICE`, `DIFF_REVIEW_TTS_RATE`, `DIFF_REVIEW_TTS_SPEED`, `OPENAI_API_KEY`, `DIFF_REVIEW_DEBUG`
+
+## Runtime Dependencies
+
+Requires: `bash`, `jq`, `git`, `gh` (GitHub CLI), `say` (macOS), `afplay` (macOS). Optional: `curl` (for OpenAI TTS).
 
 ## Development
 
-All "code" is Markdown prompts and Bash scripts. To modify behavior:
+All "code" is markdown prompts and shell scripts. To modify behavior:
 
 - Edit command specs in `commands/*.md` to change user-facing flow
 - Edit agent prompts in `agents/*.md` to change analysis/narration behavior
@@ -43,8 +68,14 @@ All "code" is Markdown prompts and Bash scripts. To modify behavior:
 - Edit `scripts/tts.sh` for TTS engine logic
 - Edit `config/tts.json` for default TTS settings
 
-**Dependencies**: `git`, `gh` (GitHub CLI), `jq`, `curl`, `afplay` (macOS). OpenAI TTS additionally requires `OPENAI_API_KEY`.
+**Debugging**: Set `DIFF_REVIEW_DEBUG=true` or pass `--debug` to `tts.sh` for debug logging to stderr.
 
-**Debugging**: Set `DIFF_REVIEW_DEBUG=true` or pass `--debug` to `tts.sh` to enable debug logging to stderr.
+**Testing**: Manual only — run `/diff-review` and `/walkthrough` in Claude Code against real repos.
 
-**Testing**: Manual only. Test by running `/diff-review` and `/walkthrough` in Claude Code against real repos. Verify TTS plays, navigation works, and narration is conversational.
+## Conventions
+
+- Commands, agents, and skills are defined as **markdown files with YAML frontmatter** (model, tools, description)
+- Agents use model `sonnet`; commands use `opus`
+- Narration must be conversational and TTS-friendly: sentences under 25 words, say "slash" for paths, spell out abbreviations, explain WHY not WHAT, never read code syntax literally
+- Navigation state is tracked through conversation context (no external state files)
+- Shell scripts use `set -euo pipefail`, source helpers from `scripts/lib/`, use `$PLUGIN_ROOT` for paths

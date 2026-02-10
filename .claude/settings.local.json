@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(xargs ls:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(npx skills:*)",
+      "Bash(say:*)",
+      "Bash(git -C /Users/flowclub/code/diff-pair-review log --oneline --all)"
     ]
   }
 }
