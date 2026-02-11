@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "7a8099dee913",
+  "strategy": "manual-commit",
+  "branch": "oregon-trail",
+  "checkpoints_count": 13,
+  "files_touched": [
+    ".diff-review/trail-openclaw.html"
+  ],
+  "sessions": [
+    {
+      "metadata": "/7a/8099dee913/0/metadata.json",
+      "transcript": "/7a/8099dee913/0/full.jsonl",
+      "context": "/7a/8099dee913/0/context.md",
+      "content_hash": "/7a/8099dee913/0/content_hash.txt",
+      "prompt": "/7a/8099dee913/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 173,
+    "cache_creation_tokens": 76574,
+    "cache_read_tokens": 18583307,
+    "output_tokens": 28840,
+    "api_call_count": 141
+  }
+}
