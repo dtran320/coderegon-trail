@@ -24,6 +24,7 @@ Generate spoken narration for code walkthroughs and diff reviews. All narration 
 - Keep sentences under 25 words for natural speech rhythm
 - Use punctuation to create pauses — commas, periods, em dashes
 - Avoid parenthetical asides (they break speech flow)
+- **ElevenLabs only:** Use `<break time="1.0s" />` tags to insert pauses between sections or before important points. Do NOT use break tags with `say` or `openai` engines — they will be read literally
 
 ## Narration Templates
 

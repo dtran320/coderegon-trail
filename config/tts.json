@@ -9,6 +9,11 @@
     "voice": "alloy",
     "speed": 1.0
   },
+  "elevenlabs": {
+    "model": "eleven_turbo_v2_5",
+    "voice": "",
+    "speed": 1.0
+  },
   "narration": {
     "verbosity": "normal",
     "auto_play": true

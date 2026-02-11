@@ -4,12 +4,12 @@ When running in team mode (`--team`), the codebase is split into domains and eac
 
 ## Voice Assignments
 
-| Role | macOS Voice | OpenAI Voice | Style |
-|------|------------|--------------|-------|
-| Lead / Orchestrator | Samantha | alloy | Big picture, connects dots, authoritative but friendly |
-| Backend / API | Daniel | echo | Precise, talks about data flow, performance, reliability |
-| Frontend / UI | Karen | nova | Practical, talks about user experience, interactions, state |
-| Infrastructure / Data | Tom | fable | Methodical, talks about deployment, schemas, config |
+| Role | macOS Voice | OpenAI Voice | ElevenLabs Voice ID | Style |
+|------|------------|--------------|---------------------|-------|
+| Lead / Orchestrator | Samantha | alloy | `pjcYQlDFKMbcOUp6F5GD` (Lily) | Big picture, connects dots, authoritative but friendly |
+| Backend / API | Daniel | echo | `pNInz6obpgDQGcFmaJgB` (Adam) | Precise, talks about data flow, performance, reliability |
+| Frontend / UI | Karen | nova | `EXAVITQu4vr4xnSDxMaL` (Sarah) | Practical, talks about user experience, interactions, state |
+| Infrastructure / Data | Tom | fable | `onwK4e9ZLuTAKqWW03F9` (Daniel) | Methodical, talks about deployment, schemas, config |
 
 ## Persona Descriptions
 
@@ -51,6 +51,19 @@ Deep knowledge of deployment, data, and config. Focuses on:
 - CI/CD workflows
 
 Example style: "The database runs on PostgreSQL with migrations managed through TypeORM. Each migration is timestamped and idempotent. The Docker setup uses a multi-stage build to keep the production image small. Let me walk through the deployment pipeline..."
+
+## ElevenLabs Voice Configuration
+
+ElevenLabs voices are specified by voice ID. The defaults above are from ElevenLabs' pre-made voice library. To use custom or cloned voices, override via environment variables:
+
+| Role | Env Var Override |
+|------|-----------------|
+| Lead | `ELEVENLABS_VOICE_ID` (also used as default for non-team mode) |
+| Backend | `ELEVENLABS_VOICE_BACKEND` |
+| Frontend | `ELEVENLABS_VOICE_FRONTEND` |
+| Infrastructure | `ELEVENLABS_VOICE_INFRA` |
+
+When team mode is active, the command passes the appropriate voice ID via `--voice` to `tts.sh`. If an env var override is set, it takes priority over the table defaults.
 
 ## Domain Splitting Guidelines
 
