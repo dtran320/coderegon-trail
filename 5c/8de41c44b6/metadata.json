@@ -1,0 +1,34 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "5c8de41c44b6",
+  "strategy": "manual-commit",
+  "branch": "oregon-trail",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".claude/commands/fly-visual.md",
+    ".diff-review/trail-openclaw.html",
+    "agents/trail-data-extractor.md",
+    "commands/fly-visual.md",
+    "scripts/open-viz.sh",
+    "skills/visualization/SKILL.md",
+    "skills/visualization/references/framework-trails.md",
+    "skills/visualization/references/oregon-trail.md",
+    "skills/visualization/references/pixel-art-style.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/5c/8de41c44b6/0/metadata.json",
+      "transcript": "/5c/8de41c44b6/0/full.jsonl",
+      "context": "/5c/8de41c44b6/0/context.md",
+      "content_hash": "/5c/8de41c44b6/0/content_hash.txt",
+      "prompt": "/5c/8de41c44b6/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 45652,
+    "cache_read_tokens": 1064951,
+    "output_tokens": 4755,
+    "api_call_count": 16
+  }
+}
