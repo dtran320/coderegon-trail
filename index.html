@@ -1319,11 +1319,11 @@ function renderDeathScreen() {
   var deathMsg;
   if (techDebtDeath) {
     var techDebtMsgs = [
-      'You have died of tech debt.',
-      'You have died of refactoring dysentery.',
-      'You have died of unresolved TODOs.',
-      'You have died of scope creep.',
-      'You have died of dependency bloat.',
+      'You have died of tech debt dysentery.',
+      // 'You have died of refactoring dysentery.',
+      // 'You have died of unresolved TODOs.',
+      // 'You have died of scope creep.',
+      // 'You have died of dependency bloat.',
     ];
     deathMsg = techDebtMsgs[Math.floor(Math.random() * techDebtMsgs.length)];
     techDebtDeath = false;
@@ -1408,7 +1408,7 @@ function renderStatusBar() {
     var titleMusic = musicPlaying
       ? 'Music: <span style="color:#55FF55;">On</span> <span style="color:#555555;">(M to toggle off)</span>'
       : 'Music: <span style="color:#FF5555;">Off</span> <span style="color:#555555;">(M to toggle on)</span>';
-    statusBar.innerHTML = '<span style="color:#555555;">The O\\'Reorg Trail v1.0</span>  |  ' + titleMusic;
+    statusBar.innerHTML = '<span style="color:#555555;">The O\x27Reorg Trail v1.0</span>  |  ' + titleMusic;
     return;
   }
 
