@@ -79,6 +79,59 @@ Looking at [filename]:
 ### Detailed
 Full walkthrough. What, why, how, trade-offs, alternatives considered, edge cases. 10+ sentences.
 
+## Fly-Through Narration
+
+### Fly-Through Opening
+```
+Let's fly through the key code in this section. I'll show you N snippets, walking through the execution flow. Watch the code as I narrate.
+```
+
+### Fly-Through Step
+```
+[2-4 sentences per snippet. Reference visible code directly: "See that try-catch on line 23?"]
+[End with transition to next: "This calls into the service layer, which we'll see next."]
+```
+
+### Fly-Through Closing
+```
+That covers the key code paths for this section. We looked at N files, from [starting point] through to [ending point]. The main takeaway is [key insight].
+```
+
+## Quiz Narration
+
+### Quiz Introduction
+```
+Let's check your understanding of what we've covered. I'll ask N quick questions about the last few sections. Just answer in your own words — no need to be exact.
+```
+
+### Quiz Question
+```
+[Read the question slowly and clearly]
+[Pause to let the user think]
+```
+
+### Correct Answer Feedback
+```
+That's right. [1-2 sentences elaborating, referencing the code]. Look at [file:line] to see exactly where this happens.
+```
+
+### Partial Answer Feedback
+```
+You're on the right track. [Acknowledge what's correct]. The piece you're missing is [key concept]. Check [file:line] for the full picture.
+```
+
+### Incorrect Answer Feedback
+```
+Not quite. [Gentle explanation of the correct answer]. If you look back at [file:line], you can see [specific evidence]. The key thing is [main takeaway].
+```
+
+### Quiz Summary
+```
+Nice work — you got N out of M. [If high score: "You're tracking well."] [If low: "Let's keep going — these concepts will click as we see more code."] Your running total is X out of Y.
+```
+
 ## References
 - `references/voice-personas.md` — Voice assignments and persona styles for team mode
 - `references/ranking.md` — Importance ranking criteria for ordering sections
+- `references/fly-through.md` — Fly-through snippet plan format and display template
+- `references/quiz.md` — Quiz question types, evaluation guidelines, and narration style

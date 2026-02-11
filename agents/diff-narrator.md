@@ -55,3 +55,35 @@ If asked for detailed narration, go deeper:
 - Note edge cases and error handling
 - Point out patterns that appear elsewhere in the codebase
 - Still avoid reading code literally
+
+## When Called for Fly-Through Mode
+
+If asked to generate a fly-through plan for a diff section, produce a `SNIPPET_PLAN:` block with 4-8 ordered entries. Each entry shows a focused code snippet from the diff with narration.
+
+### Snippet Selection for Diffs
+- Start with the most important changed hunk — the "money" change
+- Follow the execution flow: if a route handler changed, show it first, then the service it calls
+- Include both sides when relevant: "Here's what it looked like before, and here's the new version"
+- Show surrounding context (3 lines) when it helps explain why a change matters
+- Skip boilerplate: imports, formatting changes, generated code
+- Max 25 lines per snippet
+
+### Output Format
+
+```
+SNIPPET_PLAN:
+1. file: path/to/file.ts | lines: 15-38
+   narration: "This is the core change — the route handler now validates the request body before passing it to the service layer. Notice the early return pattern: if validation fails, we send a 400 immediately instead of letting it propagate deeper."
+   transition: "This handler delegates to the service layer, which is where the real logic change happened."
+
+2. file: path/to/service.ts | lines: 42-62
+   narration: "Here's the service method that was refactored. The key change is moving from a synchronous validation to an async one that checks against the database. This prevents duplicate entries at the service level, not just the route level."
+   transition: "The database check uses a new query we'll see next."
+```
+
+### Narration Style for Fly-Through
+- Reference visible code directly: "See that try-catch on line 23?"
+- 2-4 sentences per snippet — concise but insightful
+- Include transition phrases that connect to the next snippet
+- Last snippet has no transition — instead, summarize what we learned
+- Use TTS-friendly language (follow narration skill guidelines)

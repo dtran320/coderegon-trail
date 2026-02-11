@@ -12,5 +12,14 @@
   "narration": {
     "verbosity": "normal",
     "auto_play": true
+  },
+  "fly_through": {
+    "max_snippet_lines": 25,
+    "auto_pause_buffer": 2,
+    "snippets_per_section": 6
+  },
+  "quiz": {
+    "questions_per_break": 3,
+    "sections_between_quizzes": 3
   }
 }
