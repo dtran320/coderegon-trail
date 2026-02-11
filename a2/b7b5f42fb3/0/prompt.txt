@@ -1,0 +1,1639 @@
+[Request interrupted by user for tool use]
+
+---
+
+Implement the following plan:
+
+# Plan: Oregon Code Trail — Retro Framework Learning Game
+
+## Context
+
+The diff-pair-review plugin has terminal-based fly-through and quizzes. The next evolution: a **retro pixel art Oregon Trail-style game** where you "travel" the request pipeline of a web framework. Each stop on the trail reveals actual code, random events test your understanding, and party members represent concepts you've mastered. Generated as a self-contained HTML file via `@frontend-design`, opened in the browser.
+
+*"You have died of unhandled exceptions."*
+
+---
+
+## Game Design
+
+### Core Loop
+
+```
+Title Screen → Pick Framework (wagon) → Name Party (concepts)
+  ↓
+TRAIL: Stop 1 → Event → Stop 2 → Event → River Crossing → ...
+  ↓
+Each stop: See code snippet → Narration text → Face event/quiz
+  ↓
+Arrive at Response Frontier (win) or die (score too low)
+  ↓
+Score Card → Hall of Fame
+```
+
+### The Trail = The Request Pipeline
+
+Each framework has its own trail with ~8 stops. The trail IS the request lifecycle:
+
+**Next.js — "The App Router Trail"**
+```
+Independence, MO     → Middleware Pass        → File Router Fork
+  ↓                       ↓                        ↓
+Layout Nesting Camp  → Server Component Ridge → Client Hydration Falls
+  ↓                       ↓                        ↓
+Data Fetching Gorge  → Response Frontier (Oregon City!)
+```
+
+**Ruby on Rails — "The Convention Trail"**
+```
+Rack Junction        → Router Pass            → Controller Canyon
+  ↓                       ↓                        ↓
+Model Meadows        → View Valley             → ERB Rendering Post
+  ↓                       ↓                        ↓
+Response River       → Response Frontier
+```
+
+**Django — "The WSGI Wagon Trail"**
+```
+WSGI Outpost         → Middleware Mountains    → URLconf Crossroads
+  ↓                       ↓                        ↓
+View Vista           → ORM Oasis              → Template Territory
+  ↓                       ↓                        ↓
+Context Canyon       → Response Frontier
+```
+
+**Express.js — "The Middleware Prairie"**
+```
+Server Startup Camp  → Body Parser Bridge     → CORS Crossing
+  ↓                       ↓                        ↓
+Auth Checkpoint      → Route Matching Mesa     → Controller Gulch
+  ↓                       ↓                        ↓
+Service Springs      → JSON Response Frontier
+```
+
+**React/Vite — "The Component Canyon"**
+```
+Index.html Outpost   → Main.jsx Junction      → App Component Fort
+  ↓                       ↓                        ↓
+Router Rapids        → Page Component Pass     → Hooks Hollow
+  ↓                       ↓                        ↓
+State Update Gorge   → Re-render Frontier
+```
+
+**Laravel — "The Artisan Trail"**
+```
+Bootstrap Base       → Service Provider Pass  → Middleware Mountains
+  ↓                       ↓                        ↓
+Router Ravine        → Controller Canyon       → Eloquent Oasis
+  ↓                       ↓                        ↓
+Blade Valley         → Response Frontier
+```
+
+### Party Members = Framework Concepts
+
+You start by naming 4 party members, each representing a concept you'll learn:
+
+| Framework | Party Members |
+|-----------|--------------|
+| Next.js | Server Components, File Router, Layouts, Data Fetching |
+| Rails | ActiveRecord, Convention Routing, ERB Templates, Migrations |
+| Django | ORM QuerySets, URL Patterns, Template Inheritance, Admin Panel |
+| Express | Middleware Chain, Route Handlers, Error Handling, Async Patterns |
+| React | Component Tree, Hooks, State Management, Effect Lifecycle |
+| Laravel | Eloquent ORM, Blade Templates, Service Container, Artisan CLI |
+
+Party members can get "sick" (you got a question wrong about them) or "die" (failed multiple questions). If all die, game over.
+
+### Resources
+
+| Resource | Real Meaning | Depletes When... |
+|----------|-------------|------------------|
+| Health | Quiz score | Wrong answers |
+| Supplies | Hints remaining | Using hints |
+| Pace | Depth of explanation | Choosing "hurry" skips code details |
+| Morale | Streak bonus | Wrong answers reset streak |
+
+### Events (Quiz-Framed Decisions)
+
+Events appear between stops. They're quiz questions disguised as trail decisions:
+
+**Weather Events (Architecture Questions):**
+- "A storm is coming — your middleware is throwing unhandled errors! Do you: (A) Add try-catch to each handler, (B) Use a global error middleware, (C) Ignore it and hope for clear skies"
+- "Dense fog ahead — you can't see how the request reaches the controller. Trace the path: (A) Router → Middleware → Controller, (B) Middleware → Router → Controller, (C) Controller → Router → Middleware"
+
+**River Crossings (Major Boundaries):**
+- "The Database River is ahead. Do you: (A) Ford it with raw SQL, (B) Take the ferry — use the ORM, (C) Hire a guide — use a migration"
+- "The Client-Server River. Do you: (A) Send everything to the client (CSR), (B) Render on the server first (SSR), (C) Use a bridge — server components with client hydration"
+
+**Encounters (Pattern Discovery):**
+- "You've found an abandoned campsite with a well-organized codebase. Examine it?" → Shows actual code from the framework's canonical structure
+- "A fellow traveler shares a secret: 'In Rails, if you name your controller UsersController, the routes write themselves.' (A) That's convention over configuration! (B) That's dependency injection. (C) That's middleware."
+
+**Misfortune Events (Anti-Pattern Awareness):**
+- "Bandits stole your session tokens! How do you protect them? (A) Store in httpOnly cookies, (B) Store in localStorage, (C) Send in URL parameters"
+- "Your wagon wheel (dependency) broke! Package X has a critical vulnerability. Do you: (A) Pin to a safe version, (B) Remove the dependency, (C) Ignore the advisory"
+
+**Fortune Events (Best Practice Rewards):**
+- "You found a spring of clean code! +20 health" (shown after a correct answer streak)
+- "A group of friendly developers join your party. You learned about [new pattern]!"
+
+### Death Messages
+
+The best part. Framework-specific tombstones:
+
+- *"Here lies your app. It died of unhandled promise rejections."*
+- *"Drowned trying to ford the database migration river."*
+- *"Lost in the middleware — never found the route handler."*
+- *"Died of dysentery... er, dependency conflicts."*
+- *"Starved waiting for the API response. No timeout configured."*
+- *"Killed by a wild NullPointerException. No optional chaining equipped."*
+- *"Your session expired of old age."*
+- *"The N+1 query problem consumed all your resources."*
+
+### Win Screen
+
+```
+╔══════════════════════════════════════════╗
+║  🎉 YOU MADE IT TO RESPONSE FRONTIER!  ║
+╠══════════════════════════════════════════╣
+║                                          ║
+║  Framework: Next.js (App Router Trail)   ║
+║  Party Survivors: 3/4                    ║
+║    ✓ Server Components (healthy)         ║
+║    ✓ File Router (healthy)               ║
+║    ✓ Layouts (minor illness)             ║
+║    ✗ Data Fetching (died at ORM Oasis)   ║
+║                                          ║
+║  Quiz Score: 14/18 (78%)                 ║
+║  Hints Used: 3                           ║
+║  Streak Best: 5 in a row                 ║
+║                                          ║
+║  Concepts Mastered:                      ║
+║    ★★★ Middleware pipeline               ║
+║    ★★★ File-system routing               ║
+║    ★★☆ Server vs Client components       ║
+║    ★☆☆ Data fetching patterns            ║
+║                                          ║
+║  "Study up on data fetching — your       ║
+║   party member didn't survive!"          ║
+╚══════════════════════════════════════════╝
+```
+
+---
+
+## Pixel Art Aesthetic
+
+### Visual Elements
+- **Wagon**: Pixel art wagon with the framework's logo as a flag
+- **Landscape**: Scrolling 8-bit terrain — prairies, mountains, rivers, forests
+- **Sky**: Day/night cycle as you progress through the trail
+- **Text**: Green phosphor terminal font for code snippets, pixel font for dialog
+- **Characters**: 16x16 pixel portraits for party members
+- **CRT effect**: Optional scanline overlay for full nostalgia
+- **Sound**: Web Audio API beeps and boops (optional, toggle-able)
+
+### Screen Layout
+```
+┌─────────────────────────────────────────────────┐
+│  ☀️  ⛰️⛰️    🌲🌲    🏔️        Day 3 / Stop 4  │  ← scrolling landscape
+│     🐂🐂━[🚗]━━━━━━━━━━━━━━━━━━━━               │  ← wagon on trail
+│  🌲   🌲🌲     🌲  🌲🌲🌲   🌲🌲                │
+├─────────────────────────────────────────────────┤
+│  ┌─────────────────────────────────────────┐    │
+│  │ // app/routes/users.ts:15-38            │    │  ← code panel (when at stop)
+│  │ export async function GET(request) {    │    │
+│  │   const users = await db.user.findMany()│    │
+│  │   return NextResponse.json(users)       │    │
+│  │ }                                       │    │
+│  └─────────────────────────────────────────┘    │
+├─────────────────────────────────────────────────┤
+│  💬 "This route handler fetches all users       │  ← narration / event text
+│      from the database. Notice how Next.js      │
+│      convention: the function name IS the        │
+│      HTTP method."                               │
+│                                                  │
+│  What do you do?                                 │
+│  [A] Continue on the trail                       │  ← choices
+│  [B] Examine the route handler more closely      │
+│  [C] Ask about why GET is exported by name       │
+├─────────────────────────────────────────────────┤
+│ Health: ████████░░ 80  Supplies: 5  Morale: ★★★ │  ← status bar
+│ Party: ServerComp ✓  FileRouter ✓  Layouts ✓     │
+└─────────────────────────────────────────────────┘
+```
+
+---
+
+## Technical Architecture
+
+### New Files
+
+```
+commands/
+  fly-visual.md                  NEW — /fly-visual command
+
+agents/
+  trail-data-extractor.md        NEW — Analyzes repo, extracts framework trail data
+
+skills/visualization/
+  SKILL.md                       NEW — HTML game generation guidelines
+  references/
+    oregon-trail.md              NEW — Game mechanics, events, scoring rules
+    framework-trails.md          NEW — Per-framework trail stops + events + quiz questions
+    pixel-art-style.md           NEW — Visual style guide, color palette, layout specs
+
+scripts/
+  open-viz.sh                    NEW — Write HTML file + open in browser
+```
+
+### Key Existing Files (reference, not modified in Phase 1)
+- `agents/quiz-generator.md` — can be extended to generate trail events
+- `agents/codebase-narrator.md` — provides framework analysis data
+- `skills/narration/references/quiz.md` — quiz question format (reuse)
+- `config/tts.json` — could add `visualization` config section
+
+### How It Works
+
+```
+User: /fly-visual rails
+  ↓
+1. Command parses framework arg (or auto-detects from repo)
+  ↓
+2. Spawn trail-data-extractor agent (subagent_type: general-purpose)
+   → Analyzes repo: detects framework, maps key files to trail stops
+   → For real repos: extracts actual code snippets for each stop
+   → For canonical mode: uses pre-built framework trail data
+   → Returns: { framework, stops[], events[], partyMembers[], codeSnippets[] }
+  ↓
+3. Generate quiz/event questions for each stop
+   → Reuse quiz-generator agent or embed in trail-data-extractor
+  ↓
+4. Call @frontend-design to generate the HTML game
+   → Input: trail data JSON + game template specs
+   → Output: self-contained HTML file (~2000-3000 lines)
+   → Includes: Canvas rendering, game state machine, pixel art, quiz logic
+  ↓
+5. Write to .diff-review/trail-{framework}-{timestamp}.html
+  ↓
+6. Open in browser: open .diff-review/trail-*.html
+  ↓
+7. TTS: "I've opened the Oregon Code Trail in your browser. Happy trails!"
+  ↓
+8. Terminal: "Trail is open in your browser. Type 'done' when finished."
+```
+
+### HTML Game Architecture (single file)
+
+```javascript
+// Game state machine
+const STATES = { TITLE, SETUP, TRAVEL, STOP, EVENT, QUIZ, RIVER, DEATH, WIN };
+
+// Trail data (injected by the agent)
+const TRAIL = {
+  framework: "rails",
+  stops: [
+    { name: "Rack Junction", code: "...", file: "config.ru", lines: "1-15", narration: "..." },
+    ...
+  ],
+  events: [
+    { type: "weather", text: "...", choices: [...], correct: 0, explanation: "..." },
+    ...
+  ],
+  partyMembers: ["ActiveRecord", "Convention Routing", "ERB Templates", "Migrations"]
+};
+
+// Canvas rendering (pixel art)
+// - Scrolling landscape generator (procedural from trail position)
+// - Wagon sprite animation
+// - Text rendering with pixel font
+// - Code panel with syntax highlighting (basic keyword coloring)
+// - CRT scanline overlay (CSS filter)
+
+// Game loop
+// - requestAnimationFrame for smooth scrolling
+// - Click/keyboard handlers for choices
+// - Score tracking in localStorage (optional)
+```
+
+---
+
+## Implementation Phases
+
+### Phase 1: Core Game + One Framework
+1. `skills/visualization/SKILL.md` — game generation guidelines for @frontend-design
+2. `skills/visualization/references/oregon-trail.md` — complete game mechanics spec
+3. `skills/visualization/references/pixel-art-style.md` — visual style guide
+4. `skills/visualization/references/framework-trails.md` — trail data for **Next.js** (first framework)
+5. `agents/trail-data-extractor.md` — framework detection + trail data extraction
+6. `scripts/open-viz.sh` — HTML writer + browser opener
+7. `commands/fly-visual.md` — the `/fly-visual` command
+8. **Generate the first game** — Next.js Oregon Code Trail via @frontend-design
+
+### Phase 2: More Frameworks
+9. Add Rails trail to `framework-trails.md`
+10. Add Django trail
+11. Add Express trail
+12. Add React/Vite trail
+13. Add Laravel trail
+
+### Phase 3: Real Repo Mode
+14. Extend `trail-data-extractor.md` to analyze actual repos (not just canonical)
+15. Map real files → trail stops with actual code snippets
+16. Generate quiz questions from real code
+
+### Phase 4: Polish
+17. Sound effects (Web Audio API beeps)
+18. CRT scanline toggle
+19. High score localStorage persistence
+20. `CLAUDE.md` update
+
+---
+
+## Verification
+
+1. Run `/fly-visual next` → browser opens with pixel art Oregon Trail game
+2. Pick party members → see framework concepts as party names
+3. Travel between stops → see scrolling landscape + code panels
+4. Face events → answer framework quiz questions in trail-event format
+5. Cross a river → answer a major architectural question
+6. Win or die → see score card with concept mastery breakdown
+7. Funny death message if you fail
+8. Try `/fly-visual rails` → different trail, different events, different aesthetic details
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/flowclub/.REDACTED.jsonl
+
+If this plan can be broken down into multiple independent tasks, consider using the TeamCreate tool to create a team and parallelize the work.
+
+---
+
+Can we overfit an example to this repo? https://github.com/openclaw/openclaw It uses typescript primarily with some swift and kotlin. It looks like it has a gateway, remote access, web interfaces, and security
+
+---
+
+Great, how do we run it as a command in the repo?
+
+---
+
+How did we map that data
+
+---
+
+Unknown skill: fly-visual
+
+---
+
+how do we install the skill
+
+---
+
+option a for now
+
+---
+
+Commit and push this code, and if we're on a feature branch and there's not already a PR against dev, create one. If we're on the default (main or dev) branch, ask for confirmation before pushing:
+
+---
+
+# Fly Visual — Oregon Code Trail Game
+
+You generate and launch a retro pixel art Oregon Trail-style game that teaches a web framework's request pipeline. The game is a self-contained HTML file opened in the browser.
+
+**User input:** "openclaw"
+
+Use the `visualization` skill for game generation guidelines. Follow the trail data in `skills/visualization/references/framework-trails.md`.
+
+## Step 1: Parse Arguments and Determine Framework
+
+Parse the user's input to determine which framework trail to generate:
+
+| Input | Framework | Trail Name |
+|-------|-----------|------------|
+| `next`, `nextjs`, `next.js` | Next.js | The App Router Trail |
+| `rails`, `ruby`, `ror` | Rails | The Convention Trail |
+| `django`, `python` | Django | The WSGI Wagon Trail |
+| `express`, `node` | Express.js | The Middleware Prairie |
+| `react`, `vite` | React/Vite | The Component Canyon |
+| `laravel`, `php` | Laravel | The Artisan Trail |
+| `openclaw`, `claw`, `gateway` | OpenClaw | The Gateway Trail |
+| (empty) | Auto-detect | Analyze current repo |
+
+### Auto-Detection (if no framework specified)
+Spawn a `trail-data-extractor` agent (via Task tool, subagent_type: general-purpose) to detect the framework from the current repository. If detection confidence is low, ask the user to specify.
+
+## Step 2: Extract Trail Data
+
+### For Canonical Trails (framework specified by name)
+1. Read `skills/visualization/references/framework-trails.md`
+2. Extract the trail data for the specified framework
+3. Format it as the TRAIL_DATA JSON structure defined in the visualization skill
+
+### For Repo Analysis (auto-detected or Phase 3)
+1. Spawn a `trail-data-extractor` agent (via Task tool, subagent_type: general-purpose)
+2. Agent analyzes the repo and returns a TRAIL_DATA JSON block
+3. Parse the returned JSON
+
+## Step 3: Generate the HTML Game
+
+Use the `frontend-design` skill (via Skill tool) to generate the complete HTML game file.
+
+Provide the frontend-design skill with these instructions:
+
+---
+
+**Generate a self-contained HTML file for the Oregon Code Trail game.**
+
+### Game Requirements
+
+1. **Single HTML file** — all CSS, JavaScript, and game data inline. No external dependencies.
+2. **Canvas + DOM hybrid** — use Canvas for the scrolling landscape and wagon animation, DOM for UI panels (code display, narration, choices, status bar).
+3. **Game state machine** — implement states: TITLE, SETUP, TRAVEL, STOP, EVENT, RIVER, DEATH, WIN
+4. **Pixel art aesthetic** — follow the style guide in the visualization skill references
+
+### Trail Data
+
+Embed this trail data as a JavaScript constant:
+
+```javascript
+const TRAIL_DATA = {TRAIL_DATA_JSON};
+```
+
+### Screen Layout
+
+```
+┌─────────────────────────────────────────────┐
+│  Scrolling landscape with parallax          │  40% height — Canvas
+│  Mountains (0.3x) → Trees (0.6x) → Ground  │
+│  Wagon centered on trail                    │
+├─────────────────────────────────────────────┤
+│  Code panel OR narration OR event choices   │  45% height — DOM
+├─────────────────────────────────────────────┤
+│  Health bar | Supplies | Morale | Party     │  15% height — DOM
+│  Stop N of M — Current Stop Name            │
+└─────────────────────────────────────────────┘
+```
+
+### Game Flow Implementation
+
+**Title Screen:**
+- "OREGON CODE TRAIL" in pixel-style text (bold monospace, letter-spacing)
+- Framework trail name as subtitle
+- Scrolling landscape animation behind title
+- "Click to begin" prompt
+
+**Setup Phase:**
+- Show 4 party members with their concept names
+- Each has a pixel portrait (simple colored square icons)
+- Player can rename (optional) or keep default names
+- Difficulty selection: Settler / Adventurer / Trail Blazer
+- "Hit the trail!" button
+
+**Travel Animation:**
+- Wagon scrolls across landscape (2-3 seconds)
+- Parallax scrolling: 3 layers at different speeds
+- Day counter and progress indicator update
+- Random travel flavor text
+
+**Stop Phase:**
+- Arrival banner with stop name
+- Code panel: dark background, monospace, syntax-highlighted
+- Basic syntax highlighting: keywords (pink), strings (yellow), comments (blue-grey)
+- File path header above code
+- Narration text below code in styled panel
+- Three interaction choices: Continue / Examine / Ask about...
+
+**Event Phase:**
+- Gold-bordered event panel
+- Event title and narrative text
+- 3 choice buttons (A, B, C style)
+- On answer: green/red flash, explanation text, health/party updates
+- Smooth transitions between states
+
+**River Crossing (special event):**
+- Animated river in the landscape
+- Higher-stakes presentation (dramatic text)
+- Same choice mechanic but with more dramatic feedback
+
+**Death Screen:**
+- Dark overlay fade
+- Pixel tombstone (drawn with CSS box-shadow or canvas)
+- Death message typewriter animation
+- Score summary (partial)
+- "Click to try again"
+
+**Win Screen:**
+- Celebration (CSS confetti/sparkle animation)
+- Full score card with stats
+- Concept mastery breakdown (stars)
+- Personalized study recommendation
+- "Play again" button
+
+### Canvas Rendering
+
+Draw these procedurally (no images):
+- **Sky**: linear gradient, changes with progress (dawn → day → sunset → night)
+- **Mountains**: triangle shapes at varying sizes, parallax layer
+- **Trees**: simple triangle-on-rectangle pine trees, scattered
+- **Ground**: brown trail strip with green grass
+- **Wagon**: rectangle body, circle wheels, triangle canvas top, small flag
+- **River**: animated blue band with sine-wave edges (for river crossings)
+
+### Syntax Highlighting
+
+Simple regex-based highlighting for the code panel:
+```javascript
+function highlight(code, language) {
+  // Keywords: pink (#ff79c6)
+  // Strings: yellow (#f1fa8c)
+  // Comments: muted blue (#6272a4)
+  // Numbers: purple (#bd93f9)
+  // Default: off-white (#f8f8f2)
+}
+```
+
+Support: `typescript`, `ruby`, `python`, `javascript`, `php`
+
+### Status Bar
+
+- Health bar: colored fill (green > yellow > red based on level)
+- Supplies count with icon
+- Morale stars (★)
+- Party member names with health indicators (green/yellow/red/grey+strikethrough)
+- Progress: "Stop N of M — [stop name]"
+
+### Scoring Logic
+
+- Correct answer: +10 health, +1 morale streak
+- Wrong answer: -15 health, reset streak, damage to related party member
+- Hint used: -1 supply
+- Streak of 3+: +5 bonus health per correct
+- Party member: 3 HP each, 0 = dead
+
+### Keyboard Support
+
+- `1`, `2`, `3` or `A`, `B`, `C` to select choices
+- `Enter` or `Space` to continue/advance
+- `H` for hint (costs 1 supply)
+- `M` to toggle sound
+- `Escape` to pause
+
+### Size Target
+
+2000-3000 lines. Prioritize:
+1. Complete game loop (all states work)
+2. Canvas landscape with parallax scrolling
+3. Code display with syntax highlighting
+4. Quiz/event mechanics with scoring
+5. Polish (animations, sound, CRT toggle)
+
+---
+
+## Step 4: Write and Open the Game
+
+1. Take the generated HTML content
+2. Write it to a file using the open-viz script:
+   ```
+   Bash: echo '{HTML_CONTENT}' | ${CLAUDE_PLUGIN_ROOT}/scripts/open-viz.sh --filename "trail-{framework}-{timestamp}.html"
+   ```
+
+   Or write the file directly, then open:
+   ```
+   Write tool → .diff-review/trail-{framework}.html
+   Bash: open .diff-review/trail-{framework}.html
+   ```
+
+3. Trigger TTS announcement:
+   ```
+   Bash: ${CLAUDE_PLUGIN_ROOT}/scripts/tts.sh "I've opened the Oregon Code Trail in your browser. You're about to travel the {trail name}. Happy trails, partner."
+   ```
+
+## Step 5: Terminal Feedback
+
+Display in the terminal:
+
+```
+================================================================
+  OREGON CODE TRAIL — {Trail Name}
+================================================================
+
+Game opened in your browser!
+
+Framework:  {Framework Name}
+Trail:      {Trail Name}
+Stops:      {N} stops along the request pipeline
+Events:     {N} quiz events
+
+Party Members:
+  1. {concept 1}
+  2. {concept 2}
+  3. {concept 3}
+  4. {concept 4}
+
+Type 'done' when you've finished the trail.
+================================================================
+```
+
+Then wait for the user to type `done` to end the session.
+
+## Error Handling
+
+- If framework is not supported yet (Phase 2 frameworks without trail data), say: "The {framework} trail is coming soon! Currently available: Next.js, OpenClaw. Try `/fly-visual next` or `/fly-visual openclaw`."
+- If auto-detection fails, list available frameworks and ask user to pick.
+- If HTML generation fails, show error and suggest retrying with a specific framework.
+
+---
+
+Base directory for this skill: /Users/flowclub/.claude/plugins/cache/claude-code-plugins/frontend-design/1.0.0/skills/frontend-design
+
+This skill guides creation of distinctive, production-grade frontend interfaces that avoid generic "AI slop" aesthetics. Implement real working code with exceptional attention to aesthetic details and creative choices.
+
+The user provides frontend requirements: a component, page, application, or interface to build. They may include context about the purpose, audience, or technical constraints.
+
+## Design Thinking
+
+Before coding, understand the context and commit to a BOLD aesthetic direction:
+- **Purpose**: What problem does this interface solve? Who uses it?
+- **Tone**: Pick an extreme: brutally minimal, maximalist chaos, retro-futuristic, organic/natural, luxury/refined, playful/toy-like, editorial/magazine, brutalist/raw, art deco/geometric, soft/pastel, industrial/utilitarian, etc. There are so many flavors to choose from. Use these for inspiration but design one that is true to the aesthetic direction.
+- **Constraints**: Technical requirements (framework, performance, accessibility).
+- **Differentiation**: What makes this UNFORGETTABLE? What's the one thing someone will remember?
+
+**CRITICAL**: Choose a clear conceptual direction and execute it with precision. Bold maximalism and refined minimalism both work - the key is intentionality, not intensity.
+
+Then implement working code (HTML/CSS/JS, React, Vue, etc.) that is:
+- Production-grade and functional
+- Visually striking and memorable
+- Cohesive with a clear aesthetic point-of-view
+- Meticulously refined in every detail
+
+## Frontend Aesthetics Guidelines
+
+Focus on:
+- **Typography**: Choose fonts that are beautiful, unique, and interesting. Avoid generic fonts like Arial and Inter; opt instead for distinctive choices that elevate the frontend's aesthetics; unexpected, characterful font choices. Pair a distinctive display font with a refined body font.
+- **Color & Theme**: Commit to a cohesive aesthetic. Use CSS variables for consistency. Dominant colors with sharp accents outperform timid, evenly-distributed palettes.
+- **Motion**: Use animations for effects and micro-interactions. Prioritize CSS-only solutions for HTML. Use Motion library for React when available. Focus on high-impact moments: one well-orchestrated page load with staggered reveals (animation-delay) creates more delight than scattered micro-interactions. Use scroll-triggering and hover states that surprise.
+- **Spatial Composition**: Unexpected layouts. Asymmetry. Overlap. Diagonal flow. Grid-breaking elements. Generous negative space OR controlled density.
+- **Backgrounds & Visual Details**: Create atmosphere and depth rather than defaulting to solid colors. Add contextual effects and textures that match the overall aesthetic. Apply creative forms like gradient meshes, noise textures, geometric patterns, layered transparencies, dramatic shadows, decorative borders, custom cursors, and grain overlays.
+
+NEVER use generic AI-generated aesthetics like overused font families (Inter, Roboto, Arial, system fonts), cliched color schemes (particularly purple gradients on white backgrounds), predictable layouts and component patterns, and cookie-cutter design that lacks context-specific character.
+
+Interpret creatively and make unexpected choices that feel genuinely designed for the context. No design should be the same. Vary between light and dark themes, different fonts, different aesthetics. NEVER converge on common choices (Space Grotesk, for example) across generations.
+
+**IMPORTANT**: Match implementation complexity to the aesthetic vision. Maximalist designs need elaborate code with extensive animations and effects. Minimalist or refined designs need restraint, precision, and careful attention to spacing, typography, and subtle details. Elegance comes from executing the vision well.
+
+Remember: Claude is capable of extraordinary creative work. Don't hold back, show what can truly be created when thinking outside the box and committing fully to a distinctive vision.
+
+ARGUMENTS: Generate a self-contained HTML file for the Oregon Code Trail game — a retro pixel art Oregon Trail-style game that teaches the OpenClaw gateway architecture by walking through its message pipeline.
+
+## CRITICAL REQUIREMENTS
+
+1. **Single HTML file** — all CSS, JavaScript, and game data inline. No external dependencies, no CDN links, no imports.
+2. **Canvas + DOM hybrid** — Canvas for scrolling landscape/wagon animation, DOM elements for UI panels (code, narration, choices, status bar).
+3. **Game state machine** with states: TITLE, SETUP, TRAVEL, STOP, EVENT, RIVER, DEATH, WIN
+4. **Actually playable** — complete game loop from title screen through win/death
+
+## TRAIL DATA
+
+Embed this as a JavaScript constant:
+
+```javascript
+const TRAIL_DATA = {
+  framework: "openclaw",
+  trailName: "The Gateway Trail",
+  accentColor: "#6366f1",
+  stops: [
+    {
+      name: "Channel Outpost",
+      subtitle: "Message Arrives",
+      concept: "Channel Plugins",
+      landmarkType: "town",
+      code: {
+        file: "extensions/whatsapp/src/plugin.ts",
+        startLine: 1,
+        endLine: 35,
+        content: `// extensions/whatsapp/src/plugin.ts (conceptual)\nimport { ChannelPlugin } from '@openclaw/types'\n\nexport const whatsappPlugin: ChannelPlugin = {\n  config: {\n    listAccountIds(cfg) {\n      return cfg.whatsapp?.accounts?.map(a => a.id) ?? []\n    },\n    async isConfigured(account) {\n      return !!account.phoneNumber\n    },\n    resolveAccount(cfg, id) {\n      return cfg.whatsapp.accounts.find(a => a.id === id)\n    },\n  },\n  gateway: {\n    async startAccount({ account, gateway }) {\n      // Connect to WhatsApp Web via Baileys\n      const sock = makeWASocket({ auth: account.auth })\n      sock.ev.on('messages.upsert', async ({ messages }) => {\n        for (const msg of messages) {\n          await gateway.handleInbound({\n            channel: 'whatsapp',\n            peer: msg.key.remoteJid,\n            text: msg.message?.conversation,\n            accountId: account.id,\n          })\n        }\n      })\n    },\n    async stopAccount({ account }) {\n      // Graceful disconnect\n    },\n  },\n}`,
+        language: "typescript"
+      },
+      narration: "Every journey starts at a channel outpost. OpenClaw connects to thirteen different messaging platforms \u2014 WhatsApp, Telegram, Slack, Discord, Signal, iMessage, and more. Each platform has a channel plugin that follows the same interface. Here's the WhatsApp plugin using Baileys to listen for messages. When a message arrives, it normalizes it into a common format \u2014 peer, channel, text \u2014 and hands it to the gateway."
+    },
+    {
+      name: "Normalization Pass",
+      subtitle: "Common Message Format",
+      concept: "Channel Plugins",
+      landmarkType: "camp",
+      code: {
+        file: "src/channels/plugins/types.ts",
+        startLine: 1,
+        endLine: 22,
+        content: `// src/channels/plugins/types.ts (simplified)\nexport interface ChannelPlugin {\n  config: {\n    listAccountIds(cfg: Config): string[]\n    isConfigured(account: AccountConfig): Promise<boolean>\n    resolveAccount(cfg: Config, id: string): AccountConfig\n  }\n  gateway?: {\n    startAccount(opts: StartAccountOpts): Promise<void>\n    stopAccount(opts: StopAccountOpts): Promise<void>\n  }\n}\n\n// The normalized inbound message shape:\ninterface InboundMessage {\n  channel: string        // "whatsapp" | "telegram" | "slack"\n  accountId: string      // which bot account received it\n  peer: RoutePeer        // who sent it (phone, userId, etc.)\n  text: string           // message content\n  threadId?: string      // conversation thread\n  attachments?: Media[]  // images, files, voice\n  guildId?: string       // Discord server / Slack workspace\n}`,
+        language: "typescript"
+      },
+      narration: "At the Normalization Pass, chaos becomes order. Every messaging platform has its own format \u2014 WhatsApp sends phone numbers, Discord sends snowflake IDs, Slack sends workspace tokens. The ChannelPlugin interface forces them all into one shape. The gateway never needs to know whether you messaged from WhatsApp or Telegram. It just sees a normalized inbound message."
+    },
+    {
+      name: "Route Resolution Fork",
+      subtitle: "Finding the Right Agent",
+      concept: "Route Resolution",
+      landmarkType: "mountain",
+      code: {
+        file: "src/routing/resolve-route.ts",
+        startLine: 1,
+        endLine: 25,
+        content: `// src/routing/resolve-route.ts (simplified)\nexport function resolveAgentRoute({\n  cfg, channel, accountId, peer, guildId, teamId,\n}: ResolveRouteInput): ResolvedRoute {\n\n  for (const agent of cfg.agents.list) {\n    const routing = agent.routing\n\n    // 1. Exact peer match (highest priority)\n    const peerMatch = routing.peer?.find(\n      b => b.peer === peer.id && b.channel === channel\n    )\n    if (peerMatch) return { agentId: agent.id, matchedBy: 'peer' }\n\n    // 2. Guild/server match\n    const guildMatch = routing.guild?.find(\n      b => b.guildId === guildId && b.channel === channel\n    )\n    if (guildMatch) return { agentId: agent.id, matchedBy: 'guild' }\n\n    // 3. Account-level match\n    const accountMatch = routing.account?.find(\n      b => b.accountId === accountId && b.channel === channel\n    )\n    if (accountMatch) return { agentId: agent.id, matchedBy: 'account' }\n  }\n\n  // 4. Default agent (fallback)\n  return { agentId: cfg.agents.default, matchedBy: 'default' }\n}`,
+        language: "typescript"
+      },
+      narration: "Here's where the trail forks \u2014 route resolution. One OpenClaw instance can run multiple AI agents, each with their own personality and tools. The route resolver checks in priority order: first, is this specific person bound to an agent? Then the Discord server or Slack workspace. Then the account level. And if nothing matches, the default agent catches it. This is how one gateway serves different agents to different people."
+    },
+    {
+      name: "Session Persistence Camp",
+      subtitle: "Loading Conversation State",
+      concept: "Session Persistence",
+      landmarkType: "camp",
+      code: {
+        file: "src/sessions/session-utils.ts",
+        startLine: 1,
+        endLine: 25,
+        content: `// src/sessions/session-utils.ts (simplified)\nimport { readFile, writeFile, mkdir } from 'fs/promises'\n\nconst SESSIONS_DIR = '~/.openclaw/sessions'\n\nexport async function loadSessionEntry(\n  agentId: string,\n  sessionKey: string,\n): Promise<SessionEntry> {\n  const path = \`\${SESSIONS_DIR}/\${agentId}/\${sessionKey}.json\`\n\n  try {\n    const raw = await readFile(path, 'utf-8')\n    return JSON.parse(raw)\n  } catch {\n    // New session \u2014 create with defaults\n    return {\n      sessionKey,\n      agentId,\n      transcript: [],\n      metadata: {\n        model: 'anthropic/claude-opus-4-6',\n        thinkingLevel: 'medium',\n        tokensUsed: 0,\n        createdAt: Date.now(),\n      },\n    }\n  }\n}`,
+        language: "typescript"
+      },
+      narration: "Welcome to Session Persistence Camp. OpenClaw doesn't use a traditional database \u2014 sessions are just JSON files on disk. Each agent-plus-peer combination gets its own file. The session holds the full transcript, model configuration, and token budget. If the file doesn't exist, a fresh session starts with sensible defaults. Zero database dependencies, easy backup."
+    },
+    {
+      name: "Gateway Control Ridge",
+      subtitle: "The WebSocket Command Center",
+      concept: "Gateway Control Plane",
+      landmarkType: "mountain",
+      code: {
+        file: "src/gateway/server-chat.ts",
+        startLine: 1,
+        endLine: 30,
+        content: `// src/gateway/server-chat.ts (simplified)\nexport function createChatRunRegistry(gateway: GatewayServer) {\n\n  async function handleChatSend(\n    sessionEntry: SessionEntry,\n    message: InboundMessage,\n  ) {\n    // Append user message to transcript\n    sessionEntry.transcript.push({\n      role: 'user',\n      content: message.text,\n      timestamp: Date.now(),\n    })\n\n    // Dispatch to agent via RPC\n    const agentRpc = gateway.acp.getClient(sessionEntry.agentId)\n    const stream = await agentRpc.call('chat.send', {\n      sessionId: sessionEntry.sessionKey,\n      messages: sessionEntry.transcript,\n      tools: sessionEntry.metadata.enabledTools,\n      model: sessionEntry.metadata.model,\n    })\n\n    // Stream responses back\n    for await (const chunk of stream) {\n      if (chunk.type === 'text') {\n        gateway.broadcast('chat.stream', { text: chunk.text })\n      } else if (chunk.type === 'tool_use') {\n        const result = await executeTool(chunk.tool, chunk.input)\n        agentRpc.sendToolResult(chunk.id, result)\n      }\n    }\n\n    await saveSession(sessionEntry)\n  }\n\n  return { handleChatSend }\n}`,
+        language: "typescript"
+      },
+      narration: "You've climbed to Gateway Control Ridge \u2014 the beating heart of OpenClaw. The gateway server accepts WebSocket connections from channels, the CLI, and native apps. When a message arrives, it appends it to the transcript, then dispatches to the agent over RPC. The streaming loop handles text chunks and tool calls differently. Text streams to the UI in real time. Tool calls get executed right here on the gateway."
+    },
+    {
+      name: "Agent RPC Rapids",
+      subtitle: "Talking to the AI",
+      concept: "Gateway Control Plane",
+      landmarkType: "river",
+      code: {
+        file: "src/acp/client.ts",
+        startLine: 1,
+        endLine: 25,
+        content: `// src/acp/client.ts (simplified)\nexport function createAcpClient(agentId: string, wsUrl: string) {\n  const ws = new WebSocket(wsUrl)\n\n  async function* call(\n    method: string,\n    params: ChatSendParams,\n  ): AsyncGenerator<AgentChunk> {\n    const requestId = crypto.randomUUID()\n\n    ws.send(JSON.stringify({\n      jsonrpc: '2.0',\n      id: requestId,\n      method,\n      params,\n    }))\n\n    // Yield chunks as they stream back\n    while (true) {\n      const msg = await nextMessage(ws, requestId)\n      if (msg.type === 'done') break\n      yield msg\n    }\n  }\n\n  function sendToolResult(toolCallId: string, result: ToolResult) {\n    ws.send(JSON.stringify({\n      jsonrpc: '2.0',\n      method: 'tool.result',\n      params: { toolCallId, result },\n    }))\n  }\n\n  return { call, sendToolResult }\n}`,
+        language: "typescript"
+      },
+      narration: "Now we cross the RPC Rapids \u2014 the boundary between the gateway and the AI agent. OpenClaw separates these into different processes communicating over JSON-RPC. The gateway sends a chat dot send request with the full transcript and available tools. The agent streams back chunks. When the agent wants to run a tool, the gateway executes it locally and sends the result back. The agent decides what to do, but the gateway controls what actually happens on your machine."
+    },
+    {
+      name: "Tool Execution Gorge",
+      subtitle: "Running Commands on the Host",
+      concept: "Gateway Control Plane",
+      landmarkType: "forest",
+      code: {
+        file: "src/agents/bash-tools.exec.ts",
+        startLine: 1,
+        endLine: 25,
+        content: `// src/agents/bash-tools.exec.ts (simplified)\nexport async function executeBashTool(\n  input: { command: string },\n  context: ToolContext,\n): Promise<ToolResult> {\n  const { command } = input\n  const { sessionEntry, securityPolicy } = context\n\n  // Security check: does this session allow bash?\n  if (!securityPolicy.allowBash) {\n    return { error: 'Bash execution not permitted' }\n  }\n\n  // Execute in PTY for proper terminal emulation\n  const pty = spawn('bash', ['-c', command], {\n    cwd: sessionEntry.metadata.workingDir,\n    env: { ...process.env, ...sessionEntry.metadata.env },\n    timeout: 120_000,  // 2 minute timeout\n  })\n\n  let stdout = ''\n  pty.onData(data => { stdout += data })\n  const exitCode = await pty.wait()\n\n  return {\n    stdout: stdout.slice(0, 100_000),\n    exitCode,\n  }\n}`,
+        language: "typescript"
+      },
+      narration: "Deep in Tool Execution Gorge, the agent's intentions become real actions. Notice the security check first \u2014 each session has a policy controlling what tools are allowed. Then it spawns a real PTY with a two-minute timeout. Output is truncated at a hundred thousand characters. Bash is just one tool \u2014 the same pattern handles browser control, canvas rendering, and device actions on mobile nodes."
+    },
+    {
+      name: "Response Delivery Frontier",
+      subtitle: "Back Through the Channel",
+      concept: "Channel Plugins",
+      landmarkType: "town",
+      code: {
+        file: "src/gateway/server-channels.ts",
+        startLine: 1,
+        endLine: 30,
+        content: `// src/gateway/server-channels.ts (simplified)\nexport function createChannelManager(gateway: GatewayServer) {\n\n  async function deliverResponse(\n    sessionEntry: SessionEntry,\n    response: AgentResponse,\n  ) {\n    const { channel, peer, accountId } = sessionEntry.routing\n    const plugin = gateway.channels.get(channel)\n\n    // Format for the target platform\n    const formatted = formatForChannel(channel, response.text, {\n      maxLength: getChannelLimit(channel),\n      // WhatsApp: 4096, Discord: 2000, Slack: 40000\n    })\n\n    // Send through channel \u2014 may split into chunks\n    for (const chunk of formatted) {\n      await plugin.send({ accountId, peer, text: chunk })\n    }\n\n    // Append to transcript and persist\n    sessionEntry.transcript.push({\n      role: 'assistant',\n      content: response.text,\n      timestamp: Date.now(),\n    })\n    await saveSession(sessionEntry)\n\n    // Broadcast to connected UIs\n    gateway.broadcast('chat.response', { text: response.text })\n  }\n\n  return { deliverResponse }\n}`,
+        language: "typescript"
+      },
+      narration: "You made it to Response Delivery Frontier! The response travels back through the same channel it arrived on. The channel manager formats text for each platform's limits \u2014 WhatsApp caps at four thousand characters, Discord at two thousand. Long responses get chunked automatically. The transcript is saved, and a broadcast goes to connected UIs. Message in, intelligence applied, response out. Your wagon has arrived."
+    }
+  ],
+  events: [
+    {
+      type: "weather",
+      trigger: "after_stop",
+      triggerStop: 1,
+      title: "Protocol Storm!",
+      text: "A storm of messages is hitting your gateway from every direction \u2014 WhatsApp sends phone numbers, Discord sends snowflake IDs, Slack sends workspace tokens. Your code is full of platform-specific conditionals. How do you weather this storm?",
+      choices: [
+        { text: "Define a common interface that all channel plugins must implement", correct: true, explanation: "Exactly. OpenClaw's ChannelPlugin interface forces every platform into the same shape. New channels can be added without touching gateway code. The interface IS the weather protection." },
+        { text: "Write a giant switch statement in the gateway for each platform", correct: false, explanation: "That would make the gateway a tangled mess of platform-specific logic. Every new channel means modifying core code. The plugin architecture exists precisely to avoid this." },
+        { text: "Only support one messaging platform to keep things simple", correct: false, explanation: "Multi-channel support is core to OpenClaw's value. The trick is making multi-channel clean \u2014 through the plugin interface." }
+      ],
+      concept: "Channel Plugins",
+      difficulty: "easy"
+    },
+    {
+      type: "encounter",
+      trigger: "after_stop",
+      triggerStop: 2,
+      title: "A Fellow Operator Appears",
+      text: "A seasoned OpenClaw operator shares their setup: 'I run three agents \u2014 a personal assistant on WhatsApp, a work agent in Slack, and a social bot on Discord. All from one gateway.' How does the gateway know which agent handles which message?",
+      choices: [
+        { text: "Route bindings in the config map channels, peers, and guilds to specific agents", correct: true, explanation: "That's the routing system. Config bindings map at multiple levels \u2014 a specific phone number to an agent, a Discord server to an agent, or a whole Slack workspace. Priority order: peer, guild, team, account, channel, then default." },
+        { text: "Each agent runs its own separate gateway server on a different port", correct: false, explanation: "One gateway, multiple agents. Running separate gateways would mean separate configs, separate channel connections, and no shared infrastructure." },
+        { text: "The user specifies which agent to use in every message", correct: false, explanation: "That would be terrible UX. The routing is automatic and invisible. You just message your assistant \u2014 the gateway figures out which agent should respond." }
+      ],
+      concept: "Route Resolution",
+      difficulty: "easy"
+    },
+    {
+      type: "river",
+      trigger: "after_stop",
+      triggerStop: 3,
+      title: "The Session State River",
+      text: "You've reached the Session River \u2014 the boundary between stateless request handling and persistent conversation memory. Your assistant needs to remember a conversation from last week across a gateway restart. How do you cross?",
+      choices: [
+        { text: "Store sessions as JSON files on disk, loaded on demand per agent-plus-peer key", correct: true, explanation: "Each session is a JSON file at a predictable path. No database needed. Sessions load on demand when a message arrives, and save after each response. The file system IS the persistence layer." },
+        { text: "Keep all sessions in memory with a Redis cache for speed", correct: false, explanation: "In-memory state is lost on restart. Redis adds an external dependency. OpenClaw is local-first \u2014 JSON files mean zero dependencies and easy backup." },
+        { text: "Store conversation history in the AI model's context and let it remember", correct: false, explanation: "LLM context windows are limited and expensive. The session file holds the full transcript, pruned to fit the model's context. The persistence layer is separate from inference." }
+      ],
+      concept: "Session Persistence",
+      difficulty: "medium"
+    },
+    {
+      type: "misfortune",
+      trigger: "after_stop",
+      triggerStop: 5,
+      title: "Runaway Process!",
+      text: "Disaster strikes! The AI agent asked to run a shell command, but it's an infinite loop consuming 100% CPU. Your gateway is grinding to a halt. How did this slip through?",
+      choices: [
+        { text: "Tool execution needs timeouts and the session security policy should gate commands", correct: true, explanation: "OpenClaw enforces both. Bash tools have a two-minute timeout, and each session's security policy controls whether bash is allowed. The gateway is the security boundary." },
+        { text: "The agent should be smarter and never request dangerous commands", correct: false, explanation: "Never rely on the AI to be the security boundary. Models can make mistakes. Defense in depth means the gateway enforces limits regardless." },
+        { text: "Run all tools in the agent's process so only the agent crashes", correct: false, explanation: "Tools run on the gateway intentionally \u2014 they need local machine access. The agent might run remotely. The separation is a feature, not a bug." }
+      ],
+      concept: "Gateway Control Plane",
+      difficulty: "medium"
+    },
+    {
+      type: "river",
+      trigger: "after_stop",
+      triggerStop: 5,
+      title: "The RPC River",
+      text: "You've reached the deepest river on the trail \u2014 the boundary between the gateway control plane and the AI agent runtime. The agent needs a browser screenshot, but it runs in a different process. How does this work?",
+      choices: [
+        { text: "JSON-RPC over WebSocket: agent sends tool requests, gateway executes them locally", correct: true, explanation: "The agent streams a tool_use block, the gateway intercepts it, runs the tool locally, and sends the result back. The agent could run on a different machine \u2014 the gateway always controls the host." },
+        { text: "The agent directly imports and calls the browser module", correct: false, explanation: "The agent is a separate process \u2014 it can't call gateway code directly. The RPC boundary exists so the agent doesn't have direct host access." },
+        { text: "The agent writes the command to a shared file the gateway watches", correct: false, explanation: "File watching would be slow and unreliable. WebSocket RPC gives real-time bidirectional streaming with proper request-response correlation." }
+      ],
+      concept: "Gateway Control Plane",
+      difficulty: "hard"
+    },
+    {
+      type: "fortune",
+      trigger: "after_stop",
+      triggerStop: 6,
+      title: "Spring of Clean Architecture",
+      text: "You've been navigating the gateway beautifully! Your understanding of the control plane architecture is solid. A group of friendly contributors join your camp and share their plugin templates.",
+      choices: [],
+      concept: "Channel Plugins",
+      difficulty: "easy"
+    },
+    {
+      type: "weather",
+      trigger: "after_stop",
+      triggerStop: 6,
+      title: "Message Chunking Fog",
+      text: "Dense fog rolls in. Your assistant wrote a three-thousand-word response, but WhatsApp only allows 4096 characters per message. The user sees a truncated response. What went wrong?",
+      choices: [
+        { text: "The response formatter should chunk long messages based on each channel's limit", correct: true, explanation: "Each channel has different limits \u2014 WhatsApp at 4096, Discord at 2000, Slack at 40000. The delivery layer must split responses into properly-sized chunks." },
+        { text: "Tell the AI to always write short responses", correct: false, explanation: "You can't reliably enforce output length on LLMs, and sometimes long responses are what the user needs. The delivery layer handles formatting." },
+        { text: "Switch to a channel with no message limits", correct: false, explanation: "The whole point of multi-channel support is meeting users where they are. Your assistant should work correctly on every channel." }
+      ],
+      concept: "Channel Plugins",
+      difficulty: "easy"
+    }
+  ],
+  partyMembers: [
+    { name: "Gateway Control Plane", icon: "gateway", maxHealth: 3 },
+    { name: "Channel Plugins", icon: "channel", maxHealth: 3 },
+    { name: "Route Resolution", icon: "route", maxHealth: 3 },
+    { name: "Session Persistence", icon: "session", maxHealth: 3 }
+  ],
+  deathMessages: [
+    "Here lies your gateway. It died of unhandled WebSocket disconnections.",
+    "Lost in the route resolver \u2014 no default agent configured.",
+    "Drowned in the RPC River. The agent sent a tool call but nobody was listening.",
+    "Died of session bloat. The transcript grew to ten million tokens.",
+    "Killed by a runaway bash command. No timeout configured.",
+    "Your channel plugin threw an unhandled exception. Thirteen platforms went silent.",
+    "Starved waiting for the API response. Anthropic rate limits consumed all resources.",
+    "The N+1 message problem consumed all your WebSocket connections.",
+    "Died of dependency conflicts. pnpm install will not save you now.",
+    "Your sessions expired of old age. The JSON files outlived the server.",
+    "Buried under an avalanche of Discord snowflake IDs.",
+    "Lost in the config \u2014 routing bindings pointed to an agent that doesn't exist."
+  ]
+};
+```
+
+## SCREEN LAYOUT
+
+```
+┌─────────────────────────────────────────────┐
+│  Scrolling landscape with parallax          │  40% height — Canvas
+│  Mountains (0.3x) → Trees (0.6x) → Ground  │
+│  Wagon centered on trail                    │
+├─────────────────────────────────────────────┤
+│  Code panel OR narration OR event choices   │  45% height — DOM
+├─────────────────────────────────────────────┤
+│  Health bar | Supplies | Morale | Party     │  15% height — DOM
+│  Stop N of M — Current Stop Name            │
+└─────────────────────────────────────────────┘
+```
+
+## GAME FLOW
+
+**Title Screen:**
+- "OREGON CODE TRAIL" in large bold monospace with letter-spacing, indigo/purple accent (#6366f1)
+- Subtitle: "The Gateway Trail — An OpenClaw Learning Adventure"
+- Scrolling landscape animation behind title
+- "Click to begin" prompt, pulsing
+
+**Setup Phase:**
+- Show 4 party members: Gateway Control Plane, Channel Plugins, Route Resolution, Session Persistence
+- Each has a colored square icon (indigo, green, amber, cyan)
+- Difficulty selection: Settler (easy) / Adventurer (normal) / Trail Blazer (hard)
+- "Hit the trail!" button
+
+**Travel Animation:**
+- Wagon scrolls across landscape (2-3 seconds)
+- 3-layer parallax: mountains at 0.3x, trees at 0.6x, ground at 1.0x
+- Day counter increments, progress bar shows Stop N of 8
+- Random flavor text: "The WebSocket connection is strong...", "Your channels are quiet today...", "A TypeScript compiler hums in the distance..."
+
+**Stop Phase:**
+- Banner: "You have arrived at [Stop Name]!"
+- Code panel: dark bg (#0a0a0a), monospace font, syntax highlighted
+- Syntax highlighting: keywords pink (#ff79c6), strings yellow (#f1fa8c), comments blue-grey (#6272a4), numbers purple (#bd93f9), default off-white (#f8f8f2)
+- File path header in muted color
+- Narration text below in styled panel
+- Buttons: "Continue on the trail" / "Examine the code" / "Ask about this"
+
+**Event Phase:**
+- Gold-bordered panel (#ffd700 border)
+- Event title + narrative text
+- 3 choice buttons (styled like trail decisions)
+- On correct: green flash, +10 health, streak increment, explanation shown
+- On wrong: red flash, screen shake, -15 health, party member damage, explanation shown
+
+**River Crossing (events with type "river"):**
+- Show animated river in landscape canvas
+- Dramatic presentation, higher stakes text
+- Same mechanics but more dramatic feedback
+
+**Death Screen:**
+- Dark overlay fades in
+- ASCII-style tombstone centered
+- Death message typewriter-animates
+- Shows partial score (stops visited, questions answered)
+- "Click to try again"
+
+**Win Screen:**
+- Confetti/sparkle CSS animation
+- Score card box with border
+- Framework: OpenClaw (The Gateway Trail)
+- Party survivors: N/4 with health status
+- Quiz score: X/Y (Z%)
+- Hints used, best streak
+- Concept mastery: stars per concept (3 stars = all correct, 0 = party member died)
+- Study recommendation based on weakest concept
+- "Play again" button
+
+## CANVAS RENDERING
+
+All drawn procedurally:
+- **Sky**: gradient that shifts dawn→day→sunset→dusk as stops progress
+- **Mountains**: triangles with snow caps, parallax at 0.3x
+- **Trees**: simple pine triangles on brown trunks, parallax at 0.6x  
+- **Ground**: brown trail strip on green grass, 1.0x scroll
+- **Wagon**: rectangle body, circle wheels (animated rotation), triangle canvas top, small indigo flag
+- **River**: animated blue sine-wave band (for river crossing events)
+- **Landmarks**: simple shapes — buildings cluster for towns, campfire for camps, tall peak for mountains, dense trees for forests
+
+## STATUS BAR
+
+- Health bar with colored fill (green→yellow→red)
+- Supplies count (hints remaining, start at 5)
+- Morale stars (streak indicator)
+- Party member names with health dots (green/yellow/red/grey)
+- "Stop N of 8 — [stop name]"
+
+## SCORING
+
+- Correct answer: +10 health, +1 streak
+- Wrong answer: -15 health, reset streak, -1 HP to related party member
+- Hint (H key): -1 supply, shows which answer is wrong
+- Streak of 3+: +5 bonus health per correct
+- Party member at 0 HP: dead (greyed out, crossed name)
+- All party dead OR health 0: game over
+- Fortune events: +20 health (no question)
+
+## KEYBOARD
+
+- 1/2/3 or A/B/C: select choices
+- Enter/Space: continue/advance
+- H: hint (costs 1 supply)
+- Escape: pause
+
+## STYLE
+
+- Background: #0d1117 (GitHub dark)
+- Panel backgrounds: #1a1a2e
+- Text: #e2e8f0
+- Accent: #6366f1 (indigo)
+- Monospace font stack: 'SF Mono', 'Fira Code', 'Consolas', monospace
+- All UI panels have subtle borders and rounded corners
+- CRT scanline toggle button in corner (off by default)
+
+## SIZE TARGET
+
+2000-3000 lines. This must be a COMPLETE, PLAYABLE game. Every state must work. Write the output as the file: /Users/flowclub/code/diff-pair-review/.diff-review/trail-openclaw.html
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. **Initial Plan Implementation**: The user provided a detailed plan for "Oregon Code Trail" - a retro pixel art Oregon Trail-style game for learning web frameworks. I read existing project files to understand conventions, then created 7 new files for Phase 1.
+
+2. **OpenClaw Custom Trail**: User asked to "overfit an example" to the OpenClaw repo (github.com/openclaw/openclaw). I explored the repo using a subagent, then created a full custom trail mapping OpenClaw's message pipeline to 8 trail stops with real code snippets, events, and death messages.
+
+3. **How data was mapped**: User asked how we mapped the data. I explained the methodology - tracing the real request pipeline, making each hop a stop, finding boundaries for river crossings, and turning failure modes into humor.
+
+4. **Command registration issue**: User tried `/fly-visual` and got "Unknown skill: fly-visual". I researched Claude Code plugin registration and found commands need to be in `.claude/commands/`, not top-level `commands/`. User chose Option A (copy to `.claude/commands/`).
+
+5. **Commit/Push/PR**: User invoked `/commit-push-pr`. I staged all files, committed, pushed to `oregon-trail` branch, and created PR #2.
+
+6. **Running /fly-visual openclaw**: User ran the command. I read trail data, invoked the `frontend-design` skill, and generated the complete HTML game file at `.diff-review/trail-openclaw.html`.
+
+7. **User asked about installing in ~/.claude**: During the game generation, user asked "can we install it in our ~/.claude so i can use it in other repos?" - this hasn't been addressed yet.
+
+Let me trace the key files and details carefully.
+
+Summary:
+1. Primary Request and Intent:
+   The user asked to implement a detailed plan for "Oregon Code Trail" — a retro pixel art Oregon Trail-style game that teaches web framework request pipelines. The game is part of the `diff-pair-review` Claude Code plugin. The user then asked to create a custom trail for the OpenClaw repository (github.com/openclaw/openclaw), which uses TypeScript with a gateway architecture, channel plugins, and multi-agent routing. After implementation, the user wanted to run the `/fly-visual openclaw` command to generate and open the game in a browser. The user also asked about installing the plugin globally in `~/.claude` for use across repos.
+
+2. Key Technical Concepts:
+   - Claude Code plugin conventions: markdown files with YAML frontmatter for commands, agents, and skills
+   - Command discovery: `.claude/commands/` directory (not top-level `commands/`) for Claude Code to find slash commands
+   - Self-contained HTML game generation via `@frontend-design` skill
+   - Canvas + DOM hybrid rendering (Canvas for landscape, DOM for UI panels)
+   - Game state machine: TITLE, SETUP, TRAVEL, STOP, EVENT, RIVER, DEATH, WIN
+   - OpenClaw architecture: WebSocket gateway control plane, channel plugin normalization, route resolution with binding priority (peer → guild → account → default), JSON-on-disk session persistence, JSON-RPC agent communication, PTY tool execution with security policies
+   - Trail data mapping methodology: real request pipeline stages → trail stops, architectural boundaries → river crossings, failure modes → death messages, key concepts → party members
+
+3. Files and Code Sections:
+   - `skills/visualization/SKILL.md` (NEW)
+     - Game generation guidelines, trail data JSON format, state machine spec, scoring rules, HTML structure requirements
+     - Referenced by the `/fly-visual` command when generating games
+   
+   - `skills/visualization/references/oregon-trail.md` (NEW)
+     - Complete game mechanics: events, resources, party health system, death messages catalog, score card format
+     - ~280 lines of game design reference
+   
+   - `skills/visualization/references/pixel-art-style.md` (NEW)
+     - Visual style guide: color palette, layout specs (40%/45%/15% split), canvas rendering, animations, Web Audio API sounds
+     - Defines the retro aesthetic for all game instances
+   
+   - `skills/visualization/references/framework-trails.md` (NEW, then MODIFIED)
+     - Contains full trail data for Next.js (8 stops + 6 events) and OpenClaw (8 stops + 7 events)
+     - OpenClaw trail added with stops: Channel Outpost, Normalization Pass, Route Resolution Fork, Session Persistence Camp, Gateway Control Ridge, Agent RPC Rapids, Tool Execution Gorge, Response Delivery Frontier
+     - 12 death messages, 4 party members, outlines for Rails/Django/Express/React/Laravel (Phase 2)
+   
+   - `agents/trail-data-extractor.md` (NEW)
+     - Detects framework from repo, extracts trail data in canonical or repo mode
+     - Outputs TRAIL_DATA JSON block consumed by the game
+     - Updated to include OpenClaw in party member mapping table
+   
+   - `scripts/open-viz.sh` (NEW)
+     - Shell script: reads HTML from stdin, writes to `.diff-review/` directory, opens in browser
+     - Supports `--output-dir`, `--filename`, `--no-open` flags
+   
+   - `commands/fly-visual.md` (NEW)
+     - The `/fly-visual` slash command spec with YAML frontmatter (model: opus)
+     - Updated to recognize `openclaw`, `claw`, `gateway` as valid inputs
+     - Orchestrates: parse args → extract trail data → call @frontend-design → write HTML → open browser → TTS announcement
+   
+   - `.claude/commands/` (NEW directory)
+     - Copies of `diff-review.md`, `fly-visual.md`, `walkthrough.md` for Claude Code command discovery
+   
+   - `.gitignore` (MODIFIED)
+     - Added `/.diff-review/` to ignore generated HTML game files
+   
+   - `.diff-review/trail-openclaw.html` (NEW, ~600 lines)
+     - Complete playable HTML game with:
+       - Full TRAIL_DATA embedded as JavaScript constant
+       - Canvas parallax landscape (mountains, trees, ground, wagon, river)
+       - Syntax highlighting for TypeScript code snippets
+       - All 8 game states implemented
+       - Event/quiz system with scoring, party damage, hints
+       - Death screen with typewriter-animated tombstone messages
+       - Win screen with confetti, score card, concept mastery stars
+       - Keyboard support (1/2/3, A/B/C, H for hints, Enter/Space)
+       - CRT scanline toggle
+
+4. Errors and fixes:
+   - **"Unknown skill: fly-visual"**: User tried `/fly-visual` and it wasn't found. Researched Claude Code plugin registration and discovered commands must be in `.claude/commands/` not top-level `commands/`. Fixed by copying all command markdown files to `.claude/commands/`.
+   - User chose "Option A" (simple copy) over "Option B" (plugin manifest with `.claude-plugin/plugin.json`).
+
+5. Problem Solving:
+   - Explored OpenClaw repo structure via subagent (54 tool uses, comprehensive analysis) to understand the full message pipeline for trail mapping
+   - Mapped real architectural boundaries to game mechanics (pipeline stages → stops, process boundaries → river crossings, anti-patterns → misfortune events)
+   - Resolved Claude Code command discovery issue by understanding the `.claude/commands/` convention
+   - Generated a complete, playable HTML game in a single file with no external dependencies
+
+6. All user messages:
+   - "Implement the following plan: [detailed Oregon Code Trail plan]"
+   - "Can we overfit an example to this repo? https://github.com/openclaw/openclaw It uses typescript primarily with some swift and kotlin. It looks like it has a gateway, remote access, web interfaces, and security"
+   - "Great, how do we run it as a command in the repo?"
+   - "How did we map that data"
+   - "Unknown skill: fly-visual / how do we install the skill"
+   - "option a for now"
+   - (invoked /commit-push-pr)
+   - (invoked /fly-visual openclaw)
+   - "can we install it in our ~/.claude so i can use it in other repos?"
+
+7. Pending Tasks:
+   - **User's unanswered question**: "can we install it in our ~/.claude so i can use it in other repos?" — This was asked during game generation and has NOT been addressed yet. The user wants to install the plugin globally so `/fly-visual` works from any repository.
+   - **Open the generated game in browser**: The HTML file was written to `.diff-review/trail-openclaw.html` but the browser open command and TTS announcement from the `/fly-visual` command spec were not executed.
+
+8. Current Work:
+   The `/fly-visual openclaw` command was being executed. The frontend-design skill was invoked, and the complete HTML game was written to `/Users/flowclub/code/diff-pair-review/.diff-review/trail-openclaw.html`. The next steps per the command spec are:
+   - Open the HTML file in the browser (`open .diff-review/trail-openclaw.html`)
+   - TTS announcement
+   - Show terminal feedback summary
+   - Wait for user to type 'done'
+   
+   Additionally, the user's question about global installation (`~/.claude`) is still pending.
+
+9. Optional Next Step:
+   Complete the `/fly-visual openclaw` command execution by opening the generated HTML in the browser and showing the terminal summary. Then address the user's pending question: "can we install it in our ~/.claude so i can use it in other repos?" — This would involve copying the commands, agents, skills, scripts, and config to `~/.claude/` locations (likely `~/.claude/commands/` for global command availability, or setting up a proper plugin).
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/flowclub/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+1) Can we make it look more like the DOS game like in these images?
+2) Can we find free music to loop through the game?
+3) It should be playable fully from the keyboard without the need to scroll down (see image 3)
+
+---
+
+[Image: source: /Users/flowclub/Desktop/oregontrail.webp]
+
+[Image: source: /Users/flowclub/Desktop/oregontrail2.png]
+
+[Image: source: /Users/flowclub/Desktop/SCR-20260211-ltcz.png]
+
+---
+
+Can we make selecting a/b/c or 1/2/3 work with the arrow up/down keys as well?
+
+---
+
+great, let's commit and push
+
+---
+
+can we add trail-openclaw.html to an examples directory?
+
+---
+
+Great! how are we generating the animation? Can we generate something for each of the questions?
+
+---
+
+Why is the correct answer always thef irst one? Can we make sure to randomize it a bit?
+
+Let's also remove the difficulty levels. Is that in the original Oregon Trail?
+
+---
+
+Can we make the arrow up/down keys work for choosing profession
+
+---
+
+Can we add a level that's Ralph Wiggum that doesn't ding them for wrong answers and let's them try again for each question until they get it right
+
+---
+
+Can we make the health, supplies, etc text larger? What do supplies do? Are those for hints?
+
+---
+
+Wait, the HP hould be lowest for staff architect and higher for the vibe coder
+
+---
+
+let's do Staff architect HP 50, 0 supplies (hints), engineer HP 80, 2 supplies (hints), vibe coder: HP 100, 5 supplies, Ralph Wiggum, HP: 999, Supplies: 999
+
+---
+
+great. we don't need to show the hearts for gateway, channels, routes at the bottom of the screen
+
+---
+
+Can we press m to toggle off the music
+
+---
+
+if we turn the music off, can we update the bottom bar with the status eg "Press M to turn music" and when it's on, "press M to turn music off"
+
+---
+
+Can we write it as Music: On (M to toggle off) and Music: Off (M to toggle on)
+
+---
+
+Can we add an animation for the you have died of tech debt and make it still type out the words but show something similar to
+
+---
+
+[Image: source: /Users/flowclub/Desktop/dysentry.webp]
+
+---
+
+What are the different death messages?
+
+---
+
+what are the different death messages
+
+---
+
+Can we make these shorter?
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. **Context from previous session**: The conversation continues from a prior session where an "Oregon Code Trail" game was built - a retro Oregon Trail-style educational game teaching OpenClaw's gateway architecture. The game was implemented as a self-contained HTML file. A PR was created on the `oregon-trail` branch.
+
+2. **Three improvement requests**: The user provided three screenshots and asked for:
+   - DOS-style visuals matching the original 1990 Oregon Trail (purple mountains, bright colors, EGA palette)
+   - Free background music
+   - Full keyboard playability without scrolling
+
+3. **Complete HTML rewrite**: I used a Task agent to generate a complete rewrite of `.diff-review/trail-openclaw.html` (1450 lines) with:
+   - 320x200 internal canvas resolution with `image-rendering: pixelated`
+   - EGA 16-color palette (purple mountains, bright blue sky, etc.)
+   - Web Audio API procedural chiptune music
+   - Viewport-contained layout (no scrolling)
+
+4. **Arrow key navigation for choices**: User asked for arrow up/down support for A/B/C choices. I added:
+   - `selectedEventChoice` and `selectedStopChoice` state variables
+   - `.choice-selected` CSS class for visual highlight
+   - `updateChoiceHighlight()` and `updateStopHighlight()` helper functions
+   - Arrow key handling in both STOP and EVENT/RIVER states
+   - Enter/Space to confirm selection
+
+5. **Commit and push**: User asked to commit. I discovered `.diff-review/` is gitignored. User asked to copy to an `examples/` directory instead. Created `examples/trail-openclaw.html`.
+
+6. **Per-event canvas animations**: User asked about animations for each question. I added `drawEventOverlay()` with 7 unique animated overlays:
+   - Protocol Storm: dark sky, lightning, rain
+   - Fellow Operator: person with hat by campfire
+   - Session State River: rough rapids, floating debris
+   - Runaway Process: red tint, smoke, fire, pulsing border
+   - RPC River: fog/mist layers over deep water
+   - Spring of Clean Architecture: sun with rays, rainbow, flowers
+   - Message Chunking Fog: dense multi-layer fog
+
+7. **Answer randomization**: User noticed correct answer was always first. I added Fisher-Yates shuffle:
+   - `shuffledIndices` array maps display position → original choice index
+   - Shuffle created on each event entry
+   - All rendering, choice handling, hints, and result display use shuffled indices
+   - Fixed a bug where `showEventResult(event, idx)` still referenced old variable name
+
+8. **Difficulty → Professions**: User asked to remove difficulty levels and replace with Oregon Trail-style profession selection. Created PROFESSIONS array:
+   - Vibe Coder, Engineer, Staff Architect
+   - Each with HP, supplies, hintFree flag
+
+9. **Ralph Wiggum mode**: User asked for a learning mode. Added:
+   - `forgiving: true` flag on profession
+   - Wrong answers dim out instead of penalizing
+   - Auto-selects next available choice
+   - 999 HP, 999 supplies, free hints, no tech debt drain
+
+10. **HP drain / tech debt death**: User asked for countdown mechanic. Added:
+    - `drainAccumulator` ticks HP down by 1 every 3 seconds during active gameplay
+    - Special "tech debt" death messages
+    - Disabled for Ralph Wiggum mode
+
+11. **Various UI tweaks**:
+    - Arrow keys for profession selection on setup screen
+    - Status bar font size 12px → 15px
+    - "Supplies" renamed to "Hints" everywhere
+    - Removed party hearts from status bar
+    - HP values adjusted: Staff Architect 50/0, Engineer 80/2, Vibe Coder 100/5
+    - Music toggle fix: added masterGain node so M key mutes instantly
+    - Music status text in status bar: "Music: On (M to toggle off)"
+
+12. **Death screen redesign**: User shared the classic Apple II "You have died of dysentery" screenshot. I added:
+    - `drawDeathScene()` function rendering green monochrome ox + wagon on black canvas
+    - Green phosphor text panel with bordered message box
+    - Scanline effect and vignette on canvas
+    - Typewriter animation preserved
+
+13. **Shorter death messages**: User asked to make death messages shorter. I shortened the tech debt messages. Was about to also shorten the regular death messages in the trail data (minified).
+
+Key errors/fixes:
+- `showEventResult(event, idx)` referenced `idx` after rename to `displayIdx` — fixed
+- `selectDifficulty` had hardcoded `Math.min(2, idx)` — changed to `PROFESSIONS.length - 1`
+- Music toggle didn't silence already-scheduled oscillators — fixed by adding masterGain node
+- `replace_all` needed when editing `eventAnswered = false` blocks that appeared twice
+
+The regular death messages in TRAIL_DATA are still long — the user's last request "Can we make these shorter?" was about ALL death messages, and I only shortened the tech debt ones so far.
+
+Summary:
+1. Primary Request and Intent:
+   The user is iteratively building an "Oregon Code Trail" — a retro Oregon Trail-style educational HTML game that teaches the OpenClaw gateway architecture through 8 trail stops and 7 quiz events. Starting from a prior session's implementation, this session focused on:
+   - Making the game visually match the original 1990 DOS Oregon Trail (EGA palette, purple mountains, pixel art)
+   - Adding procedural chiptune music via Web Audio API
+   - Making the game fully keyboard-playable without scrolling
+   - Adding per-event canvas animations for each quiz question
+   - Randomizing answer order so the correct answer isn't always first
+   - Replacing difficulty levels with Oregon Trail-style profession selection (Ralph Wiggum, Vibe Coder, Engineer, Staff Architect)
+   - Adding a passive HP drain ("tech debt") timer that kills the player if they take too long
+   - Redesigning the death screen to match the iconic Apple II green phosphor "You have died of dysentery" look
+   - Various UI polish: larger status bar text, renaming "Supplies" to "Hints", removing party hearts, adjusting HP/hint values per profession, music toggle improvements
+   - Shortening death messages
+
+2. Key Technical Concepts:
+   - EGA 16-color palette (#AA00AA purple mountains, #5555FF sky, #00AA00 grass, etc.)
+   - Canvas rendering at 320x200 internal resolution with `image-rendering: pixelated` CSS for authentic pixel art
+   - Web Audio API procedural chiptune: square wave melody + triangle wave bass, scheduled via oscillator nodes through a masterGain node
+   - Fisher-Yates shuffle algorithm for randomizing quiz answer order
+   - `shuffledIndices` array mapping display position → original choice index
+   - Forgiving mode (Ralph Wiggum): wrong answers dim out, player retries until correct
+   - HP drain mechanic: `drainAccumulator` in the animation loop ticks HP down every 3 seconds
+   - Apple II green phosphor death screen (#33FF33 green on black, scanlines, vignette)
+   - Claude Code plugin conventions: `.claude/commands/` for command discovery, `.diff-review/` for generated output (gitignored), `examples/` for tracked examples
+
+3. Files and Code Sections:
+   - **`/Users/flowclub/code/diff-pair-review/.diff-review/trail-openclaw.html`** (~1550+ lines)
+     - The main game file, completely rewritten this session. Self-contained HTML with inline CSS and JS.
+     - All changes are made here first, then copied to examples/.
+     - Key sections and recent changes:
+
+     **PROFESSIONS constant (line ~144):**
+     ```javascript
+     const PROFESSIONS = [
+       { name: 'Ralph Wiggum', desc: '"I\'m learnding!"', health: 999, supplies: 999, hintFree: true, forgiving: true },
+       { name: 'Vibe Coder', desc: '"It works on my machine"', health: 100, supplies: 5, hintFree: false, forgiving: false },
+       { name: 'Engineer', desc: '"Let me check the docs"', health: 80, supplies: 2, hintFree: false, forgiving: false },
+       { name: 'Staff Architect', desc: '"I designed this system"', health: 50, supplies: 0, hintFree: false, forgiving: false }
+     ];
+     ```
+
+     **State variables (line ~160-186):**
+     ```javascript
+     let selectedEventChoice = 0;
+     let selectedStopChoice = 0;
+     let shuffledIndices = []; // maps display position -> original choice index
+     // ...
+     let currentEventType = '';  // event type for canvas overlay
+     let currentEventTitle = ''; // event title for canvas overlay
+     // ...
+     let deathPending = false;
+     ```
+
+     **Music system with masterGain (line ~856):**
+     ```javascript
+     var masterGain = null;
+     function initAudio() {
+       if (audioCtx) return;
+       try {
+         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+         masterGain = audioCtx.createGain();
+         masterGain.gain.value = 1.0;
+         masterGain.connect(audioCtx.destination);
+         musicInitialized = true;
+       } catch (e) { console.warn('Web Audio not available:', e); }
+     }
+     ```
+     Notes are routed through `masterGain` so stopMusic() can instantly mute by setting gain to 0.
+
+     **Event overlay system (`drawEventOverlay`, line ~485-707):**
+     7 unique animated overlays matched by `currentEventTitle.indexOf()`:
+     - Protocol Storm: lightning, rain, dark sky
+     - Fellow Operator: pixel person + campfire
+     - Session State River: turbulence + floating logs
+     - Runaway Process: red tint, smoke, fire, pulsing border
+     - RPC River: fog layers over water
+     - Spring of Clean Architecture: sun, rainbow, flowers
+     - Message Chunking Fog: dense multi-layer fog
+
+     **Death scene canvas (`drawDeathScene`, line ~711-800):**
+     Green monochrome Apple II style ox + covered wagon with rotating wheel spokes, scanlines, and vignette on black background.
+
+     **Shuffled choice rendering in `renderEventScreen` (line ~1118-1131):**
+     ```javascript
+     for (var i = 0; i < shuffledIndices.length; i++) {
+       var origIdx = shuffledIndices[i];
+       var dimmedClass = (eventHinted && dimmedChoice === i) ? ' choice-dimmed' : '';
+       var selClass = (selectedEventChoice === i) ? ' choice-selected' : '';
+       choicesHtml += '<div class="choice-item' + dimmedClass + selClass + '" onclick="handleEventChoice(' + i + ')" style="margin:4px 0;">  ' + labels[i] + '. ' + escHtml(event.choices[origIdx].text) + '</div>';
+     }
+     ```
+
+     **Forgiving mode in `handleEventChoice` (line ~1463-1498):**
+     ```javascript
+     if (forgiving && !choice.correct) {
+       var items = document.querySelectorAll('.choice-item');
+       if (items[displayIdx]) {
+         items[displayIdx].classList.add('choice-dimmed');
+         items[displayIdx].style.pointerEvents = 'none';
+       }
+       // Move selection to next available choice
+       for (var ni = 0; ni < shuffledIndices.length; ni++) {
+         var nextIdx = (displayIdx + 1 + ni) % shuffledIndices.length;
+         if (!(eventHinted && dimmedChoice === nextIdx) && !items[nextIdx].classList.contains('choice-dimmed')) {
+           selectedEventChoice = nextIdx;
+           updateChoiceHighlight();
+           break;
+         }
+       }
+       return;
+     }
+     ```
+
+     **Tech debt drain in game loop (line ~1796):**
+     ```javascript
+     var isForgiving = PROFESSIONS[difficulty] && PROFESSIONS[difficulty].forgiving;
+     var isActive = gameState === STATES.STOP || gameState === STATES.EVENT || gameState === STATES.RIVER;
+     if (isActive && !deathPending && !isForgiving) {
+       drainAccumulator += dt;
+       while (drainAccumulator >= DRAIN_INTERVAL) {
+         drainAccumulator -= DRAIN_INTERVAL;
+         health--;
+         renderStatusBar();
+         if (health <= 0) { techDebtDeath = true; enterDeath(); break; }
+       }
+     }
+     ```
+
+     **Tech debt death messages (line ~1321-1327):**
+     ```javascript
+     var techDebtMsgs = [
+       'You have died of tech debt.',
+       'You have died of refactoring dysentery.',
+       'You have died of unresolved TODOs.',
+       'You have died of scope creep.',
+       'You have died of dependency bloat.',
+     ];
+     ```
+
+     **Status bar rendering (line ~1310-1320):**
+     ```javascript
+     var musicHint = musicPlaying
+       ? 'Music: <span style="color:#55FF55;">On</span> <span style="color:#555555;">(M to toggle off)</span>'
+       : 'Music: <span style="color:#FF5555;">Off</span> <span style="color:#555555;">(M to toggle on)</span>';
+     statusBar.innerHTML = 'HP: ' + healthBar + ' ' + Math.max(0, health) +
+       '  Hints: ' + supplies + '  ' + streakStars +
+       '  |  Stop ' + (currentStop + 1) + '/' + TRAIL_DATA.stops.length +
+       '  |  ' + musicHint;
+     ```
+
+     **Keyboard handler for setup (line ~1668-1681):**
+     ```javascript
+     case STATES.SETUP:
+       if (key === 'ArrowDown' || key === 'ArrowRight') {
+         e.preventDefault();
+         selectDifficulty((selectedDifficulty + 1) % PROFESSIONS.length);
+       } else if (key === 'ArrowUp' || key === 'ArrowLeft') {
+         e.preventDefault();
+         selectDifficulty((selectedDifficulty - 1 + PROFESSIONS.length) % PROFESSIONS.length);
+       } else if (key === '1') selectDifficulty(0);
+       // ... 2, 3, 4
+       else if (key === 'Enter' || key === ' ') { startGame(); }
+     ```
+
+   - **`/Users/flowclub/code/diff-pair-review/examples/trail-openclaw.html`**
+     - Tracked copy of the game for git. Always synced from `.diff-review/` after changes.
+
+   - **`/Users/flowclub/code/diff-pair-review/.gitignore`**
+     - Contains `/.diff-review/` — generated game output is not tracked. The `examples/` copy is tracked instead.
+
+4. Errors and fixes:
+   - **`showEventResult(event, idx)` referenced stale variable name**: After renaming the parameter in `handleEventChoice` from `idx` to `displayIdx`, line 1473 still called `showEventResult(event, idx)`. Fixed by changing to `showEventResult(event, displayIdx)`.
+   - **`replace_all` collision**: When editing `eventAnswered = false; eventHinted = false; dimmedChoice = -1;`, the Edit tool found 2 matches. Fixed by including more surrounding context to uniquely identify each instance.
+   - **`selectDifficulty` hardcoded max index**: `Math.min(2, idx)` broke when adding 4th profession (Ralph Wiggum). Fixed to `Math.min(PROFESSIONS.length - 1, idx)`.
+   - **Music toggle didn't silence playing notes**: Already-scheduled Web Audio oscillators kept playing after toggling off. Fixed by routing all notes through a `masterGain` node and setting `masterGain.gain` to 0 on stop, 1.0 on start.
+   - **User feedback: HP values were backwards**: User said "the HP should be lowest for staff architect and higher for vibe coder" — I had it inverted. Fixed by swapping values.
+   - **User feedback: HP values needed specific tuning**: User specified exact values: Staff Architect 50/0, Engineer 80/2, Vibe Coder 100/5, Ralph Wiggum 999/999.
+   - **User feedback on "Supplies" naming**: User asked "What do supplies do?" — renamed to "Hints" everywhere for clarity.
+   - **User feedback on music status text**: User wanted "Music: On (M to toggle off)" format instead of "M: music off".
+
+5. Problem Solving:
+   - Solved answer randomization with Fisher-Yates shuffle + index mapping that propagates through rendering, choice handling, hint elimination, and result display
+   - Solved music mute lag by introducing masterGain node architecture
+   - Solved viewport scrolling issue with flex layout: canvas 52%, text panel flex:1 with overflow-y:auto, status bar 60px fixed
+   - Solved per-event visual differentiation by matching `currentEventTitle` strings to unique canvas overlay functions
+   - The regular death messages in TRAIL_DATA (minified on line 138) are still long — user's last request to shorten was only partially addressed (tech debt messages shortened, regular messages not yet)
+
+6. All user messages:
+   - "1) Can we make it look more like the DOS game like in these images? 2) Can we find free music to loop through the game? 3) It should be playable fully from the keyboard without the need to scroll down (see image 3)" [with 3 reference screenshots]
+   - "Can we make selecting a/b/c or 1/2/3 work with the arrow up/down keys as well?"
+   - "great, let's commit and push"
+   - "can we add trail-openclaw.html to an examples directory?"
+   - "Great! how are we generating the animation? Can we generate something for each of the questions?"
+   - "Why is the correct answer always the first one? Can we make sure to randomize it a bit? Let's also remove the difficulty levels. Is that in the original Oregon Trail?"
+   - "Instead of banker, carpenter, farmer, can we choose something like vibe-coder, engineer, and something else funny, and based on that, alter the difficulty of the questions?"
+   - "Can we count down our HP each second, or maybe count down tokens remaining, and once we hit 0, write 'You have died of tech debt' (or come up with a better pun for dysentery)"
+   - "Can we make the arrow up/down keys work for choosing profession"
+   - "Can we add a level that's Ralph Wiggum that doesn't ding them for wrong answers and let's them try again for each question until they get it right"
+   - "Can we make the health, supplies, etc text larger? What do supplies do? Are those for hints?"
+   - "Wait, the HP should be lowest for staff architect and higher for the vibe coder"
+   - "let's do Staff architect HP 50, 0 supplies (hints), engineer HP 80, 2 supplies (hints), vibe coder: HP 100, 5 supplies, Ralph Wiggum, HP: 999, Supplies: 999"
+   - "great. we don't need to show the hearts for gateway, channels, routes at the bottom of the screen"
+   - "Can we press m to toggle off the music"
+   - "if we turn the music off, can we update the bottom bar with the status eg 'Press M to turn music' and when it's on, 'press M to turn music off'"
+   - "Can we write it as Music: On (M to toggle off) and Music: Off (M to toggle on)"
+   - "Can we add an animation for the you have died of tech debt and make it still type out the words but show something similar to [Apple II dysentery screenshot]"
+   - "What are the different death messages?"
+   - "what are the different death messages" (repeated)
+   - "Can we make these shorter?"
+
+7. Pending Tasks:
+   - **Shorten the regular (non-tech-debt) death messages** in TRAIL_DATA — the user asked "Can we make these shorter?" and I only shortened the tech debt messages so far. The 11 regular death messages embedded in the minified TRAIL_DATA constant still need shortening.
+   - **Commit and push** — the user asked to commit earlier but `.diff-review/` was gitignored. The `examples/trail-openclaw.html` was created but never committed. The examples file has been updated many times since.
+   - **Global installation** to `~/.claude` (from prior session, not re-raised this session)
+
+8. Current Work:
+   The user asked "Can we make these shorter?" referring to ALL death messages. I shortened the 5 tech debt messages from verbose to concise "You have died of X." format. The 11 regular death messages in the minified TRAIL_DATA constant on line 138 have NOT been shortened yet. These are still long, e.g. "Here lies your gateway. It died of unhandled WebSocket disconnections." and "Your channel plugin threw an unhandled exception. Thirteen platforms went silent."
+
+9. Optional Next Step:
+   Shorten the 11 regular death messages in the TRAIL_DATA constant (line 138, minified). The user's exact request was: "Can we make these shorter?" after I listed all death messages. I should shorten them to match the concise "You have died of X." pattern used for the tech debt messages, then sync to examples/ and reload.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/flowclub/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+let's commit this
+
+---
+
+Can we change the name of the repo to oreorg-trail and stylize the name as O'Reorg Trail
+
+---
+
+<bash-input>git status</bash-input>
+
+---
+
+<bash-stdout>On branch oregon-trail
+Your branch is ahead of 'origin/oregon-trail' by 2 commits.
+  (use "git push" to publish your local commits)
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   .claude/settings.local.json
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	.entire/
+
+no changes added to commit (use "git add" and/or "git commit -a")</bash-stdout><bash-stderr></bash-stderr>
+
+---
+
+yes
+
+---
+
+Can we rename the repo to dtran320/oreorg-trail
+
+---
+
+let's commit nd push, and how do i turn on a github page where we just host the current trail-openclaw.html
+
+---
+
+okay let's put it as the index.html and deploy.
+
+---
+
+getting these two errors:
+
+oreorg-trail/:1411 Uncaught SyntaxError: Unexpected identifier 'Reorg'Understand this error
+15:44:06.811 inject.bundle.js:1 Uncaught Error: Automatic publicPath is not supported in this browser
+    at inject.bundle.js:1:560957
+    at inject.bundle.js:1:561120
+    at inject.bundle.js:1:660713
+
+I fixed the first one in the previous file
