@@ -56,7 +56,7 @@ html, body {
   display: flex;
   align-items: center;
   padding: 0 16px;
-  font-size: 12px;
+  font-size: 15px;
   color: #AAAAAA;
   white-space: nowrap;
   overflow: hidden;
@@ -135,16 +135,17 @@ html, body {
 // =====================================================================
 // TRAIL DATA
 // =====================================================================
-const TRAIL_DATA={"framework":"openclaw","trailName":"The Gateway Trail","stops":[{"name":"Channel Outpost","subtitle":"Message Arrives","concept":"Channel Plugins","landmarkType":"town","code":{"file":"extensions/whatsapp/src/plugin.ts","content":"// extensions/whatsapp/src/plugin.ts (conceptual)\nimport { ChannelPlugin } from '@openclaw/types'\n\nexport const whatsappPlugin: ChannelPlugin = {\n  config: {\n    listAccountIds(cfg) {\n      return cfg.whatsapp?.accounts?.map(a => a.id) ?? []\n    },\n    async isConfigured(account) {\n      return !!account.phoneNumber\n    },\n    resolveAccount(cfg, id) {\n      return cfg.whatsapp.accounts.find(a => a.id === id)\n    },\n  },\n  gateway: {\n    async startAccount({ account, gateway }) {\n      const sock = makeWASocket({ auth: account.auth })\n      sock.ev.on('messages.upsert', async ({ messages }) => {\n        for (const msg of messages) {\n          await gateway.handleInbound({\n            channel: 'whatsapp',\n            peer: msg.key.remoteJid,\n            text: msg.message?.conversation,\n            accountId: account.id,\n          })\n        }\n      })\n    },\n    async stopAccount({ account }) {\n      // Graceful disconnect\n    },\n  },\n}","language":"typescript"},"narration":"Every journey starts at a channel outpost. OpenClaw connects to thirteen different messaging platforms. Each has a channel plugin following the same interface. Here's the WhatsApp plugin using Baileys to listen for messages. When a message arrives, it normalizes it into a common format and hands it to the gateway."},{"name":"Normalization Pass","subtitle":"Common Message Format","concept":"Channel Plugins","landmarkType":"camp","code":{"file":"src/channels/plugins/types.ts","content":"// src/channels/plugins/types.ts (simplified)\nexport interface ChannelPlugin {\n  config: {\n    listAccountIds(cfg: Config): string[]\n    isConfigured(account: AccountConfig): Promise<boolean>\n    resolveAccount(cfg: Config, id: string): AccountConfig\n  }\n  gateway?: {\n    startAccount(opts: StartAccountOpts): Promise<void>\n    stopAccount(opts: StopAccountOpts): Promise<void>\n  }\n}\n\n// The normalized inbound message shape:\ninterface InboundMessage {\n  channel: string\n  accountId: string\n  peer: RoutePeer\n  text: string\n  threadId?: string\n  attachments?: Media[]\n  guildId?: string\n}","language":"typescript"},"narration":"At the Normalization Pass, chaos becomes order. Every messaging platform has its own format. The ChannelPlugin interface forces them all into one shape. The gateway never needs to know whether you messaged from WhatsApp or Telegram."},{"name":"Route Resolution Fork","subtitle":"Finding the Right Agent","concept":"Route Resolution","landmarkType":"mountain","code":{"file":"src/routing/resolve-route.ts","content":"// src/routing/resolve-route.ts (simplified)\nexport function resolveAgentRoute({\n  cfg, channel, accountId, peer, guildId, teamId,\n}: ResolveRouteInput): ResolvedRoute {\n\n  for (const agent of cfg.agents.list) {\n    const routing = agent.routing\n\n    // 1. Exact peer match (highest priority)\n    const peerMatch = routing.peer?.find(\n      b => b.peer === peer.id && b.channel === channel\n    )\n    if (peerMatch) return { agentId: agent.id, matchedBy: 'peer' }\n\n    // 2. Guild/server match\n    const guildMatch = routing.guild?.find(\n      b => b.guildId === guildId && b.channel === channel\n    )\n    if (guildMatch) return { agentId: agent.id, matchedBy: 'guild' }\n\n    // 3. Account-level match\n    const accountMatch = routing.account?.find(\n      b => b.accountId === accountId && b.channel === channel\n    )\n    if (accountMatch) return { agentId: agent.id, matchedBy: 'account' }\n  }\n\n  return { agentId: cfg.agents.default, matchedBy: 'default' }\n}","language":"typescript"},"narration":"Here's where the trail forks. The resolver checks priority order: specific peer binding, then guild/server, then account, then default. One gateway can serve different agents to different people."},{"name":"Session Persistence Camp","subtitle":"Loading Conversation State","concept":"Session Persistence","landmarkType":"camp","code":{"file":"src/sessions/session-utils.ts","content":"// src/sessions/session-utils.ts (simplified)\nimport { readFile, writeFile, mkdir } from 'fs/promises'\n\nconst SESSIONS_DIR = '~/.openclaw/sessions'\n\nexport async function loadSessionEntry(\n  agentId: string,\n  sessionKey: string,\n): Promise<SessionEntry> {\n  const path = `${SESSIONS_DIR}/${agentId}/${sessionKey}.json`\n\n  try {\n    const raw = await readFile(path, 'utf-8')\n    return JSON.parse(raw)\n  } catch {\n    return {\n      sessionKey,\n      agentId,\n      transcript: [],\n      metadata: {\n        model: 'anthropic/claude-opus-4-6',\n        thinkingLevel: 'medium',\n        tokensUsed: 0,\n        createdAt: Date.now(),\n      },\n    }\n  }\n}","language":"typescript"},"narration":"Sessions are just JSON files on disk. Each agent-plus-peer combination gets its own file. If the file doesn't exist, a fresh session starts with sensible defaults. Zero database dependencies, easy backup."},{"name":"Gateway Control Ridge","subtitle":"The WebSocket Command Center","concept":"Gateway Control Plane","landmarkType":"mountain","code":{"file":"src/gateway/server-chat.ts","content":"// src/gateway/server-chat.ts (simplified)\nexport function createChatRunRegistry(gateway: GatewayServer) {\n\n  async function handleChatSend(\n    sessionEntry: SessionEntry,\n    message: InboundMessage,\n  ) {\n    sessionEntry.transcript.push({\n      role: 'user',\n      content: message.text,\n      timestamp: Date.now(),\n    })\n\n    const agentRpc = gateway.acp.getClient(sessionEntry.agentId)\n    const stream = await agentRpc.call('chat.send', {\n      sessionId: sessionEntry.sessionKey,\n      messages: sessionEntry.transcript,\n      tools: sessionEntry.metadata.enabledTools,\n      model: sessionEntry.metadata.model,\n    })\n\n    for await (const chunk of stream) {\n      if (chunk.type === 'text') {\n        gateway.broadcast('chat.stream', { text: chunk.text })\n      } else if (chunk.type === 'tool_use') {\n        const result = await executeTool(chunk.tool, chunk.input)\n        agentRpc.sendToolResult(chunk.id, result)\n      }\n    }\n    await saveSession(sessionEntry)\n  }\n\n  return { handleChatSend }\n}","language":"typescript"},"narration":"The gateway server accepts WebSocket connections from channels, the CLI, and native apps. The streaming loop handles text and tool calls differently. Text streams in real time; tool calls get executed on the gateway and results feed back."},{"name":"Agent RPC Rapids","subtitle":"Talking to the AI","concept":"Gateway Control Plane","landmarkType":"river","code":{"file":"src/acp/client.ts","content":"// src/acp/client.ts (simplified)\nexport function createAcpClient(agentId: string, wsUrl: string) {\n  const ws = new WebSocket(wsUrl)\n\n  async function* call(\n    method: string,\n    params: ChatSendParams,\n  ): AsyncGenerator<AgentChunk> {\n    const requestId = crypto.randomUUID()\n\n    ws.send(JSON.stringify({\n      jsonrpc: '2.0',\n      id: requestId,\n      method,\n      params,\n    }))\n\n    while (true) {\n      const msg = await nextMessage(ws, requestId)\n      if (msg.type === 'done') break\n      yield msg\n    }\n  }\n\n  function sendToolResult(toolCallId: string, result: ToolResult) {\n    ws.send(JSON.stringify({\n      jsonrpc: '2.0',\n      method: 'tool.result',\n      params: { toolCallId, result },\n    }))\n  }\n\n  return { call, sendToolResult }\n}","language":"typescript"},"narration":"Now we cross the RPC Rapids. The gateway and agent communicate over JSON-RPC. The agent decides what to do, but the gateway controls what actually happens on your machine. Security through architecture."},{"name":"Tool Execution Gorge","subtitle":"Running Commands on the Host","concept":"Gateway Control Plane","landmarkType":"forest","code":{"file":"src/agents/bash-tools.exec.ts","content":"// src/agents/bash-tools.exec.ts (simplified)\nexport async function executeBashTool(\n  input: { command: string },\n  context: ToolContext,\n): Promise<ToolResult> {\n  const { command } = input\n  const { sessionEntry, securityPolicy } = context\n\n  if (!securityPolicy.allowBash) {\n    return { error: 'Bash execution not permitted' }\n  }\n\n  const pty = spawn('bash', ['-c', command], {\n    cwd: sessionEntry.metadata.workingDir,\n    env: { ...process.env, ...sessionEntry.metadata.env },\n    timeout: 120_000,\n  })\n\n  let stdout = ''\n  pty.onData(data => { stdout += data })\n  const exitCode = await pty.wait()\n\n  return {\n    stdout: stdout.slice(0, 100_000),\n    exitCode,\n  }\n}","language":"typescript"},"narration":"Deep in Tool Execution Gorge, the agent's intentions become real actions. Security check first, then a real PTY with a two-minute timeout. Bash is just one tool \u2014 same pattern for browser control, canvas, and device actions."},{"name":"Response Delivery Frontier","subtitle":"Back Through the Channel","concept":"Channel Plugins","landmarkType":"town","code":{"file":"src/gateway/server-channels.ts","content":"// src/gateway/server-channels.ts (simplified)\nexport function createChannelManager(gateway: GatewayServer) {\n\n  async function deliverResponse(\n    sessionEntry: SessionEntry,\n    response: AgentResponse,\n  ) {\n    const { channel, peer, accountId } = sessionEntry.routing\n    const plugin = gateway.channels.get(channel)\n\n    const formatted = formatForChannel(channel, response.text, {\n      maxLength: getChannelLimit(channel),\n    })\n\n    for (const chunk of formatted) {\n      await plugin.send({ accountId, peer, text: chunk })\n    }\n\n    sessionEntry.transcript.push({\n      role: 'assistant',\n      content: response.text,\n      timestamp: Date.now(),\n    })\n    await saveSession(sessionEntry)\n\n    gateway.broadcast('chat.response', { text: response.text })\n  }\n\n  return { deliverResponse }\n}","language":"typescript"},"narration":"You made it! The response travels back through the same channel. Formatted for each platform's limits, chunked automatically, saved to the transcript. Message in, intelligence applied, response out. Your wagon has arrived."}],"events":[{"type":"weather","trigger":"after_stop","triggerStop":1,"title":"Protocol Storm!","text":"A storm of messages hits your gateway \u2014 WhatsApp sends phone numbers, Discord sends snowflake IDs, Slack sends workspace tokens. How do you weather this storm?","choices":[{"text":"Define a common interface that all channel plugins must implement","correct":true,"explanation":"OpenClaw's ChannelPlugin interface forces every platform into the same shape. New channels can be added without touching gateway code."},{"text":"Write a giant switch statement in the gateway for each platform","correct":false,"explanation":"That would make the gateway a tangled mess. Every new channel means modifying core code."},{"text":"Only support one messaging platform to keep things simple","correct":false,"explanation":"Multi-channel support is core to OpenClaw's value. The trick is clean abstraction through the plugin interface."}],"concept":"Channel Plugins","difficulty":"easy"},{"type":"encounter","trigger":"after_stop","triggerStop":2,"title":"A Fellow Operator Appears","text":"A seasoned operator says: 'I run three agents \u2014 personal on WhatsApp, work on Slack, social bot on Discord. One gateway.' How does it know which agent handles which message?","choices":[{"text":"Route bindings in the config map channels, peers, and guilds to agents","correct":true,"explanation":"Config bindings map at multiple levels. Priority: peer, guild, team, account, channel, then default."},{"text":"Each agent runs its own separate gateway on a different port","correct":false,"explanation":"One gateway, multiple agents. Separate gateways would mean separate configs and connections."},{"text":"The user specifies which agent to use in every message","correct":false,"explanation":"Routing is automatic and invisible. The gateway figures it out from the config bindings."}],"concept":"Route Resolution","difficulty":"easy"},{"type":"river","trigger":"after_stop","triggerStop":3,"title":"The Session State River","text":"You've reached the boundary between stateless request handling and persistent memory. Your assistant needs to remember last week's conversation across a restart. How do you cross?","choices":[{"text":"Store sessions as JSON files on disk, loaded on demand per key","correct":true,"explanation":"Each session is a JSON file at a predictable path. No database needed. The file system IS the persistence layer."},{"text":"Keep all sessions in memory with a Redis cache","correct":false,"explanation":"In-memory state is lost on restart. Redis adds an external dependency. OpenClaw is local-first."},{"text":"Store history in the AI model's context and let it remember","correct":false,"explanation":"Context windows are limited and expensive. The persistence layer is separate from inference."}],"concept":"Session Persistence","difficulty":"medium"},{"type":"misfortune","trigger":"after_stop","triggerStop":5,"title":"Runaway Process!","text":"The AI agent ran a shell command that's an infinite loop consuming 100% CPU. Your gateway is grinding to a halt!","choices":[{"text":"Tool execution needs timeouts and session security policies should gate commands","correct":true,"explanation":"Bash tools have a two-minute timeout, and security policies control what's allowed. The gateway is the security boundary."},{"text":"The agent should be smarter and never request dangerous commands","correct":false,"explanation":"Never rely on the AI as the security boundary. Defense in depth means the gateway enforces limits."},{"text":"Run all tools in the agent's process so only it crashes","correct":false,"explanation":"Tools run on the gateway because they need local machine access. The separation is a feature."}],"concept":"Gateway Control Plane","difficulty":"medium"},{"type":"river","trigger":"after_stop","triggerStop":5,"title":"The RPC River","text":"The deepest river \u2014 the boundary between gateway and agent runtime. The agent needs a browser screenshot but runs in a different process. How?","choices":[{"text":"JSON-RPC over WebSocket: agent requests, gateway executes locally","correct":true,"explanation":"The agent streams tool_use blocks, the gateway intercepts and executes. The agent could run remotely."},{"text":"The agent directly imports and calls the browser module","correct":false,"explanation":"Separate processes can't call each other's code. The RPC boundary IS the security model."},{"text":"The agent writes commands to a shared file the gateway watches","correct":false,"explanation":"File watching is slow and unreliable. WebSocket RPC gives real-time bidirectional streaming."}],"concept":"Gateway Control Plane","difficulty":"hard"},{"type":"fortune","trigger":"after_stop","triggerStop":6,"title":"Spring of Clean Architecture","text":"Your understanding of the control plane is solid! Friendly contributors join your camp and share plugin templates.","choices":[],"concept":"Channel Plugins","difficulty":"easy"},{"type":"weather","trigger":"after_stop","triggerStop":6,"title":"Message Chunking Fog","text":"Dense fog. Your assistant wrote 3000 words but WhatsApp only allows 4096 characters. The user sees a truncated response. What went wrong?","choices":[{"text":"The formatter should chunk messages based on each channel's limit","correct":true,"explanation":"WhatsApp: 4096, Discord: 2000, Slack: 40000. The delivery layer splits into properly-sized chunks."},{"text":"Tell the AI to always write short responses","correct":false,"explanation":"You can't enforce output length on LLMs. The delivery layer handles formatting."},{"text":"Switch to a channel with no message limits","correct":false,"explanation":"Multi-channel means meeting users where they are. Every channel must work correctly."}],"concept":"Channel Plugins","difficulty":"easy"}],"partyMembers":[{"name":"Gateway Control Plane","icon":"gateway","maxHealth":3},{"name":"Channel Plugins","icon":"channel","maxHealth":3},{"name":"Route Resolution","icon":"route","maxHealth":3},{"name":"Session Persistence","icon":"session","maxHealth":3}],"deathMessages":["Here lies your gateway. It died of unhandled WebSocket disconnections.","Lost in the route resolver \u2014 no default agent configured.","Drowned in the RPC River. The agent sent a tool call but nobody was listening.","Died of session bloat. The transcript grew to ten million tokens.","Killed by a runaway bash command. No timeout configured.","Your channel plugin threw an unhandled exception. Thirteen platforms went silent.","Starved waiting for the API response. Anthropic rate limits consumed all resources.","Died of dependency conflicts. pnpm install will not save you now.","Your sessions expired of old age. The JSON files outlived the server.","Buried under an avalanche of Discord snowflake IDs.","Lost in the config \u2014 routing bindings pointed to an agent that doesn't exist."]};
+const TRAIL_DATA={"framework":"openclaw","trailName":"The Gateway Trail","stops":[{"name":"Channel Outpost","subtitle":"Message Arrives","concept":"Channel Plugins","landmarkType":"town","code":{"file":"extensions/whatsapp/src/plugin.ts","content":"// extensions/whatsapp/src/plugin.ts (conceptual)\nimport { ChannelPlugin } from '@openclaw/types'\n\nexport const whatsappPlugin: ChannelPlugin = {\n  config: {\n    listAccountIds(cfg) {\n      return cfg.whatsapp?.accounts?.map(a => a.id) ?? []\n    },\n    async isConfigured(account) {\n      return !!account.phoneNumber\n    },\n    resolveAccount(cfg, id) {\n      return cfg.whatsapp.accounts.find(a => a.id === id)\n    },\n  },\n  gateway: {\n    async startAccount({ account, gateway }) {\n      const sock = makeWASocket({ auth: account.auth })\n      sock.ev.on('messages.upsert', async ({ messages }) => {\n        for (const msg of messages) {\n          await gateway.handleInbound({\n            channel: 'whatsapp',\n            peer: msg.key.remoteJid,\n            text: msg.message?.conversation,\n            accountId: account.id,\n          })\n        }\n      })\n    },\n    async stopAccount({ account }) {\n      // Graceful disconnect\n    },\n  },\n}","language":"typescript"},"narration":"Every journey starts at a channel outpost. OpenClaw connects to thirteen different messaging platforms. Each has a channel plugin following the same interface. Here's the WhatsApp plugin using Baileys to listen for messages. When a message arrives, it normalizes it into a common format and hands it to the gateway."},{"name":"Normalization Pass","subtitle":"Common Message Format","concept":"Channel Plugins","landmarkType":"camp","code":{"file":"src/channels/plugins/types.ts","content":"// src/channels/plugins/types.ts (simplified)\nexport interface ChannelPlugin {\n  config: {\n    listAccountIds(cfg: Config): string[]\n    isConfigured(account: AccountConfig): Promise<boolean>\n    resolveAccount(cfg: Config, id: string): AccountConfig\n  }\n  gateway?: {\n    startAccount(opts: StartAccountOpts): Promise<void>\n    stopAccount(opts: StopAccountOpts): Promise<void>\n  }\n}\n\n// The normalized inbound message shape:\ninterface InboundMessage {\n  channel: string\n  accountId: string\n  peer: RoutePeer\n  text: string\n  threadId?: string\n  attachments?: Media[]\n  guildId?: string\n}","language":"typescript"},"narration":"At the Normalization Pass, chaos becomes order. Every messaging platform has its own format. The ChannelPlugin interface forces them all into one shape. The gateway never needs to know whether you messaged from WhatsApp or Telegram."},{"name":"Route Resolution Fork","subtitle":"Finding the Right Agent","concept":"Route Resolution","landmarkType":"mountain","code":{"file":"src/routing/resolve-route.ts","content":"// src/routing/resolve-route.ts (simplified)\nexport function resolveAgentRoute({\n  cfg, channel, accountId, peer, guildId, teamId,\n}: ResolveRouteInput): ResolvedRoute {\n\n  for (const agent of cfg.agents.list) {\n    const routing = agent.routing\n\n    // 1. Exact peer match (highest priority)\n    const peerMatch = routing.peer?.find(\n      b => b.peer === peer.id && b.channel === channel\n    )\n    if (peerMatch) return { agentId: agent.id, matchedBy: 'peer' }\n\n    // 2. Guild/server match\n    const guildMatch = routing.guild?.find(\n      b => b.guildId === guildId && b.channel === channel\n    )\n    if (guildMatch) return { agentId: agent.id, matchedBy: 'guild' }\n\n    // 3. Account-level match\n    const accountMatch = routing.account?.find(\n      b => b.accountId === accountId && b.channel === channel\n    )\n    if (accountMatch) return { agentId: agent.id, matchedBy: 'account' }\n  }\n\n  return { agentId: cfg.agents.default, matchedBy: 'default' }\n}","language":"typescript"},"narration":"Here's where the trail forks. The resolver checks priority order: specific peer binding, then guild/server, then account, then default. One gateway can serve different agents to different people."},{"name":"Session Persistence Camp","subtitle":"Loading Conversation State","concept":"Session Persistence","landmarkType":"camp","code":{"file":"src/sessions/session-utils.ts","content":"// src/sessions/session-utils.ts (simplified)\nimport { readFile, writeFile, mkdir } from 'fs/promises'\n\nconst SESSIONS_DIR = '~/.openclaw/sessions'\n\nexport async function loadSessionEntry(\n  agentId: string,\n  sessionKey: string,\n): Promise<SessionEntry> {\n  const path = `${SESSIONS_DIR}/${agentId}/${sessionKey}.json`\n\n  try {\n    const raw = await readFile(path, 'utf-8')\n    return JSON.parse(raw)\n  } catch {\n    return {\n      sessionKey,\n      agentId,\n      transcript: [],\n      metadata: {\n        model: 'anthropic/claude-opus-4-6',\n        thinkingLevel: 'medium',\n        tokensUsed: 0,\n        createdAt: Date.now(),\n      },\n    }\n  }\n}","language":"typescript"},"narration":"Sessions are just JSON files on disk. Each agent-plus-peer combination gets its own file. If the file doesn't exist, a fresh session starts with sensible defaults. Zero database dependencies, easy backup."},{"name":"Gateway Control Ridge","subtitle":"The WebSocket Command Center","concept":"Gateway Control Plane","landmarkType":"mountain","code":{"file":"src/gateway/server-chat.ts","content":"// src/gateway/server-chat.ts (simplified)\nexport function createChatRunRegistry(gateway: GatewayServer) {\n\n  async function handleChatSend(\n    sessionEntry: SessionEntry,\n    message: InboundMessage,\n  ) {\n    sessionEntry.transcript.push({\n      role: 'user',\n      content: message.text,\n      timestamp: Date.now(),\n    })\n\n    const agentRpc = gateway.acp.getClient(sessionEntry.agentId)\n    const stream = await agentRpc.call('chat.send', {\n      sessionId: sessionEntry.sessionKey,\n      messages: sessionEntry.transcript,\n      tools: sessionEntry.metadata.enabledTools,\n      model: sessionEntry.metadata.model,\n    })\n\n    for await (const chunk of stream) {\n      if (chunk.type === 'text') {\n        gateway.broadcast('chat.stream', { text: chunk.text })\n      } else if (chunk.type === 'tool_use') {\n        const result = await executeTool(chunk.tool, chunk.input)\n        agentRpc.sendToolResult(chunk.id, result)\n      }\n    }\n    await saveSession(sessionEntry)\n  }\n\n  return { handleChatSend }\n}","language":"typescript"},"narration":"The gateway server accepts WebSocket connections from channels, the CLI, and native apps. The streaming loop handles text and tool calls differently. Text streams in real time; tool calls get executed on the gateway and results feed back."},{"name":"Agent RPC Rapids","subtitle":"Talking to the AI","concept":"Gateway Control Plane","landmarkType":"river","code":{"file":"src/acp/client.ts","content":"// src/acp/client.ts (simplified)\nexport function createAcpClient(agentId: string, wsUrl: string) {\n  const ws = new WebSocket(wsUrl)\n\n  async function* call(\n    method: string,\n    params: ChatSendParams,\n  ): AsyncGenerator<AgentChunk> {\n    const requestId = crypto.randomUUID()\n\n    ws.send(JSON.stringify({\n      jsonrpc: '2.0',\n      id: requestId,\n      method,\n      params,\n    }))\n\n    while (true) {\n      const msg = await nextMessage(ws, requestId)\n      if (msg.type === 'done') break\n      yield msg\n    }\n  }\n\n  function sendToolResult(toolCallId: string, result: ToolResult) {\n    ws.send(JSON.stringify({\n      jsonrpc: '2.0',\n      method: 'tool.result',\n      params: { toolCallId, result },\n    }))\n  }\n\n  return { call, sendToolResult }\n}","language":"typescript"},"narration":"Now we cross the RPC Rapids. The gateway and agent communicate over JSON-RPC. The agent decides what to do, but the gateway controls what actually happens on your machine. Security through architecture."},{"name":"Tool Execution Gorge","subtitle":"Running Commands on the Host","concept":"Gateway Control Plane","landmarkType":"forest","code":{"file":"src/agents/bash-tools.exec.ts","content":"// src/agents/bash-tools.exec.ts (simplified)\nexport async function executeBashTool(\n  input: { command: string },\n  context: ToolContext,\n): Promise<ToolResult> {\n  const { command } = input\n  const { sessionEntry, securityPolicy } = context\n\n  if (!securityPolicy.allowBash) {\n    return { error: 'Bash execution not permitted' }\n  }\n\n  const pty = spawn('bash', ['-c', command], {\n    cwd: sessionEntry.metadata.workingDir,\n    env: { ...process.env, ...sessionEntry.metadata.env },\n    timeout: 120_000,\n  })\n\n  let stdout = ''\n  pty.onData(data => { stdout += data })\n  const exitCode = await pty.wait()\n\n  return {\n    stdout: stdout.slice(0, 100_000),\n    exitCode,\n  }\n}","language":"typescript"},"narration":"Deep in Tool Execution Gorge, the agent's intentions become real actions. Security check first, then a real PTY with a two-minute timeout. Bash is just one tool \u2014 same pattern for browser control, canvas, and device actions."},{"name":"Response Delivery Frontier","subtitle":"Back Through the Channel","concept":"Channel Plugins","landmarkType":"town","code":{"file":"src/gateway/server-channels.ts","content":"// src/gateway/server-channels.ts (simplified)\nexport function createChannelManager(gateway: GatewayServer) {\n\n  async function deliverResponse(\n    sessionEntry: SessionEntry,\n    response: AgentResponse,\n  ) {\n    const { channel, peer, accountId } = sessionEntry.routing\n    const plugin = gateway.channels.get(channel)\n\n    const formatted = formatForChannel(channel, response.text, {\n      maxLength: getChannelLimit(channel),\n    })\n\n    for (const chunk of formatted) {\n      await plugin.send({ accountId, peer, text: chunk })\n    }\n\n    sessionEntry.transcript.push({\n      role: 'assistant',\n      content: response.text,\n      timestamp: Date.now(),\n    })\n    await saveSession(sessionEntry)\n\n    gateway.broadcast('chat.response', { text: response.text })\n  }\n\n  return { deliverResponse }\n}","language":"typescript"},"narration":"You made it! The response travels back through the same channel. Formatted for each platform's limits, chunked automatically, saved to the transcript. Message in, intelligence applied, response out. Your wagon has arrived."}],"events":[{"type":"weather","trigger":"after_stop","triggerStop":1,"title":"Protocol Storm!","text":"A storm of messages hits your gateway \u2014 WhatsApp sends phone numbers, Discord sends snowflake IDs, Slack sends workspace tokens. How do you weather this storm?","choices":[{"text":"Define a common interface that all channel plugins must implement","correct":true,"explanation":"OpenClaw's ChannelPlugin interface forces every platform into the same shape. New channels can be added without touching gateway code."},{"text":"Write a giant switch statement in the gateway for each platform","correct":false,"explanation":"That would make the gateway a tangled mess. Every new channel means modifying core code."},{"text":"Only support one messaging platform to keep things simple","correct":false,"explanation":"Multi-channel support is core to OpenClaw's value. The trick is clean abstraction through the plugin interface."}],"concept":"Channel Plugins","difficulty":"easy"},{"type":"encounter","trigger":"after_stop","triggerStop":2,"title":"A Fellow Operator Appears","text":"A seasoned operator says: 'I run three agents \u2014 personal on WhatsApp, work on Slack, social bot on Discord. One gateway.' How does it know which agent handles which message?","choices":[{"text":"Route bindings in the config map channels, peers, and guilds to agents","correct":true,"explanation":"Config bindings map at multiple levels. Priority: peer, guild, team, account, channel, then default."},{"text":"Each agent runs its own separate gateway on a different port","correct":false,"explanation":"One gateway, multiple agents. Separate gateways would mean separate configs and connections."},{"text":"The user specifies which agent to use in every message","correct":false,"explanation":"Routing is automatic and invisible. The gateway figures it out from the config bindings."}],"concept":"Route Resolution","difficulty":"easy"},{"type":"river","trigger":"after_stop","triggerStop":3,"title":"The Session State River","text":"You've reached the boundary between stateless request handling and persistent memory. Your assistant needs to remember last week's conversation across a restart. How do you cross?","choices":[{"text":"Store sessions as JSON files on disk, loaded on demand per key","correct":true,"explanation":"Each session is a JSON file at a predictable path. No database needed. The file system IS the persistence layer."},{"text":"Keep all sessions in memory with a Redis cache","correct":false,"explanation":"In-memory state is lost on restart. Redis adds an external dependency. OpenClaw is local-first."},{"text":"Store history in the AI model's context and let it remember","correct":false,"explanation":"Context windows are limited and expensive. The persistence layer is separate from inference."}],"concept":"Session Persistence","difficulty":"medium"},{"type":"misfortune","trigger":"after_stop","triggerStop":5,"title":"Runaway Process!","text":"The AI agent ran a shell command that's an infinite loop consuming 100% CPU. Your gateway is grinding to a halt!","choices":[{"text":"Tool execution needs timeouts and session security policies should gate commands","correct":true,"explanation":"Bash tools have a two-minute timeout, and security policies control what's allowed. The gateway is the security boundary."},{"text":"The agent should be smarter and never request dangerous commands","correct":false,"explanation":"Never rely on the AI as the security boundary. Defense in depth means the gateway enforces limits."},{"text":"Run all tools in the agent's process so only it crashes","correct":false,"explanation":"Tools run on the gateway because they need local machine access. The separation is a feature."}],"concept":"Gateway Control Plane","difficulty":"medium"},{"type":"river","trigger":"after_stop","triggerStop":5,"title":"The RPC River","text":"The deepest river \u2014 the boundary between gateway and agent runtime. The agent needs a browser screenshot but runs in a different process. How?","choices":[{"text":"JSON-RPC over WebSocket: agent requests, gateway executes locally","correct":true,"explanation":"The agent streams tool_use blocks, the gateway intercepts and executes. The agent could run remotely."},{"text":"The agent directly imports and calls the browser module","correct":false,"explanation":"Separate processes can't call each other's code. The RPC boundary IS the security model."},{"text":"The agent writes commands to a shared file the gateway watches","correct":false,"explanation":"File watching is slow and unreliable. WebSocket RPC gives real-time bidirectional streaming."}],"concept":"Gateway Control Plane","difficulty":"hard"},{"type":"fortune","trigger":"after_stop","triggerStop":6,"title":"Spring of Clean Architecture","text":"Your understanding of the control plane is solid! Friendly contributors join your camp and share plugin templates.","choices":[],"concept":"Channel Plugins","difficulty":"easy"},{"type":"weather","trigger":"after_stop","triggerStop":6,"title":"Message Chunking Fog","text":"Dense fog. Your assistant wrote 3000 words but WhatsApp only allows 4096 characters. The user sees a truncated response. What went wrong?","choices":[{"text":"The formatter should chunk messages based on each channel's limit","correct":true,"explanation":"WhatsApp: 4096, Discord: 2000, Slack: 40000. The delivery layer splits into properly-sized chunks."},{"text":"Tell the AI to always write short responses","correct":false,"explanation":"You can't enforce output length on LLMs. The delivery layer handles formatting."},{"text":"Switch to a channel with no message limits","correct":false,"explanation":"Multi-channel means meeting users where they are. Every channel must work correctly."}],"concept":"Channel Plugins","difficulty":"easy"}],"partyMembers":[{"name":"Gateway Control Plane","icon":"gateway","maxHealth":3},{"name":"Channel Plugins","icon":"channel","maxHealth":3},{"name":"Route Resolution","icon":"route","maxHealth":3},{"name":"Session Persistence","icon":"session","maxHealth":3}],"deathMessages":["You have died of unhandled WebSocket disconnections.","You have died of missing default routes.","You have drowned in the RPC River.","You have died of session bloat.","You have died of a runaway bash command.","You have died of unhandled plugin exceptions.","You have died of API rate limits.","You have died of dependency conflicts.","You have died of expired sessions.","You have died of Discord snowflake avalanche.","You have died of invalid routing config."]};
 
 // =====================================================================
 // GAME STATE
 // =====================================================================
 const STATES = { TITLE: 'TITLE', SETUP: 'SETUP', TRAVEL: 'TRAVEL', STOP: 'STOP', EVENT: 'EVENT', RIVER: 'RIVER', DEATH: 'DEATH', WIN: 'WIN' };
-const DIFFICULTIES = [
-  { name: 'Settler', health: 120, supplies: 8 },
-  { name: 'Adventurer', health: 100, supplies: 5 },
-  { name: 'Trail Blazer', health: 80, supplies: 3 }
+const PROFESSIONS = [
+  { name: 'Ralph Wiggum', desc: '"I\'m learnding!"', health: 999, supplies: 999, hintFree: true, forgiving: true },
+  { name: 'Vibe Coder', desc: '"It works on my machine"', health: 100, supplies: 5, hintFree: false, forgiving: false },
+  { name: 'Engineer', desc: '"Let me check the docs"', health: 80, supplies: 2, hintFree: false, forgiving: false },
+  { name: 'Staff Architect', desc: '"I designed this system"', health: 50, supplies: 0, hintFree: false, forgiving: false }
 ];
 
 let gameState = STATES.TITLE;
@@ -170,6 +171,7 @@ let eventHinted = false;
 let dimmedChoice = -1;
 let selectedEventChoice = 0;
 let selectedStopChoice = 0;
+let shuffledIndices = []; // maps display position -> original choice index
 let selectedDifficulty = 1;
 let musicPlaying = false;
 let audioCtx = null;
@@ -181,6 +183,8 @@ let showRiver = false;
 let wagonWheelAngle = 0;
 let travelFlavorIndex = 0;
 let deathPending = false;
+let currentEventType = '';  // event type for canvas overlay
+let currentEventTitle = ''; // event title for canvas overlay
 
 const travelFlavors = [
   "The WebSocket connection is strong today...",
@@ -480,7 +484,355 @@ function drawRiver(time) {
   }
 }
 
+// =====================================================================
+// EVENT CANVAS OVERLAYS — unique visuals per quiz event
+// =====================================================================
+function drawEventOverlay(time) {
+  if (!currentEventType && !currentEventTitle) return;
+
+  var t = (time || 0) * 0.001; // seconds
+
+  // --- PROTOCOL STORM: dark sky, lightning, rain ---
+  if (currentEventTitle.indexOf('Protocol Storm') !== -1) {
+    // Darken sky
+    ctx.fillStyle = 'rgba(0,0,50,0.45)';
+    ctx.fillRect(0, 0, W, 110);
+    // Lightning flash (periodic)
+    var flashPhase = Math.sin(t * 1.7) + Math.sin(t * 3.1);
+    if (flashPhase > 1.6) {
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.fillRect(0, 0, W, H);
+      // Lightning bolt
+      ctx.strokeStyle = '#FFFF55';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      var lx = 80 + Math.sin(t * 2.3) * 60;
+      ctx.moveTo(lx, 10);
+      ctx.lineTo(lx - 5, 35);
+      ctx.lineTo(lx + 8, 35);
+      ctx.lineTo(lx - 3, 65);
+      ctx.lineTo(lx + 10, 65);
+      ctx.lineTo(lx + 2, 95);
+      ctx.stroke();
+    }
+    // Rain
+    ctx.strokeStyle = '#5555FF';
+    ctx.lineWidth = 1;
+    for (var i = 0; i < 40; i++) {
+      var rx = (i * 8.3 + t * 80) % W;
+      var ry = (i * 13.7 + t * 120) % 110;
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(rx), Math.floor(ry));
+      ctx.lineTo(Math.floor(rx - 1), Math.floor(ry + 5));
+      ctx.stroke();
+    }
+    return;
+  }
+
+  // --- FELLOW OPERATOR: person standing by campfire ---
+  if (currentEventTitle.indexOf('Fellow Operator') !== -1) {
+    var px = 200, py = 142;
+    // Person body
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(px, py - 12, 4, 8); // torso
+    ctx.fillStyle = '#FFAA00';
+    ctx.fillRect(px, py - 15, 4, 3); // head
+    ctx.fillRect(px - 1, py - 4, 2, 5); // left leg
+    ctx.fillRect(px + 3, py - 4, 2, 5); // right leg
+    // Hat
+    ctx.fillStyle = '#555555';
+    ctx.fillRect(px - 1, py - 17, 6, 2);
+    ctx.fillRect(px, py - 19, 4, 2);
+    // Campfire
+    var fx = 212, fy = 148;
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(fx - 3, fy, 2, 3);
+    ctx.fillRect(fx + 3, fy, 2, 3);
+    ctx.fillStyle = '#FF5555';
+    var flicker = Math.sin(t * 8) * 2;
+    ctx.fillRect(fx - 1, fy - 3 + Math.floor(flicker * 0.3), 4, 3);
+    ctx.fillStyle = '#FFFF55';
+    ctx.fillRect(fx, fy - 5 + Math.floor(flicker * 0.5), 2, 2);
+    ctx.fillStyle = '#FFAA00';
+    ctx.fillRect(fx - 1, fy - 2, 4, 2);
+    // Firelight glow (subtle)
+    ctx.fillStyle = 'rgba(255,170,0,0.08)';
+    ctx.beginPath();
+    ctx.arc(fx + 1, fy - 2, 15, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+
+  // --- SESSION STATE RIVER: rough rapids with white water ---
+  if (currentEventTitle.indexOf('Session State') !== -1) {
+    // Extra turbulence on the river
+    ctx.fillStyle = '#55FFFF';
+    for (var i = 0; i < 20; i++) {
+      var sx = (i * 17 + t * 40) % W;
+      var sy = 157 + Math.sin((i * 3 + t * 5)) * 3;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), 4, 2);
+    }
+    // Floating logs / debris
+    ctx.fillStyle = '#AA5500';
+    for (var i = 0; i < 3; i++) {
+      var logX = (i * 110 + t * 25) % W;
+      var logY = 159 + Math.sin(t * 2 + i) * 2;
+      ctx.fillRect(Math.floor(logX), Math.floor(logY), 8, 2);
+    }
+    return;
+  }
+
+  // --- RUNAWAY PROCESS: red sky, smoke, warning ---
+  if (currentEventTitle.indexOf('Runaway Process') !== -1) {
+    // Red danger tint
+    ctx.fillStyle = 'rgba(170,0,0,0.25)';
+    ctx.fillRect(0, 0, W, H);
+    // Smoke particles rising
+    ctx.fillStyle = '#555555';
+    for (var i = 0; i < 15; i++) {
+      var sx = 140 + Math.sin(i * 2.7 + t) * 30;
+      var sy = 130 - ((t * 20 + i * 15) % 90);
+      var size = 2 + (i % 3);
+      ctx.globalAlpha = 0.3 + Math.sin(t + i) * 0.15;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), size, size);
+    }
+    ctx.globalAlpha = 1.0;
+    // Fire at base
+    ctx.fillStyle = '#FF5555';
+    for (var i = 0; i < 8; i++) {
+      var fx = 130 + i * 5;
+      var fh = 4 + Math.sin(t * 6 + i * 1.5) * 3;
+      ctx.fillRect(fx, Math.floor(140 - fh), 3, Math.floor(fh));
+    }
+    ctx.fillStyle = '#FFFF55';
+    for (var i = 0; i < 5; i++) {
+      var fx = 135 + i * 6;
+      var fh = 2 + Math.sin(t * 8 + i * 2) * 2;
+      ctx.fillRect(fx, Math.floor(139 - fh), 2, Math.floor(fh));
+    }
+    // Pulsing red border
+    var pulse = (Math.sin(t * 4) + 1) * 0.15;
+    ctx.strokeStyle = 'rgba(255,0,0,' + pulse.toFixed(2) + ')';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(1, 1, W - 2, H - 2);
+    ctx.lineWidth = 1;
+    return;
+  }
+
+  // --- RPC RIVER: deep blue, fog/mist over water ---
+  if (currentEventTitle.indexOf('RPC River') !== -1) {
+    // Fog layers drifting over the river
+    ctx.fillStyle = 'rgba(85,85,255,0.12)';
+    for (var i = 0; i < 6; i++) {
+      var fogX = (i * 60 + t * 12 + Math.sin(i) * 20) % (W + 40) - 20;
+      var fogY = 145 + Math.sin(t * 0.5 + i * 1.1) * 5;
+      ctx.beginPath();
+      ctx.arc(fogX, fogY, 20 + i * 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(170,170,255,0.08)';
+    for (var i = 0; i < 8; i++) {
+      var fogX = (i * 45 + t * 8) % (W + 30) - 15;
+      var fogY = 150 + Math.sin(t * 0.3 + i * 0.8) * 8;
+      ctx.beginPath();
+      ctx.arc(fogX, fogY, 15 + i * 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Deeper water tint
+    ctx.fillStyle = 'rgba(0,0,85,0.2)';
+    ctx.fillRect(0, 155, W, 18);
+    return;
+  }
+
+  // --- SPRING OF CLEAN ARCHITECTURE: sunny, flowers, rainbow ---
+  if (currentEventTitle.indexOf('Spring') !== -1) {
+    // Bright sun
+    ctx.fillStyle = '#FFFF55';
+    ctx.beginPath();
+    ctx.arc(260, 30, 12, 0, Math.PI * 2);
+    ctx.fill();
+    // Sun rays
+    ctx.strokeStyle = '#FFFF55';
+    ctx.lineWidth = 1;
+    for (var i = 0; i < 8; i++) {
+      var angle = i * Math.PI / 4 + t * 0.3;
+      ctx.beginPath();
+      ctx.moveTo(260 + Math.cos(angle) * 14, 30 + Math.sin(angle) * 14);
+      ctx.lineTo(260 + Math.cos(angle) * 20, 30 + Math.sin(angle) * 20);
+      ctx.stroke();
+    }
+    // Flowers on ground
+    var flowerColors = ['#FF5555', '#FFFF55', '#FF55FF', '#55FFFF', '#55FF55'];
+    for (var i = 0; i < 12; i++) {
+      var fx = (i * 27 + 10) % W;
+      var fy = 135 + (i * 7) % 20;
+      ctx.fillStyle = '#00AA00';
+      ctx.fillRect(fx + 1, fy, 1, 4); // stem
+      ctx.fillStyle = flowerColors[i % flowerColors.length];
+      ctx.fillRect(fx, fy - 1, 3, 2); // petals
+      ctx.fillStyle = '#FFFF55';
+      ctx.fillRect(fx + 1, fy - 1, 1, 1); // center
+    }
+    // Rainbow arc
+    var rainbowColors = ['#FF5555', '#FFAA00', '#FFFF55', '#55FF55', '#5555FF', '#AA00AA'];
+    for (var rc = 0; rc < rainbowColors.length; rc++) {
+      ctx.strokeStyle = rainbowColors[rc];
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(160, 110, 70 + rc * 3, Math.PI * 1.1, Math.PI * 1.9);
+      ctx.stroke();
+    }
+    ctx.lineWidth = 1;
+    return;
+  }
+
+  // --- MESSAGE CHUNKING FOG: heavy fog obscuring everything ---
+  if (currentEventTitle.indexOf('Chunking Fog') !== -1) {
+    // Dense fog layers
+    for (var layer = 0; layer < 3; layer++) {
+      var alpha = 0.15 + layer * 0.08;
+      ctx.fillStyle = 'rgba(170,170,170,' + alpha.toFixed(2) + ')';
+      for (var i = 0; i < 10; i++) {
+        var fogX = (i * 35 + t * (6 + layer * 4) + layer * 50) % (W + 60) - 30;
+        var fogY = 60 + layer * 30 + Math.sin(t * 0.4 + i * 0.9 + layer) * 10;
+        var fogR = 18 + layer * 8 + Math.sin(t * 0.3 + i) * 5;
+        ctx.beginPath();
+        ctx.arc(fogX, fogY, fogR, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    // Fog below obscuring ground details
+    ctx.fillStyle = 'rgba(170,170,170,0.25)';
+    ctx.fillRect(0, 110, W, 60);
+    return;
+  }
+}
+
+// =====================================================================
+// DEATH SCREEN — Apple II green phosphor style
+// =====================================================================
+function drawDeathScene(time) {
+  var t = (time || 0) * 0.001;
+  var G = '#33FF33'; // Apple II green
+  var GD = '#1a8a1a'; // darker green for details
+
+  // Black background
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, W, H);
+
+  // Ground line
+  ctx.fillStyle = GD;
+  ctx.fillRect(0, 148, W, 1);
+
+  // --- OX (left side) ---
+  var ox = 100, oy = 128;
+  // Body
+  ctx.fillStyle = G;
+  ctx.fillRect(ox, oy, 24, 14);
+  // Head
+  ctx.fillRect(ox - 10, oy - 2, 12, 10);
+  // Horns
+  ctx.fillRect(ox - 12, oy - 6, 3, 5);
+  ctx.fillRect(ox - 4, oy - 6, 3, 5);
+  // Snout
+  ctx.fillStyle = GD;
+  ctx.fillRect(ox - 10, oy + 4, 6, 3);
+  // Eye
+  ctx.fillStyle = '#000';
+  ctx.fillRect(ox - 7, oy, 2, 2);
+  // Legs
+  ctx.fillStyle = G;
+  ctx.fillRect(ox + 2, oy + 14, 4, 8);
+  ctx.fillRect(ox + 10, oy + 14, 4, 8);
+  ctx.fillRect(ox + 16, oy + 14, 4, 8);
+  // Tail
+  ctx.fillRect(ox + 24, oy + 2, 6, 2);
+  ctx.fillRect(ox + 29, oy, 2, 4);
+
+  // --- HITCH ---
+  ctx.fillStyle = G;
+  ctx.fillRect(ox + 28, oy + 8, 14, 2);
+
+  // --- WAGON ---
+  var wx = 142, wy = 108;
+  // Wagon bed
+  ctx.fillStyle = G;
+  ctx.fillRect(wx, wy + 20, 50, 16);
+  // Bed slats (dark lines)
+  ctx.fillStyle = GD;
+  ctx.fillRect(wx, wy + 24, 50, 1);
+  ctx.fillRect(wx, wy + 28, 50, 1);
+  ctx.fillRect(wx, wy + 32, 50, 1);
+  // Side rails
+  ctx.fillStyle = G;
+  ctx.fillRect(wx, wy + 18, 2, 18);
+  ctx.fillRect(wx + 48, wy + 18, 2, 18);
+
+  // Canvas cover (the bonnet)
+  ctx.fillStyle = G;
+  // Left arch
+  ctx.fillRect(wx + 4, wy + 4, 2, 16);
+  // Right arch
+  ctx.fillRect(wx + 44, wy + 4, 2, 16);
+  // Top cover
+  ctx.fillRect(wx + 4, wy + 2, 42, 4);
+  // Cover fill
+  ctx.fillRect(wx + 6, wy + 6, 38, 12);
+  // Cover shading
+  ctx.fillStyle = GD;
+  ctx.fillRect(wx + 8, wy + 8, 34, 2);
+  ctx.fillRect(wx + 8, wy + 12, 34, 2);
+  ctx.fillRect(wx + 8, wy + 16, 34, 1);
+
+  // Wheels
+  var wheelR = 8;
+  var wheels = [wx + 8, wx + 42];
+  var wa = t * 0.5; // slow rotation
+  ctx.strokeStyle = G;
+  ctx.lineWidth = 1.5;
+  for (var wi = 0; wi < wheels.length; wi++) {
+    var cx = wheels[wi], cy = wy + 38;
+    // Rim
+    ctx.beginPath();
+    ctx.arc(cx, cy, wheelR, 0, Math.PI * 2);
+    ctx.stroke();
+    // Spokes
+    for (var sp = 0; sp < 6; sp++) {
+      var angle = wa + sp * Math.PI / 3;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(angle) * wheelR, cy + Math.sin(angle) * wheelR);
+      ctx.stroke();
+    }
+    // Hub
+    ctx.fillStyle = G;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.lineWidth = 1;
+
+  // Subtle scanline effect
+  ctx.fillStyle = 'rgba(0,0,0,0.08)';
+  for (var sl = 0; sl < H; sl += 3) {
+    ctx.fillRect(0, sl, W, 1);
+  }
+
+  // Subtle green glow/vignette
+  var grd = ctx.createRadialGradient(W/2, H/2, 40, W/2, H/2, W * 0.7);
+  grd.addColorStop(0, 'rgba(0,0,0,0)');
+  grd.addColorStop(1, 'rgba(0,0,0,0.4)');
+  ctx.fillStyle = grd;
+  ctx.fillRect(0, 0, W, H);
+}
+
 function renderCanvas(time) {
+  // Death screen: green phosphor Apple II style
+  if (gameState === STATES.DEATH) {
+    drawDeathScene(time);
+    return;
+  }
+
   const skyColors = getSkyColors();
 
   // Sky gradient (banded for EGA feel)
@@ -584,6 +936,11 @@ function renderCanvas(time) {
   const wagonY = showRiver ? 148 : 149;
   drawWagon(wagonX, wagonY);
 
+  // Event-specific visual overlay
+  if (gameState === STATES.EVENT || gameState === STATES.RIVER) {
+    drawEventOverlay(time);
+  }
+
   // Ground below trail
   ctx.fillStyle = '#885500';
   ctx.fillRect(0, showRiver ? 173 : 167, W, 15);
@@ -620,10 +977,15 @@ let musicScheduleTimer = null;
 let nextMelodyTime = 0;
 let nextBassTime = 0;
 
+var masterGain = null;
+
 function initAudio() {
   if (audioCtx) return;
   try {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = 1.0;
+    masterGain.connect(audioCtx.destination);
     musicInitialized = true;
   } catch (e) {
     console.warn('Web Audio not available:', e);
@@ -642,7 +1004,7 @@ function playNote(freq, startTime, duration, type, gainVal) {
   gain.gain.setValueAtTime(gainVal, startTime + duration * 0.75);
   gain.gain.linearRampToValueAtTime(0.001, startTime + duration * 0.95);
   osc.connect(gain);
-  gain.connect(audioCtx.destination);
+  gain.connect(masterGain || audioCtx.destination);
   osc.start(startTime);
   osc.stop(startTime + duration);
 }
@@ -682,6 +1044,7 @@ function startMusic() {
   if (!musicInitialized) initAudio();
   if (!audioCtx) return;
   if (audioCtx.state === 'suspended') audioCtx.resume();
+  if (masterGain) masterGain.gain.setValueAtTime(1.0, audioCtx.currentTime);
   musicPlaying = true;
   scheduleLoop();
   updateMusicIndicator();
@@ -693,6 +1056,7 @@ function stopMusic() {
     clearTimeout(musicScheduleTimer);
     musicScheduleTimer = null;
   }
+  if (masterGain) masterGain.gain.setValueAtTime(0, audioCtx.currentTime);
   updateMusicIndicator();
 }
 
@@ -703,6 +1067,7 @@ function toggleMusic() {
   } else {
     startMusic();
   }
+  renderStatusBar();
 }
 
 function updateMusicIndicator() {
@@ -804,14 +1169,17 @@ function renderTitleScreen() {
 }
 
 function renderSetupScreen() {
-  var diffs = '';
-  for (var i = 0; i < DIFFICULTIES.length; i++) {
-    var d = DIFFICULTIES[i];
+  var profsHtml = '';
+  for (var i = 0; i < PROFESSIONS.length; i++) {
+    var p = PROFESSIONS[i];
     var sel = (i === selectedDifficulty);
     var color = sel ? '#FFFF55' : '#AAAAAA';
     var marker = sel ? '>' : ' ';
-    diffs += '<div style="color:' + color + '; cursor:pointer;" onclick="selectDifficulty(' + i + ')">' +
-             marker + ' [' + (i + 1) + '] ' + d.name + ' (HP:' + d.health + ' Supplies:' + d.supplies + ')</div>';
+    var perks = 'HP:' + p.health + '  Hints:' + p.supplies;
+    if (p.hintFree) perks += '  (free hints!)';
+    profsHtml += '<div style="color:' + color + '; cursor:pointer;" onclick="selectDifficulty(' + i + ')">' +
+             marker + ' [' + (i + 1) + '] ' + p.name + '</div>';
+    profsHtml += '<div style="color:' + (sel ? '#AAAAAA' : '#555555') + '; margin-left:28px; font-size:12px;">' + p.desc + '  ' + perks + '</div>';
   }
 
   var hearts = '\u2665\u2665\u2665';
@@ -824,8 +1192,8 @@ function renderSetupScreen() {
     '<div style="color:#55FF55;">3. Route Resolution         <span style="color:#FF5555">' + hearts + '</span></div>' +
     '<div style="color:#55FF55;">4. Session Persistence      <span style="color:#FF5555">' + hearts + '</span></div>' +
     '</div>' +
-    '<div style="color:#55FFFF; margin-top:14px; margin-bottom:6px;">Select difficulty:</div>' +
-    '<div style="margin-left:16px;">' + diffs + '</div>' +
+    '<div style="color:#55FFFF; margin-top:14px; margin-bottom:6px;">What is your profession?</div>' +
+    '<div style="margin-left:16px;">' + profsHtml + '</div>' +
     '<div style="margin-top:18px; text-align:center;" class="blink">Press ENTER to hit the trail!</div>' +
     '</div>'
   );
@@ -887,12 +1255,15 @@ function renderEventScreen(event) {
   var choicesHtml = '';
   if (event.choices.length > 0 && !eventAnswered) {
     var labels = ['A', 'B', 'C', 'D'];
-    for (var i = 0; i < event.choices.length; i++) {
+    for (var i = 0; i < shuffledIndices.length; i++) {
+      var origIdx = shuffledIndices[i];
       var dimmedClass = (eventHinted && dimmedChoice === i) ? ' choice-dimmed' : '';
       var selClass = (selectedEventChoice === i) ? ' choice-selected' : '';
-      choicesHtml += '<div class="choice-item' + dimmedClass + selClass + '" onclick="handleEventChoice(' + i + ')" style="margin:4px 0;">  ' + labels[i] + '. ' + escHtml(event.choices[i].text) + '</div>';
+      choicesHtml += '<div class="choice-item' + dimmedClass + selClass + '" onclick="handleEventChoice(' + i + ')" style="margin:4px 0;">  ' + labels[i] + '. ' + escHtml(event.choices[origIdx].text) + '</div>';
     }
-    choicesHtml += '<div style="margin-top:10px; color:#555555;">Arrow keys to navigate, Enter to select' + (supplies > 0 ? '  |  H = Hint' : '') + '</div>';
+    var hintAvail = (PROFESSIONS[difficulty] && PROFESSIONS[difficulty].hintFree) || supplies > 0;
+    var hintLabel = (PROFESSIONS[difficulty] && PROFESSIONS[difficulty].hintFree) ? 'H = Free Hint' : 'H = Hint (-1 supply)';
+    choicesHtml += '<div style="margin-top:10px; color:#555555;">Arrow keys + Enter to choose' + (hintAvail ? '  |  ' + hintLabel : '') + '</div>';
   } else if (isFortune) {
     choicesHtml = '<div style="color:#55FF55; margin-top:8px;">+20 Health restored!</div>' +
                   '<div style="margin-top:10px;" class="blink">Press SPACE BAR to continue</div>';
@@ -908,8 +1279,9 @@ function renderEventScreen(event) {
   );
 }
 
-function showEventResult(event, choiceIndex) {
-  var choice = event.choices[choiceIndex];
+function showEventResult(event, displayIdx) {
+  var origIdx = shuffledIndices[displayIdx];
+  var choice = event.choices[origIdx];
   var correct = choice.correct;
   var isRiver = event.type === 'river';
 
@@ -926,13 +1298,14 @@ function showEventResult(event, choiceIndex) {
   resultHtml += '<div style="color:#AAAAAA; margin-top:6px; line-height:1.4;">' + escHtml(choice.explanation) + '</div>';
   resultHtml += '<div style="margin-top:10px;" class="blink">Press SPACE BAR to continue</div>';
 
-  // Update choices display
+  // Update choices display in shuffled order
   var labels = ['A', 'B', 'C', 'D'];
   var choicesHtml = '';
-  for (var i = 0; i < event.choices.length; i++) {
-    var c = event.choices[i];
-    var cls = c.correct ? 'choice-correct' : (i === choiceIndex ? 'choice-wrong' : 'text-gray');
-    var marker = c.correct ? '\u2713' : (i === choiceIndex ? '\u2717' : ' ');
+  for (var i = 0; i < shuffledIndices.length; i++) {
+    var oi = shuffledIndices[i];
+    var c = event.choices[oi];
+    var cls = c.correct ? 'choice-correct' : (i === displayIdx ? 'choice-wrong' : 'text-gray');
+    var marker = c.correct ? '\u2713' : (i === displayIdx ? '\u2717' : ' ');
     choicesHtml += '<div class="' + cls + '" style="margin:4px 0;">' + marker + ' ' + labels[i] + '. ' + escHtml(c.text) + '</div>';
   }
 
@@ -943,23 +1316,28 @@ function showEventResult(event, choiceIndex) {
 }
 
 function renderDeathScreen() {
-  var deathMsg = TRAIL_DATA.deathMessages[Math.floor(Math.random() * TRAIL_DATA.deathMessages.length)];
+  var deathMsg;
+  if (techDebtDeath) {
+    var techDebtMsgs = [
+      'You have died of tech debt.',
+      'You have died of refactoring dysentery.',
+      'You have died of unresolved TODOs.',
+      'You have died of scope creep.',
+      'You have died of dependency bloat.',
+    ];
+    deathMsg = techDebtMsgs[Math.floor(Math.random() * techDebtMsgs.length)];
+    techDebtDeath = false;
+  } else {
+    deathMsg = TRAIL_DATA.deathMessages[Math.floor(Math.random() * TRAIL_DATA.deathMessages.length)];
+  }
 
   setTextPanel(
-    '<div style="text-align:center; padding-top:10px;">' +
-    '<div style="color:#AAAAAA;">' +
-    '<div>\u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510</div>' +
-    '<div>\u2502               \u2502</div>' +
-    '<div>\u2502    <span style="color:#FFFFFF">R.I.P.</span>     \u2502</div>' +
-    '<div>\u2502               \u2502</div>' +
-    '<div>\u2502 <span id="death-text" style="color:#FF5555"></span> \u2502</div>' +
-    '<div>\u2502               \u2502</div>' +
-    '<div>\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518</div>' +
-    '<div>       \u2502</div>' +
-    '<div>   \u2550\u2550\u2550\u2550\u2567\u2550\u2550\u2550\u2550</div>' +
+    '<div style="text-align:center; padding-top:16px;">' +
+    '<div style="display:inline-block; border:2px solid #33FF33; padding:10px 24px; min-width:280px;">' +
+    '<span id="death-text" style="color:#33FF33; font-size:16px;"></span>' +
     '</div>' +
-    '<div style="color:#AAAAAA; margin-top:12px;">Stops: ' + currentStop + '/' + TRAIL_DATA.stops.length + '  Score: ' + score + '/' + totalQuestions + '  Streak: ' + bestStreak + '</div>' +
-    '<div style="margin-top:14px;" class="blink">Press SPACE BAR to try again</div>' +
+    '<div style="color:#1a8a1a; margin-top:14px; font-size:13px;">Stops: ' + currentStop + '/' + TRAIL_DATA.stops.length + '  Score: ' + score + '/' + totalQuestions + '  Streak: ' + bestStreak + '</div>' +
+    '<div style="color:#33FF33; margin-top:14px;" class="blink">Press SPACE BAR to try again</div>' +
     '</div>'
   );
 
@@ -1027,7 +1405,10 @@ function renderWinScreen() {
 // =====================================================================
 function renderStatusBar() {
   if (gameState === STATES.TITLE) {
-    statusBar.innerHTML = '<span style="color:#555555;">The Oregon Code Trail v1.0 \u2014 Press M for music</span>';
+    var titleMusic = musicPlaying
+      ? 'Music: <span style="color:#55FF55;">On</span> <span style="color:#555555;">(M to toggle off)</span>'
+      : 'Music: <span style="color:#FF5555;">Off</span> <span style="color:#555555;">(M to toggle on)</span>';
+    statusBar.innerHTML = '<span style="color:#555555;">The Oregon Code Trail v1.0</span>  |  ' + titleMusic;
     return;
   }
 
@@ -1046,28 +1427,14 @@ function renderStatusBar() {
   for (var s = 0; s < Math.min(streak, 5); s++) streakStars += '\u2605';
   streakStars += '</span>';
 
-  var shortNames = ['GatewayCP', 'Channels', 'Routes', 'Sessions'];
-  var partyHtml = '';
-  for (var pi = 0; pi < partyHealth.length; pi++) {
-    var hp = partyHealth[pi];
-    var max = TRAIL_DATA.partyMembers[pi].maxHealth;
-    if (pi > 0) partyHtml += '  ';
-    if (hp <= 0) {
-      partyHtml += '<span class="health-dead">' + shortNames[pi] + '</span>';
-    } else {
-      var pColor = hp > 2 ? '#00AA00' : (hp > 1 ? '#FFFF55' : '#FF5555');
-      partyHtml += '<span style="color:' + pColor + ';">';
-      for (var hi = 0; hi < hp; hi++) partyHtml += '\u2665';
-      partyHtml += '</span><span style="color:#555555;">';
-      for (var hi2 = 0; hi2 < max - hp; hi2++) partyHtml += '\u2665';
-      partyHtml += '</span> ' + shortNames[pi];
-    }
-  }
+  var musicHint = musicPlaying
+    ? 'Music: <span style="color:#55FF55;">On</span> <span style="color:#555555;">(M to toggle off)</span>'
+    : 'Music: <span style="color:#FF5555;">Off</span> <span style="color:#555555;">(M to toggle on)</span>';
 
-  statusBar.innerHTML = 'Health: ' + healthBar + ' ' + Math.max(0, health) +
-    '  Supplies: ' + supplies + '  ' + streakStars +
-    '  |  ' + partyHtml +
-    '  |  Stop ' + currentStop + '/' + TRAIL_DATA.stops.length;
+  statusBar.innerHTML = 'HP: ' + healthBar + ' ' + Math.max(0, health) +
+    '  Hints: ' + supplies + '  ' + streakStars +
+    '  |  Stop ' + (currentStop + 1) + '/' + TRAIL_DATA.stops.length +
+    '  |  ' + musicHint;
 }
 
 // =====================================================================
@@ -1100,20 +1467,26 @@ function resetGame() {
   dimmedChoice = -1;
   selectedEventChoice = 0;
   selectedStopChoice = 0;
+  shuffledIndices = [];
+  currentEventType = '';
+  currentEventTitle = '';
+  drainAccumulator = 0;
+  techDebtDeath = false;
   if (travelTimer) { clearTimeout(travelTimer); travelTimer = null; }
   if (typewriterTimer) { clearInterval(typewriterTimer); typewriterTimer = null; }
 }
 
 function selectDifficulty(idx) {
-  selectedDifficulty = Math.max(0, Math.min(2, idx));
+  selectedDifficulty = Math.max(0, Math.min(PROFESSIONS.length - 1, idx));
   renderSetupScreen();
 }
 
 function startGame() {
   difficulty = selectedDifficulty;
-  health = DIFFICULTIES[difficulty].health;
-  maxHealthForGame = DIFFICULTIES[difficulty].health;
-  supplies = DIFFICULTIES[difficulty].supplies;
+  var prof = PROFESSIONS[difficulty];
+  health = prof.health;
+  maxHealthForGame = prof.health;
+  supplies = prof.supplies;
   partyHealth = TRAIL_DATA.partyMembers.map(function(p) { return p.maxHealth; });
   currentStop = 0;
   day = 1;
@@ -1130,6 +1503,8 @@ function startGame() {
 function enterTravel() {
   gameState = STATES.TRAVEL;
   showRiver = false;
+  currentEventType = '';
+  currentEventTitle = '';
   day += Math.floor(Math.random() * 3) + 1;
   travelFlavorIndex = Math.floor(Math.random() * travelFlavors.length);
   renderTravelScreen();
@@ -1169,6 +1544,16 @@ function showNextEvent() {
   eventHinted = false;
   dimmedChoice = -1;
   selectedEventChoice = 0;
+  currentEventType = event.type;
+  currentEventTitle = event.title;
+
+  // Shuffle choice order so correct answer isn't always first
+  shuffledIndices = [];
+  for (var si = 0; si < event.choices.length; si++) shuffledIndices.push(si);
+  for (var si = shuffledIndices.length - 1; si > 0; si--) {
+    var sj = Math.floor(Math.random() * (si + 1));
+    var tmp = shuffledIndices[si]; shuffledIndices[si] = shuffledIndices[sj]; shuffledIndices[sj] = tmp;
+  }
 
   if (event.type === 'river') {
     gameState = STATES.RIVER;
@@ -1188,16 +1573,39 @@ function showNextEvent() {
   renderStatusBar();
 }
 
-function handleEventChoice(idx) {
+function handleEventChoice(displayIdx) {
   if (eventAnswered) return;
   var event = pendingEvents[currentEventIndex];
   if (!event || event.choices.length === 0) return;
-  if (idx < 0 || idx >= event.choices.length) return;
-  if (eventHinted && dimmedChoice === idx) return;
+  if (displayIdx < 0 || displayIdx >= shuffledIndices.length) return;
+  if (eventHinted && dimmedChoice === displayIdx) return;
+
+  var prof = PROFESSIONS[difficulty];
+  var forgiving = prof && prof.forgiving;
+  var origIdx = shuffledIndices[displayIdx];
+  var choice = event.choices[origIdx];
+  var isRiver = event.type === 'river';
+
+  if (forgiving && !choice.correct) {
+    // Ralph Wiggum mode: dim the wrong answer, let them try again
+    var items = document.querySelectorAll('.choice-item');
+    if (items[displayIdx]) {
+      items[displayIdx].classList.add('choice-dimmed');
+      items[displayIdx].style.pointerEvents = 'none';
+    }
+    // Move selection to next available choice
+    for (var ni = 0; ni < shuffledIndices.length; ni++) {
+      var nextIdx = (displayIdx + 1 + ni) % shuffledIndices.length;
+      if (!(eventHinted && dimmedChoice === nextIdx) && !items[nextIdx].classList.contains('choice-dimmed')) {
+        selectedEventChoice = nextIdx;
+        updateChoiceHighlight();
+        break;
+      }
+    }
+    return;
+  }
 
   eventAnswered = true;
-  var choice = event.choices[idx];
-  var isRiver = event.type === 'river';
 
   totalQuestions++;
 
@@ -1222,24 +1630,28 @@ function handleEventChoice(idx) {
     }
   }
 
-  showEventResult(event, idx);
+  showEventResult(event, displayIdx);
   renderStatusBar();
 }
 
 function handleEventHint() {
-  if (eventAnswered || eventHinted || supplies <= 0) return;
+  var prof = PROFESSIONS[difficulty];
+  var hintFree = prof && prof.hintFree;
+  if (eventAnswered || eventHinted) return;
+  if (!hintFree && supplies <= 0) return;
   var event = pendingEvents[currentEventIndex];
   if (!event || event.choices.length === 0) return;
 
-  supplies--;
+  if (!hintFree) supplies--;
   hintsUsed++;
   eventHinted = true;
 
-  var wrongIndices = [];
-  for (var i = 0; i < event.choices.length; i++) {
-    if (!event.choices[i].correct) wrongIndices.push(i);
+  // Find a wrong answer in display order (dimmedChoice is a display index)
+  var wrongDisplayIndices = [];
+  for (var i = 0; i < shuffledIndices.length; i++) {
+    if (!event.choices[shuffledIndices[i]].correct) wrongDisplayIndices.push(i);
   }
-  dimmedChoice = wrongIndices[Math.floor(Math.random() * wrongIndices.length)];
+  dimmedChoice = wrongDisplayIndices[Math.floor(Math.random() * wrongDisplayIndices.length)];
 
   renderEventScreen(event);
   renderStatusBar();
@@ -1366,10 +1778,17 @@ document.addEventListener('keydown', function(e) {
       break;
 
     case STATES.SETUP:
-      if (key === '1') selectDifficulty(0);
+      if (key === 'ArrowDown' || key === 'ArrowRight') {
+        e.preventDefault();
+        selectDifficulty((selectedDifficulty + 1) % PROFESSIONS.length);
+      } else if (key === 'ArrowUp' || key === 'ArrowLeft') {
+        e.preventDefault();
+        selectDifficulty((selectedDifficulty - 1 + PROFESSIONS.length) % PROFESSIONS.length);
+      } else if (key === '1') selectDifficulty(0);
       else if (key === '2') selectDifficulty(1);
       else if (key === '3') selectDifficulty(2);
-      else if (key === 'Enter') {
+      else if (key === '4') selectDifficulty(3);
+      else if (key === 'Enter' || key === ' ') {
         e.preventDefault();
         startGame();
       }
@@ -1463,9 +1882,12 @@ document.addEventListener('keydown', function(e) {
 });
 
 // =====================================================================
-// ANIMATION LOOP
+// ANIMATION LOOP + TECH DEBT DRAIN
 // =====================================================================
 var lastTime = 0;
+var drainAccumulator = 0;
+var DRAIN_INTERVAL = 3000; // drain 1 HP every 3 seconds
+var techDebtDeath = false;
 
 function gameLoop(timestamp) {
   var dt = timestamp - lastTime;
@@ -1482,6 +1904,23 @@ function gameLoop(timestamp) {
   } else {
     // Gentle idle scroll
     scrollX += dt * 0.002;
+  }
+
+  // Tech debt drain: HP ticks down during active gameplay (disabled for Ralph Wiggum)
+  var isForgiving = PROFESSIONS[difficulty] && PROFESSIONS[difficulty].forgiving;
+  var isActive = gameState === STATES.STOP || gameState === STATES.EVENT || gameState === STATES.RIVER;
+  if (isActive && !deathPending && !isForgiving) {
+    drainAccumulator += dt;
+    while (drainAccumulator >= DRAIN_INTERVAL) {
+      drainAccumulator -= DRAIN_INTERVAL;
+      health--;
+      renderStatusBar();
+      if (health <= 0) {
+        techDebtDeath = true;
+        enterDeath();
+        break;
+      }
+    }
   }
 
   renderCanvas(timestamp);
