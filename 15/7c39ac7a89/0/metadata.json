@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "157c39ac7a89",
+  "session_id": "463a6b47-4195-4382-b200-62ec5ab93ff0",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-11T22:57:32.375142Z",
+  "branch": "elevenlabs-tts",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".claude/settings.local.json",
+    "CLAUDE.md"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 39,
+    "cache_creation_tokens": 92241,
+    "cache_read_tokens": 1071934,
+    "output_tokens": 4500,
+    "api_call_count": 29
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-11T22:57:32.325232Z",
+    "agent_lines": 5,
+    "human_added": 300,
+    "human_modified": 2,
+    "human_removed": 0,
+    "total_committed": 307,
+    "agent_percentage": 1.6286644951140066
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "157c39ac7a89",
+  "strategy": "manual-commit",
+  "branch": "elevenlabs-tts",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".claude/settings.local.json",
+    "CLAUDE.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/15/7c39ac7a89/0/metadata.json",
+      "transcript": "/15/7c39ac7a89/0/full.jsonl",
+      "context": "/15/7c39ac7a89/0/context.md",
+      "content_hash": "/15/7c39ac7a89/0/content_hash.txt",
+      "prompt": "/15/7c39ac7a89/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 39,
+    "cache_creation_tokens": 92241,
+    "cache_read_tokens": 1071934,
+    "output_tokens": 4500,
+    "api_call_count": 29
+  }
+}
