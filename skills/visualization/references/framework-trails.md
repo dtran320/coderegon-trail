@@ -1,6 +1,6 @@
 # Framework Trails — Trail Data Reference
 
-Trail definitions for each supported framework. Each trail maps the framework's request/render pipeline to ~8 stops on the Oregon Code Trail.
+Trail definitions for each supported framework. Each trail maps the framework's request/render pipeline to ~8 stops on the O'Reorg Trail.
 
 ---
 

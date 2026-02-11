@@ -1,6 +1,6 @@
-# Oregon Code Trail — Game Mechanics Reference
+# O'Reorg Trail — Game Mechanics Reference
 
-The Oregon Code Trail is a retro pixel art game that teaches web framework concepts by mapping the request pipeline to a trail journey. Each framework has ~8 stops, and the player must answer quiz questions disguised as trail events to survive the journey.
+The O'Reorg Trail is a retro pixel art game that teaches web framework concepts by mapping the request pipeline to a trail journey. Each framework has ~8 stops, and the player must answer quiz questions disguised as trail events to survive the journey.
 
 ## Game Loop
 
@@ -9,7 +9,7 @@ TITLE → SETUP → [TRAVEL → STOP/EVENT]×8 → WIN or DEATH
 ```
 
 ### Title Screen
-- Pixel art logo: "OREGON CODE TRAIL" in western-style pixel font
+- Pixel art logo: "O'REORG TRAIL" in western-style pixel font
 - Scrolling landscape behind the title
 - "Press any key to start" or "Click to begin"
 - Subtitle: "A [Framework] Learning Adventure"

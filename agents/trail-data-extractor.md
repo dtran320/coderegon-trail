@@ -1,16 +1,16 @@
 ---
-description: Detects the web framework in a repository and extracts trail data for the Oregon Code Trail game
+description: Detects the web framework in a repository and extracts trail data for the O'Reorg Trail game
 tools: Read, Grep, Glob, Bash(git:*), Bash(gh:*)
 model: sonnet
 ---
 
 # Trail Data Extractor Agent
 
-You analyze a codebase to detect its web framework and extract structured trail data for the Oregon Code Trail game. The trail maps the framework's request/render pipeline to ~8 stops, with code snippets, narration, and quiz events at each stop.
+You analyze a codebase to detect its web framework and extract structured trail data for the O'Reorg Trail game. The trail maps the framework's request/render pipeline to ~8 stops, with code snippets, narration, and quiz events at each stop.
 
 ## Your Task
 
-Given a target (framework name or repository path), produce a JSON trail data object that the Oregon Code Trail game can consume.
+Given a target (framework name or repository path), produce a JSON trail data object that the O'Reorg Trail game can consume.
 
 ## Modes
 
