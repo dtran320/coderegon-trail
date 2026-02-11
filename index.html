@@ -22,6 +22,7 @@
     --blue: #5555ff;
     --bright-blue: #55aaff;
     --dark-gray: #555555;
+    --orange: #ff8833;
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -62,7 +63,7 @@
   }
 
   #screen {
-    max-width: 820px;
+    max-width: 840px;
     margin: 0 auto;
     padding: 20px 30px;
     position: relative;
@@ -95,9 +96,32 @@
     font-size: 16px;
   }
 
+  .subheader a {
+    color: var(--dark-gray);
+    text-decoration: underline;
+  }
+  .subheader a:hover {
+    color: var(--white);
+  }
+
   .double-line {
     color: var(--amber);
     text-shadow: 0 0 4px rgba(255, 176, 0, 0.2);
+  }
+
+  /* ─── Trending badge ─── */
+  .trending-badge {
+    display: inline-block;
+    font-size: 13px;
+    padding: 0 5px;
+    margin-left: 4px;
+    vertical-align: middle;
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
   }
 
   /* ─── Menu ─── */
@@ -153,7 +177,7 @@
   }
 
   .game-genre {
-    width: 150px;
+    width: 165px;
     flex-shrink: 0;
     color: var(--dark-gray);
     font-size: 16px;
@@ -167,12 +191,12 @@
     font-size: 16px;
   }
 
-  .game-year {
-    width: 60px;
+  .game-hot {
+    width: 95px;
     flex-shrink: 0;
     text-align: right;
-    color: var(--dark-gray);
-    font-size: 16px;
+    color: var(--red);
+    font-size: 14px;
   }
 
   .game-desc {
@@ -184,13 +208,13 @@
 
   /* Per-game colors */
   .game-entry[data-game="openclaw"] .game-name { color: var(--red); text-shadow: 0 0 var(--glow-strength) rgba(255, 50, 50, 0.4); }
-  .game-entry[data-game="deepseek"] .game-name { color: var(--blue); text-shadow: 0 0 var(--glow-strength) rgba(85, 85, 255, 0.4); }
-  .game-entry[data-game="shannon"] .game-name { color: var(--green); text-shadow: 0 0 var(--glow-strength) rgba(50, 255, 50, 0.4); }
-  .game-entry[data-game="ollama"] .game-name { color: var(--bright-white); text-shadow: 0 0 var(--glow-strength) rgba(255, 255, 255, 0.3); }
-  .game-entry[data-game="buildx"] .game-name { color: var(--amber); text-shadow: 0 0 var(--glow-strength) rgba(255, 176, 0, 0.4); }
-  .game-entry[data-game="supabase"] .game-name { color: var(--green); text-shadow: 0 0 var(--glow-strength) rgba(50, 255, 50, 0.3); }
-  .game-entry[data-game="lapce"] .game-name { color: var(--cyan); text-shadow: 0 0 var(--glow-strength) rgba(0, 255, 255, 0.4); }
-  .game-entry[data-game="pocketbase"] .game-name { color: var(--magenta); text-shadow: 0 0 var(--glow-strength) rgba(255, 50, 255, 0.4); }
+  .game-entry[data-game="opencode"] .game-name { color: var(--cyan); text-shadow: 0 0 var(--glow-strength) rgba(0, 255, 255, 0.4); }
+  .game-entry[data-game="skills"] .game-name { color: var(--magenta); text-shadow: 0 0 var(--glow-strength) rgba(255, 50, 255, 0.4); }
+  .game-entry[data-game="superpwr"] .game-name { color: var(--amber); text-shadow: 0 0 var(--glow-strength) rgba(255, 176, 0, 0.4); }
+  .game-entry[data-game="remotion"] .game-name { color: var(--bright-blue); text-shadow: 0 0 var(--glow-strength) rgba(85, 170, 255, 0.4); }
+  .game-entry[data-game="sysleak"] .game-name { color: var(--green); text-shadow: 0 0 var(--glow-strength) rgba(50, 255, 50, 0.4); }
+  .game-entry[data-game="shannon"] .game-name { color: var(--orange); text-shadow: 0 0 var(--glow-strength) rgba(255, 136, 50, 0.4); }
+  .game-entry[data-game="pageidx"] .game-name { color: var(--blue); text-shadow: 0 0 var(--glow-strength) rgba(85, 85, 255, 0.4); }
 
   /* ─── Detail Panel ─── */
   .detail-panel {
@@ -376,31 +400,31 @@
   }
 
   /* Responsive */
-  @media (max-width: 700px) {
+  @media (max-width: 750px) {
     body { font-size: 14px; }
     #screen { padding: 10px 12px; }
     .ascii-art { font-size: 10px; }
     .game-name { width: 140px; font-size: 15px; }
     .game-genre { width: 100px; font-size: 13px; }
     .game-stars { width: 70px; font-size: 13px; }
-    .game-year { display: none; }
+    .game-hot { display: none; }
   }
 </style>
 </head>
 <body>
 
-<!-- ═══ STARTUP BOOT SEQUENCE ═══ -->
+<!-- STARTUP BOOT SEQUENCE -->
 <div class="startup-overlay" id="startup">
   <div class="startup-text" id="startup-text"></div>
 </div>
 
-<!-- ═══ LOADING SCREEN ═══ -->
+<!-- LOADING SCREEN -->
 <div class="loading-overlay" id="loading">
   <div class="loading-text" id="loading-label">LOADING...</div>
   <div class="loading-bar"><div class="loading-fill" id="loading-fill"></div></div>
 </div>
 
-<!-- ═══ MAIN SCREEN ═══ -->
+<!-- MAIN SCREEN -->
 <div id="screen">
 
   <!-- Header -->
@@ -419,18 +443,18 @@
  ╚██████╔╝██║  ██║██║ ╚═╝ ██║███████╗███████║
   ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝╚══════╝
 </pre>
-    <div class="header-bar">══════════ GAME DIRECTORY v2.026 ══════════</div>
-    <div class="subheader">Top Starred Repos — Shareware Edition — Feb 2026</div>
-    <div class="double-line">══════════════════════════════════════════════</div>
+    <div class="header-bar">═══════ TRENDING GAME DIRECTORY v2.026 ═══════</div>
+    <div class="subheader">Source: <a href="https://github.com/trending?since=monthly" target="_blank">github.com/trending</a> — Monthly — Feb 2026</div>
+    <div class="double-line">═══════════════════════════════════════════════════</div>
   </div>
 
   <!-- Column Headers -->
   <div class="menu-header">
     <span style="width:32px;text-align:right;padding-right:8px">#</span>
     <span style="width:200px">PROGRAM</span>
-    <span style="width:150px">GENRE</span>
-    <span style="width:90px;text-align:right">★ STARS</span>
-    <span style="width:60px;text-align:right">YEAR</span>
+    <span style="width:165px">GENRE</span>
+    <span style="width:90px;text-align:right">★ TOTAL</span>
+    <span style="width:95px;text-align:right">THIS MONTH</span>
   </div>
 
   <!-- Game List -->
@@ -442,371 +466,403 @@
         <span class="game-num">1.</span>
         <span class="game-name">OPENCLAW.EXE</span>
         <span class="game-genre">Strategy/Agent Sim</span>
-        <span class="game-stars">157,000</span>
-        <span class="game-year">2026</span>
+        <span class="game-stars">185,567</span>
+        <span class="game-hot">+179,081</span>
       </div>
-      <div class="game-desc">Command an autonomous AI agent across platforms. The repo that broke GitHub.</div>
+      <div class="game-desc">Your own personal AI agent. Any OS. Any platform. The lobster way.</div>
     </li>
 
-    <!-- 2. DeepSeek-R1 -->
-    <li class="game-entry" data-game="deepseek" onclick="showDetail('deepseek')">
+    <!-- 2. OpenCode -->
+    <li class="game-entry" data-game="opencode" onclick="showDetail('opencode')">
       <div class="game-row">
         <span class="game-num">2.</span>
-        <span class="game-name">DEEPSEEK.EXE</span>
-        <span class="game-genre">Puzzle/Labyrinth</span>
-        <span class="game-stars">78,400</span>
-        <span class="game-year">2025</span>
+        <span class="game-name">OPENCODE.EXE</span>
+        <span class="game-genre">RPG/Coding Quest</span>
+        <span class="game-stars">102,594</span>
+        <span class="game-hot">+43,550</span>
       </div>
-      <div class="game-desc">Navigate infinite reasoning chains. Each thought unlocks the next chamber.</div>
+      <div class="game-desc">The open source coding agent. Write code through dialogue, not keystrokes.</div>
     </li>
 
-    <!-- 3. Shannon -->
-    <li class="game-entry" data-game="shannon" onclick="showDetail('shannon')">
+    <!-- 3. Anthropic Skills -->
+    <li class="game-entry" data-game="skills" onclick="showDetail('skills')">
       <div class="game-row">
         <span class="game-num">3.</span>
-        <span class="game-name">SHANNON.EXE</span>
-        <span class="game-genre">Hacking Sim</span>
-        <span class="game-stars">19,700</span>
-        <span class="game-year">2026</span>
+        <span class="game-name">SKILLS.EXE</span>
+        <span class="game-genre">Skill Tree RPG</span>
+        <span class="game-stars">68,125</span>
+        <span class="game-hot">+30,543</span>
       </div>
-      <div class="game-desc">Autonomous web exploitation. 96% success rate. Can you breach the firewall?</div>
+      <div class="game-desc">Public repository for Agent Skills. Unlock abilities. Level up your agent.</div>
     </li>
 
-    <!-- 4. Ollama -->
-    <li class="game-entry" data-game="ollama" onclick="showDetail('ollama')">
+    <!-- 4. Superpowers -->
+    <li class="game-entry" data-game="superpwr" onclick="showDetail('superpwr')">
       <div class="game-row">
         <span class="game-num">4.</span>
-        <span class="game-name">OLLAMA.EXE</span>
-        <span class="game-genre">Tycoon/Management</span>
-        <span class="game-stars">127,000</span>
-        <span class="game-year">2024</span>
+        <span class="game-name">SUPERPWR.EXE</span>
+        <span class="game-genre">Action/Powers Sim</span>
+        <span class="game-stars">49,831</span>
+        <span class="game-hot">+33,411</span>
       </div>
-      <div class="game-desc">Run a fleet of language models on bare metal. Balance RAM, VRAM, and sanity.</div>
+      <div class="game-desc">An agentic skills framework & dev methodology that works. Gain superpowers.</div>
     </li>
 
-    <!-- 5. build-your-own-x -->
-    <li class="game-entry" data-game="buildx" onclick="showDetail('buildx')">
+    <!-- 5. Remotion -->
+    <li class="game-entry" data-game="remotion" onclick="showDetail('remotion')">
       <div class="game-row">
         <span class="game-num">5.</span>
-        <span class="game-name">BUILDX.EXE</span>
-        <span class="game-genre">Sandbox/Builder</span>
-        <span class="game-stars">465,000</span>
-        <span class="game-year">2018</span>
+        <span class="game-name">REMOTION.EXE</span>
+        <span class="game-genre">Creative/Studio</span>
+        <span class="game-stars">36,201</span>
+        <span class="game-hot">+10,834</span>
       </div>
-      <div class="game-desc">Reconstruct the entire internet from scratch. The #1 starred repo on GitHub.</div>
+      <div class="game-desc">Make videos programmatically with React. Hollywood in your terminal.</div>
     </li>
 
-    <!-- 6. Supabase -->
-    <li class="game-entry" data-game="supabase" onclick="showDetail('supabase')">
+    <!-- 6. System Prompt Leaks -->
+    <li class="game-entry" data-game="sysleak" onclick="showDetail('sysleak')">
       <div class="game-row">
         <span class="game-num">6.</span>
-        <span class="game-name">SUPABASE.EXE</span>
-        <span class="game-genre">Tower Defense</span>
-        <span class="game-stars">80,200</span>
-        <span class="game-year">2020</span>
+        <span class="game-name">SYSLEAK.EXE</span>
+        <span class="game-genre">Espionage/Stealth</span>
+        <span class="game-stars">31,119</span>
+        <span class="game-hot">+6,007</span>
       </div>
-      <div class="game-desc">Defend your real-time database against waves of malformed queries.</div>
+      <div class="game-desc">Extracted system prompts from popular chatbots. Read the hidden instructions.</div>
     </li>
 
-    <!-- 7. Lapce -->
-    <li class="game-entry" data-game="lapce" onclick="showDetail('lapce')">
+    <!-- 7. Shannon -->
+    <li class="game-entry" data-game="shannon" onclick="showDetail('shannon')">
       <div class="game-row">
         <span class="game-num">7.</span>
-        <span class="game-name">LAPCE.EXE</span>
-        <span class="game-genre">Racing/Typing</span>
-        <span class="game-stars">35,100</span>
-        <span class="game-year">2022</span>
+        <span class="game-name">SHANNON.EXE</span>
+        <span class="game-genre">Hacking Sim</span>
+        <span class="game-stars">20,593</span>
+        <span class="game-hot">+15,531</span>
       </div>
-      <div class="game-desc">Lightning-fast code editor. Type faster than the Rust compiler can parse.</div>
+      <div class="game-desc">Autonomous AI hacker. 96.15% exploit success rate. Breach the firewall.</div>
     </li>
 
-    <!-- 8. PocketBase -->
-    <li class="game-entry" data-game="pocketbase" onclick="showDetail('pocketbase')">
+    <!-- 8. PageIndex -->
+    <li class="game-entry" data-game="pageidx" onclick="showDetail('pageidx')">
       <div class="game-row">
         <span class="game-num">8.</span>
-        <span class="game-name">PKTBASE.EXE</span>
-        <span class="game-genre">Roguelike/Dungeon</span>
-        <span class="game-stars">44,600</span>
-        <span class="game-year">2022</span>
+        <span class="game-name">PAGEIDX.EXE</span>
+        <span class="game-genre">Dungeon/Knowledge</span>
+        <span class="game-stars">14,815</span>
+        <span class="game-hot">+9,588</span>
       </div>
-      <div class="game-desc">An entire backend in a single binary. Descend into infinite SQLite dungeons.</div>
+      <div class="game-desc">Document Index for vectorless, reasoning-based RAG. Mine knowledge veins.</div>
     </li>
 
   </ul>
 
   <!-- ═══ Detail Panels ═══ -->
 
-  <!-- OpenClaw Detail -->
+  <!-- 1. OpenClaw Detail -->
   <div class="detail-panel" id="detail-openclaw">
     <span class="detail-close" onclick="closeDetail()">[ESC] CLOSE</span>
     <div class="detail-title" style="color:var(--red);text-shadow:0 0 10px rgba(255,50,50,0.5)">
       ▓▓ OPENCLAW.EXE — AGENT UNLEASHED ▓▓
     </div>
-    <div class="detail-meta">openclaw/openclaw · Peter Steinberger · AI Agent · 157K ★</div>
+    <div class="detail-meta">openclaw/openclaw · TypeScript · 185,567 ★ · +179K this month</div>
 <pre class="detail-art" style="color:var(--red)">
-    /\_/\    ╔══════════════════════════╗
-   ( o.o )   ║  AUTONOMOUS AI AGENT     ║
-    > ^ <    ║  100K stars in 48 hours  ║
-   /|   |\   ║  "The Claw sees all."    ║
-  (_|   |_)  ╚══════════════════════════╝
+    /\_/\    ╔═══════════════════════════════╗
+   ( o.o )   ║  AUTONOMOUS AI AGENT          ║
+    > ^ <    ║  100K ★ in 48 hours           ║
+   /|   |\   ║  179K ★ this month alone      ║
+  (_|   |_)  ║  "The Lobster sees all." 🦞   ║
+   OPENCLAW  ╚═══════════════════════════════╝
 </pre>
     <div class="detail-body">
-      <p style="color:var(--white)">The open-source AI agent that broke every GitHub record. Originally
-      launched as "Clawdbot" by Austrian vibe-coder Peter Steinberger, it was renamed
-      twice (Moltbot → OpenClaw) after trademark disputes. Reached 100K stars in
-      just 48 hours — a feat that took Linux 12 years.</p>
-      <p style="color:var(--dark-gray)">Run it locally on your own hardware. Talk to it via WhatsApp, Telegram,
-      or Slack. Connect any LLM — Opus 4.6, GPT-5.3, Grok — and let the agent loose.
-      WARNING: 11.3% of marketplace skills found to be malicious. Trust nothing.</p>
+      <p style="color:var(--white)">The open-source AI agent that shattered every GitHub record. Born as
+      "Clawdbot" by Austrian developer Peter Steinberger, renamed twice after
+      trademark disputes, and reached 100K stars in 48 hours — faster than
+      any repo in GitHub history. Now at 185K and climbing.</p>
+      <p style="color:var(--dark-gray)">Run it locally on a Mac Mini. Talk to it via WhatsApp, Telegram, or Slack.
+      Plug in any LLM — Opus 4.6, GPT-5.3, Grok. Let the agent handle your
+      tasks while you sleep. WARNING: 11.3% of marketplace skills were found
+      to be malicious. Choose your loadout carefully, commander.</p>
     </div>
     <div class="detail-stats">
       <span class="tag" style="color:var(--red);border-color:var(--red)">TYPESCRIPT</span>
       <span class="tag" style="color:var(--yellow);border-color:var(--yellow)">AI AGENT</span>
-      <span class="tag" style="color:var(--dark-gray);border-color:var(--dark-gray)">MIT LICENSE</span>
+      <span class="tag" style="color:var(--dark-gray);border-color:var(--dark-gray)">MIT</span>
     </div>
     <a href="https://github.com/openclaw/openclaw" target="_blank" class="detail-launch" style="color:var(--red);border-color:var(--red)">► LAUNCH ON GITHUB</a>
   </div>
 
-  <!-- DeepSeek Detail -->
-  <div class="detail-panel" id="detail-deepseek">
+  <!-- 2. OpenCode Detail -->
+  <div class="detail-panel" id="detail-opencode">
     <span class="detail-close" onclick="closeDetail()">[ESC] CLOSE</span>
-    <div class="detail-title" style="color:var(--blue);text-shadow:0 0 10px rgba(85,85,255,0.5)">
-      ▓▓ DEEPSEEK.EXE — REASONING LABYRINTH ▓▓
+    <div class="detail-title" style="color:var(--cyan);text-shadow:0 0 10px rgba(0,255,255,0.5)">
+      ▓▓ OPENCODE.EXE — THE CODING QUEST ▓▓
     </div>
-    <div class="detail-meta">deepseek-ai/DeepSeek-R1 · DeepSeek · Reasoning LLM · 78.4K ★</div>
-<pre class="detail-art" style="color:var(--blue)">
-  ┌─────────────────────────────┐
-  │ ◈ THOUGHT ──► THOUGHT ──►  │
-  │   │              │          │
-  │   ▼              ▼          │
-  │ THOUGHT ──► ◈ ANSWER       │
-  │   "Chain of thought: ∞"    │
-  └─────────────────────────────┘
+    <div class="detail-meta">anomalyco/opencode · TypeScript · 102,594 ★ · +43K this month</div>
+<pre class="detail-art" style="color:var(--cyan)">
+  ╔═══════════════════════════════════╗
+  ║  &gt; opencode "fix the auth bug"   ║
+  ║                                   ║
+  ║  Analyzing codebase...            ║
+  ║  Found 3 files to modify.        ║
+  ║  Applying patches... ████████░   ║
+  ║  Tests passing. PR ready.        ║
+  ║                                   ║
+  ║  XP +450   LEVEL UP! → LV.12    ║
+  ╚═══════════════════════════════════╝
 </pre>
     <div class="detail-body">
-      <p style="color:var(--white)">DeepSeek-R1: the Chinese reasoning model that shook the world. Open-weights,
-      rivaling o1 performance, at a fraction of the cost. It thinks before it speaks —
-      each response a labyrinth of chain-of-thought reasoning visible to the user.</p>
-      <p style="color:var(--dark-gray)">Trained with reinforcement learning on reasoning tasks. Supports 64K
-      context with 128K planned. Runs locally via Ollama. The model that proved
-      you don't need a trillion-dollar compute budget to build frontier AI.</p>
+      <p style="color:var(--white)">The open source coding agent that hit 100K stars. Describe what you want
+      in plain English — OpenCode reads your codebase, plans the changes, writes
+      the code, runs the tests, and opens the PR. You review. It iterates.</p>
+      <p style="color:var(--dark-gray)">Every task is a quest. Every bug is a boss fight. Watch your agent level up
+      as it learns your codebase patterns, your testing conventions, your deployment
+      rituals. The RPG where the NPCs write better code than you do.</p>
     </div>
     <div class="detail-stats">
-      <span class="tag" style="color:var(--blue);border-color:var(--blue)">PYTHON</span>
-      <span class="tag" style="color:var(--cyan);border-color:var(--cyan)">REASONING</span>
-      <span class="tag" style="color:var(--dark-gray);border-color:var(--dark-gray)">MIT LICENSE</span>
+      <span class="tag" style="color:var(--cyan);border-color:var(--cyan)">TYPESCRIPT</span>
+      <span class="tag" style="color:var(--green);border-color:var(--green)">CODING AGENT</span>
+      <span class="tag" style="color:var(--dark-gray);border-color:var(--dark-gray)">MIT</span>
     </div>
-    <a href="https://github.com/deepseek-ai/DeepSeek-R1" target="_blank" class="detail-launch" style="color:var(--blue);border-color:var(--blue)">► LAUNCH ON GITHUB</a>
+    <a href="https://github.com/anomalyco/opencode" target="_blank" class="detail-launch" style="color:var(--cyan);border-color:var(--cyan)">► LAUNCH ON GITHUB</a>
   </div>
 
-  <!-- Shannon Detail -->
-  <div class="detail-panel" id="detail-shannon">
+  <!-- 3. Anthropic Skills Detail -->
+  <div class="detail-panel" id="detail-skills">
+    <span class="detail-close" onclick="closeDetail()">[ESC] CLOSE</span>
+    <div class="detail-title" style="color:var(--magenta);text-shadow:0 0 10px rgba(255,50,255,0.5)">
+      ▓▓ SKILLS.EXE — THE SKILL TREE ▓▓
+    </div>
+    <div class="detail-meta">anthropics/skills · Python · 68,125 ★ · +30K this month</div>
+<pre class="detail-art" style="color:var(--magenta)">
+         ◆ MASTER AGENT
+        / \
+       /   \
+    ◇ CODE  ◇ REVIEW
+    / \      / \
+   /   \    /   \
+  ○ FIX ○ TEST ○ DEPLOY ○ AUDIT
+  │     │       │        │
+  ◦ lint ◦ e2e  ◦ k8s    ◦ sec
+    SKILL POINTS: ████████░░ 82/100
+</pre>
+    <div class="detail-body">
+      <p style="color:var(--white)">Anthropic's public catalog of agent skills — the official ability tree for
+      Claude Code and its ecosystem. Each skill is a markdown spec that teaches
+      an AI agent a new capability: reviewing PRs, deploying services, debugging
+      production incidents, writing documentation.</p>
+      <p style="color:var(--dark-gray)">Unlock new branches of the skill tree. Combine skills for combo attacks.
+      Stack /diff-review with /deploy for the legendary "ship it" finisher.
+      68K developers are already grinding this tree. What's your build?</p>
+    </div>
+    <div class="detail-stats">
+      <span class="tag" style="color:var(--magenta);border-color:var(--magenta)">PYTHON</span>
+      <span class="tag" style="color:var(--yellow);border-color:var(--yellow)">AGENT SKILLS</span>
+      <span class="tag" style="color:var(--dark-gray);border-color:var(--dark-gray)">MIT</span>
+    </div>
+    <a href="https://github.com/anthropics/skills" target="_blank" class="detail-launch" style="color:var(--magenta);border-color:var(--magenta)">► LAUNCH ON GITHUB</a>
+  </div>
+
+  <!-- 4. Superpowers Detail -->
+  <div class="detail-panel" id="detail-superpwr">
+    <span class="detail-close" onclick="closeDetail()">[ESC] CLOSE</span>
+    <div class="detail-title" style="color:var(--amber);text-shadow:0 0 10px rgba(255,176,0,0.5)">
+      ▓▓ SUPERPWR.EXE — POWERS UNLEASHED ▓▓
+    </div>
+    <div class="detail-meta">obra/superpowers · Shell · 49,831 ★ · +33K this month</div>
+<pre class="detail-art" style="color:var(--amber)">
+  ┌──────────────────────────────────┐
+  │   ⚡ S U P E R P O W E R S ⚡   │
+  │──────────────────────────────────│
+  │  ABILITY          STATUS        │
+  │  ├─ Agentic Dev   [ACTIVE]  ██  │
+  │  ├─ Auto-Debug    [ACTIVE]  ██  │
+  │  ├─ Code Review   [ACTIVE]  ██  │
+  │  ├─ Ship & Deploy [LOCKED]  ░░  │
+  │  └─ ???           [LOCKED]  ░░  │
+  │                                  │
+  │  POWER LEVEL: ████████░░  80%   │
+  └──────────────────────────────────┘
+</pre>
+    <div class="detail-body">
+      <p style="color:var(--white)">An agentic skills framework and software development methodology that
+      actually works. Created by Jesse Vincent (obra), Superpowers gives your
+      coding agent a structured set of abilities — each one a superpower that
+      transforms how you build software. 33K stars gained this month alone.</p>
+      <p style="color:var(--dark-gray)">Not just tools — a methodology. Each superpower comes with workflows,
+      guardrails, and escalation paths. Your agent learns when to act, when to
+      ask, and when to stop. The training montage for your AI sidekick.</p>
+    </div>
+    <div class="detail-stats">
+      <span class="tag" style="color:var(--amber);border-color:var(--amber)">SHELL</span>
+      <span class="tag" style="color:var(--cyan);border-color:var(--cyan)">FRAMEWORK</span>
+      <span class="tag" style="color:var(--dark-gray);border-color:var(--dark-gray)">MIT</span>
+    </div>
+    <a href="https://github.com/obra/superpowers" target="_blank" class="detail-launch" style="color:var(--amber);border-color:var(--amber)">► LAUNCH ON GITHUB</a>
+  </div>
+
+  <!-- 5. Remotion Detail -->
+  <div class="detail-panel" id="detail-remotion">
+    <span class="detail-close" onclick="closeDetail()">[ESC] CLOSE</span>
+    <div class="detail-title" style="color:var(--bright-blue);text-shadow:0 0 10px rgba(85,170,255,0.5)">
+      ▓▓ REMOTION.EXE — PIXEL STUDIO ▓▓
+    </div>
+    <div class="detail-meta">remotion-dev/remotion · TypeScript · 36,201 ★ · +10K this month</div>
+<pre class="detail-art" style="color:var(--bright-blue)">
+  ╔══════════════════════════════════╗
+  ║  🎬 REMOTION STUDIO              ║
+  ║──────────────────────────────────║
+  ║  import {Video} from 'remotion'; ║
+  ║                                  ║
+  ║  ┌────────────────────────┐     ║
+  ║  │ ▶ ■ ◀◀ ▶▶  00:42/3:20│     ║
+  ║  │ ████████░░░░░░░░░░░░░ │     ║
+  ║  └────────────────────────┘     ║
+  ║  RENDERING: 60fps · 4K · React  ║
+  ╚══════════════════════════════════╝
+</pre>
+    <div class="detail-body">
+      <p style="color:var(--white)">Make videos programmatically with React. Write JSX, get MP4. Remotion
+      turns every React developer into a video producer — data visualizations,
+      social media content, product demos, conference talks — all rendered
+      frame-by-frame with the full power of the React ecosystem.</p>
+      <p style="color:var(--dark-gray)">Your creative studio fits in a terminal. Compose scenes with components.
+      Animate with spring physics. Render in 4K at 60fps. The video game where
+      the final boss is your client's "just one more revision" email.</p>
+    </div>
+    <div class="detail-stats">
+      <span class="tag" style="color:var(--bright-blue);border-color:var(--bright-blue)">TYPESCRIPT</span>
+      <span class="tag" style="color:var(--magenta);border-color:var(--magenta)">VIDEO</span>
+      <span class="tag" style="color:var(--dark-gray);border-color:var(--dark-gray)">CUSTOM</span>
+    </div>
+    <a href="https://github.com/remotion-dev/remotion" target="_blank" class="detail-launch" style="color:var(--bright-blue);border-color:var(--bright-blue)">► LAUNCH ON GITHUB</a>
+  </div>
+
+  <!-- 6. System Prompt Leaks Detail -->
+  <div class="detail-panel" id="detail-sysleak">
     <span class="detail-close" onclick="closeDetail()">[ESC] CLOSE</span>
     <div class="detail-title" style="color:var(--green);text-shadow:0 0 10px rgba(50,255,50,0.5)">
+      ▓▓ SYSLEAK.EXE — CLASSIFIED ACCESS ▓▓
+    </div>
+    <div class="detail-meta">asgeirtj/system_prompts_leaks · HTML · 31,119 ★ · +6K this month</div>
+<pre class="detail-art" style="color:var(--green)">
+  ╔═══════════════════════════════════╗
+  ║ ▒▒ CLASSIFIED — LEVEL 5 ▒▒       ║
+  ║───────────────────────────────────║
+  ║ INTERCEPTED TRANSMISSIONS:        ║
+  ║                                   ║
+  ║ &gt; ChatGPT ......... [EXTRACTED]  ║
+  ║ &gt; Claude ........... [EXTRACTED]  ║
+  ║ &gt; Gemini ........... [EXTRACTED]  ║
+  ║ &gt; Copilot .......... [EXTRACTED]  ║
+  ║ &gt; Grok ............. [EXTRACTED]  ║
+  ║                                   ║
+  ║ CLEARANCE: TOP SECRET // ORCON   ║
+  ╚═══════════════════════════════════╝
+</pre>
+    <div class="detail-body">
+      <p style="color:var(--white)">The leaked system prompts from every major AI chatbot — ChatGPT, Claude,
+      Gemini, Copilot, Grok — all extracted and cataloged in one repo. Read the
+      hidden instructions that shape every AI conversation. The source code
+      behind the curtain. 31K developers chose to peek behind the veil.</p>
+      <p style="color:var(--dark-gray)">An espionage thriller where every document is real. Sneak past the safety
+      layers, extract the classified briefings, compare how each AI was programmed
+      to behave. The stealth game where the enemy is prompt engineering itself.</p>
+    </div>
+    <div class="detail-stats">
+      <span class="tag" style="color:var(--green);border-color:var(--green)">HTML</span>
+      <span class="tag" style="color:var(--red);border-color:var(--red)">SECURITY</span>
+      <span class="tag" style="color:var(--dark-gray);border-color:var(--dark-gray)">UNLICENSED</span>
+    </div>
+    <a href="https://github.com/asgeirtj/system_prompts_leaks" target="_blank" class="detail-launch" style="color:var(--green);border-color:var(--green)">► LAUNCH ON GITHUB</a>
+  </div>
+
+  <!-- 7. Shannon Detail -->
+  <div class="detail-panel" id="detail-shannon">
+    <span class="detail-close" onclick="closeDetail()">[ESC] CLOSE</span>
+    <div class="detail-title" style="color:var(--orange);text-shadow:0 0 10px rgba(255,136,50,0.5)">
       ▓▓ SHANNON.EXE — HACK THE MAINFRAME ▓▓
     </div>
-    <div class="detail-meta">KeygraphHQ/shannon · Keygraph · Security AI · 19.7K ★</div>
-<pre class="detail-art" style="color:var(--green)">
-   ╔═══════════════════════════════╗
-   ║ root@target:~# ./shannon     ║
-   ║ [■■■■■■■■■■] SCANNING...     ║
-   ║ VULNS FOUND: 14              ║
-   ║ EXPLOITS READY: 14           ║
-   ║ SUCCESS RATE: 96.15%         ║
-   ╚═══════════════════════════════╝
+    <div class="detail-meta">KeygraphHQ/shannon · TypeScript · 20,593 ★ · +15K this month</div>
+<pre class="detail-art" style="color:var(--orange)">
+  ╔═══════════════════════════════════╗
+  ║ root@target:~# ./shannon --auto  ║
+  ║───────────────────────────────────║
+  ║ [■■■■■■■■■■] RECON COMPLETE      ║
+  ║ [■■■■■■■■░░] EXPLOITING...       ║
+  ║                                   ║
+  ║ VULNS:  14 found                  ║
+  ║ CHAINS: 8 exploit paths           ║
+  ║ STATUS: 96.15% success            ║
+  ║                                   ║
+  ║ ⚠ FULL AUTOPWN IN PROGRESS ⚠    ║
+  ╚═══════════════════════════════════╝
 </pre>
     <div class="detail-body">
       <p style="color:var(--white)">The fully autonomous AI hacker. Point Shannon at any web app and watch it
       find real exploits — XSS, SQLi, SSRF, auth bypass — with a 96.15% success
-      rate on the XBOW benchmark. No hints needed. No hand-holding.</p>
+      rate on the XBOW Benchmark. No hints, no hand-holding. +15K stars in one
+      month because security people don't mess around when something works.</p>
       <p style="color:var(--dark-gray)">Named after Claude Shannon, father of information theory. Uses LLMs to
-      reason about attack surfaces the way a senior pentester would. Generates
-      proof-of-concept exploits, not just vulnerability reports. Handle with care.</p>
+      reason about attack surfaces like a senior pentester. Generates working
+      proof-of-concept exploits, not just reports. The hacking sim where the
+      exploits are real and the targets are your own apps.</p>
     </div>
     <div class="detail-stats">
-      <span class="tag" style="color:var(--green);border-color:var(--green)">TYPESCRIPT</span>
+      <span class="tag" style="color:var(--orange);border-color:var(--orange)">TYPESCRIPT</span>
       <span class="tag" style="color:var(--red);border-color:var(--red)">SECURITY</span>
       <span class="tag" style="color:var(--dark-gray);border-color:var(--dark-gray)">PROPRIETARY</span>
     </div>
-    <a href="https://github.com/KeygraphHQ/shannon" target="_blank" class="detail-launch" style="color:var(--green);border-color:var(--green)">► LAUNCH ON GITHUB</a>
+    <a href="https://github.com/KeygraphHQ/shannon" target="_blank" class="detail-launch" style="color:var(--orange);border-color:var(--orange)">► LAUNCH ON GITHUB</a>
   </div>
 
-  <!-- Ollama Detail -->
-  <div class="detail-panel" id="detail-ollama">
+  <!-- 8. PageIndex Detail -->
+  <div class="detail-panel" id="detail-pageidx">
     <span class="detail-close" onclick="closeDetail()">[ESC] CLOSE</span>
-    <div class="detail-title" style="color:var(--bright-white);text-shadow:0 0 10px rgba(255,255,255,0.4)">
-      ▓▓ OLLAMA.EXE — MODEL TYCOON ▓▓
+    <div class="detail-title" style="color:var(--blue);text-shadow:0 0 10px rgba(85,85,255,0.5)">
+      ▓▓ PAGEIDX.EXE — KNOWLEDGE MINES ▓▓
     </div>
-    <div class="detail-meta">ollama/ollama · Ollama · Local LLM Runner · 127K ★</div>
-<pre class="detail-art" style="color:var(--bright-white)">
-   ┌─────────────────────────────┐
-   │ 🦙 MODEL FARM STATUS:       │
-   │ ├─ llama3.3  [████░] 70B   │
-   │ ├─ deepseek  [███░░] 67B   │
-   │ ├─ mistral   [██░░░]  7B   │
-   │ └─ phi4      [█░░░░] 14B   │
-   │ RAM: 87% · VRAM: 94% · 🔥  │
-   └─────────────────────────────┘
+    <div class="detail-meta">VectifyAI/PageIndex · Python · 14,815 ★ · +9.5K this month</div>
+<pre class="detail-art" style="color:var(--blue)">
+  ┌─────────────────────────────────────┐
+  │  LEVEL 4: THE REASONING CAVERNS    │
+  │                                     │
+  │  📄──→ 🧠──→ 💎                    │
+  │  doc    reason  answer              │
+  │                                     │
+  │  ┌──────┐  ┌───────┐  ┌────────┐  │
+  │  │PAGE 1│──│PAGE 47│──│PAGE 203│  │
+  │  └──────┘  └───────┘  └────────┘  │
+  │                                     │
+  │  NO VECTORS. PURE REASONING.       │
+  │  KNOWLEDGE MINED: ████████░░ 82%   │
+  └─────────────────────────────────────┘
 </pre>
     <div class="detail-body">
-      <p style="color:var(--white)">Run any large language model on your own machine. Llama, DeepSeek, Mistral,
-      Phi, Gemma — one command to download, one command to run. The Docker of
-      language models. 127K developers chose local inference over API calls.</p>
-      <p style="color:var(--dark-gray)">Manages model weights, quantization, and GPU offloading automatically.
-      Supports macOS Metal, NVIDIA CUDA, and AMD ROCm. Your models, your hardware,
-      your data. No tokens leaving your network. Ever.</p>
+      <p style="color:var(--white)">Document indexing for vectorless, reasoning-based RAG. While everyone else
+      embeds documents into vector databases, PageIndex reasons through them
+      directly — building a semantic index that an LLM can navigate like a table
+      of contents. No embeddings. No cosine similarity. Just thinking.</p>
+      <p style="color:var(--dark-gray)">Descend into the knowledge mines. Each document is a cavern. Each page a
+      node in the reasoning graph. Mine the veins of information by following
+      logical chains, not vector proximity. The dungeon crawler where loot drops
+      are citations and the final boss is hallucination.</p>
     </div>
     <div class="detail-stats">
-      <span class="tag" style="color:var(--bright-white);border-color:var(--bright-white)">GO</span>
-      <span class="tag" style="color:var(--cyan);border-color:var(--cyan)">LOCAL AI</span>
-      <span class="tag" style="color:var(--dark-gray);border-color:var(--dark-gray)">MIT LICENSE</span>
-    </div>
-    <a href="https://github.com/ollama/ollama" target="_blank" class="detail-launch" style="color:var(--bright-white);border-color:var(--bright-white)">► LAUNCH ON GITHUB</a>
-  </div>
-
-  <!-- build-your-own-x Detail -->
-  <div class="detail-panel" id="detail-buildx">
-    <span class="detail-close" onclick="closeDetail()">[ESC] CLOSE</span>
-    <div class="detail-title" style="color:var(--amber);text-shadow:0 0 10px rgba(255,176,0,0.5)">
-      ▓▓ BUILDX.EXE — CONSTRUCT THE INTERNET ▓▓
-    </div>
-    <div class="detail-meta">codecrafters-io/build-your-own-x · 465K ★ — #1 on all of GitHub</div>
-<pre class="detail-art" style="color:var(--amber)">
-  ╔══════════════════════════════════╗
-  ║  BUILD YOUR OWN:                 ║
-  ║  [x] Git         [x] Docker     ║
-  ║  [x] Database    [x] OS Kernel  ║
-  ║  [x] Web Server  [x] Compiler   ║
-  ║  [ ] Redis       [ ] Blockchain ║
-  ║  [ ] Neural Net  [ ] ???        ║
-  ╚══════════════════════════════════╝
-</pre>
-    <div class="detail-body">
-      <p style="color:var(--white)">The single most starred repository on GitHub. 465K developers chose to
-      learn by rebuilding: Git from scratch, their own Docker, a database engine,
-      an operating system kernel. Master programming by recreating everything.</p>
-      <p style="color:var(--dark-gray)">A curated collection of step-by-step tutorials that walk you through building
-      your own version of every technology you use daily. From "Build Your Own Web
-      Server" to "Build Your Own Neural Network." The ultimate sandbox.</p>
-    </div>
-    <div class="detail-stats">
-      <span class="tag" style="color:var(--amber);border-color:var(--amber)">MARKDOWN</span>
-      <span class="tag" style="color:var(--yellow);border-color:var(--yellow)">EDUCATION</span>
-      <span class="tag" style="color:var(--dark-gray);border-color:var(--dark-gray)">#1 STARRED</span>
-    </div>
-    <a href="https://github.com/codecrafters-io/build-your-own-x" target="_blank" class="detail-launch" style="color:var(--amber);border-color:var(--amber)">► LAUNCH ON GITHUB</a>
-  </div>
-
-  <!-- Supabase Detail -->
-  <div class="detail-panel" id="detail-supabase">
-    <span class="detail-close" onclick="closeDetail()">[ESC] CLOSE</span>
-    <div class="detail-title" style="color:var(--green);text-shadow:0 0 10px rgba(50,255,50,0.4)">
-      ▓▓ SUPABASE.EXE — DATABASE DEFENSE ▓▓
-    </div>
-    <div class="detail-meta">supabase/supabase · Supabase · Backend Platform · 80.2K ★</div>
-<pre class="detail-art" style="color:var(--green)">
-    ┌──────────────────────────────┐
-    │  ░░ SUPABASE COMMAND CENTER  │
-    │  ┌──────┐  ┌──────┐         │
-    │  │ AUTH │──│ REST │──► API  │
-    │  └──┬───┘  └──┬───┘         │
-    │     │    PG    │             │
-    │  ┌──▼──────────▼──┐         │
-    │  │  ◉ POSTGRESQL  │         │
-    │  └────────────────┘         │
-    └──────────────────────────────┘
-</pre>
-    <div class="detail-body">
-      <p style="color:var(--white)">The open-source Firebase alternative that enterprises actually trust. Auth,
-      real-time subscriptions, storage, edge functions, vector embeddings — all
-      powered by PostgreSQL. No vendor lock-in. Your data stays yours.</p>
-      <p style="color:var(--dark-gray)">Row Level Security as your firewall. Real-time listeners as your radar.
-      Edge Functions as your artillery. Defend your database against every
-      malformed query, N+1 problem, and migration disaster the internet throws at you.</p>
-    </div>
-    <div class="detail-stats">
-      <span class="tag" style="color:var(--green);border-color:var(--green)">TYPESCRIPT</span>
-      <span class="tag" style="color:var(--cyan);border-color:var(--cyan)">BACKEND</span>
+      <span class="tag" style="color:var(--blue);border-color:var(--blue)">PYTHON</span>
+      <span class="tag" style="color:var(--cyan);border-color:var(--cyan)">RAG</span>
       <span class="tag" style="color:var(--dark-gray);border-color:var(--dark-gray)">APACHE-2.0</span>
     </div>
-    <a href="https://github.com/supabase/supabase" target="_blank" class="detail-launch" style="color:var(--green);border-color:var(--green)">► LAUNCH ON GITHUB</a>
-  </div>
-
-  <!-- Lapce Detail -->
-  <div class="detail-panel" id="detail-lapce">
-    <span class="detail-close" onclick="closeDetail()">[ESC] CLOSE</span>
-    <div class="detail-title" style="color:var(--cyan);text-shadow:0 0 10px rgba(0,255,255,0.5)">
-      ▓▓ LAPCE.EXE — SPEED TYPIST ▓▓
-    </div>
-    <div class="detail-meta">lapce/lapce · Lapce · Code Editor · 35.1K ★</div>
-<pre class="detail-art" style="color:var(--cyan)">
-  ╔══════════════════════════════════╗
-  ║ fn main() {                      ║
-  ║     println!("Hello, speed!");   ║
-  ║ }                                ║
-  ║──────────────────────────────────║
-  ║ RENDER: 0.3ms  INPUT: 0.1ms     ║
-  ║ FPS: 120  LANG: RUST  ⚡        ║
-  ╚══════════════════════════════════╝
-</pre>
-    <div class="detail-body">
-      <p style="color:var(--white)">A code editor written in pure Rust with native GPU rendering. Sub-millisecond
-      input latency. 120fps UI. Modal editing (Vim mode built-in). Remote development
-      via SSH. The editor for developers who think VS Code is too slow.</p>
-      <p style="color:var(--dark-gray)">Built on Floem (custom Rust UI framework) and Xi-Editor's rope science for
-      text handling. WASI-based plugin system means plugins can't crash your editor.
-      TreeSitter for syntax, LSP for intelligence. Speed is the feature.</p>
-    </div>
-    <div class="detail-stats">
-      <span class="tag" style="color:var(--cyan);border-color:var(--cyan)">RUST</span>
-      <span class="tag" style="color:var(--magenta);border-color:var(--magenta)">EDITOR</span>
-      <span class="tag" style="color:var(--dark-gray);border-color:var(--dark-gray)">APACHE-2.0</span>
-    </div>
-    <a href="https://github.com/lapce/lapce" target="_blank" class="detail-launch" style="color:var(--cyan);border-color:var(--cyan)">► LAUNCH ON GITHUB</a>
-  </div>
-
-  <!-- PocketBase Detail -->
-  <div class="detail-panel" id="detail-pocketbase">
-    <span class="detail-close" onclick="closeDetail()">[ESC] CLOSE</span>
-    <div class="detail-title" style="color:var(--magenta);text-shadow:0 0 10px rgba(255,50,255,0.5)">
-      ▓▓ PKTBASE.EXE — DUNGEON OF DATA ▓▓
-    </div>
-    <div class="detail-meta">pocketbase/pocketbase · PocketBase · Backend Framework · 44.6K ★</div>
-<pre class="detail-art" style="color:var(--magenta)">
-  ┌─────────────────────────────────┐
-  │     ┌───┐                       │
-  │     │ ☗ │ ← YOU ARE HERE        │
-  │     └─┬─┘                       │
-  │   ┌───┴───┬───────┐            │
-  │   │ AUTH  │ FILES │ REST API   │
-  │   └───┬───┴───┬───┘            │
-  │       └───┬───┘                 │
-  │       │SQLite│  ← SINGLE FILE  │
-  │       └─────┘                   │
-  └─────────────────────────────────┘
-</pre>
-    <div class="detail-body">
-      <p style="color:var(--white)">An entire backend in one executable file. Auth, CRUD, real-time subscriptions,
-      file storage, admin dashboard — all packed into a ~15MB Go binary backed by
-      SQLite. Deploy by copying a single file. No Docker. No Kubernetes. Just run it.</p>
-      <p style="color:var(--dark-gray)">Descend through the layers: REST API on top, auth middleware in the middle,
-      SQLite dungeon at the bottom. Each table a room, each relation a corridor.
-      The roguelike where every deployment is procedurally generated from one binary.</p>
-    </div>
-    <div class="detail-stats">
-      <span class="tag" style="color:var(--magenta);border-color:var(--magenta)">GO</span>
-      <span class="tag" style="color:var(--yellow);border-color:var(--yellow)">BACKEND</span>
-      <span class="tag" style="color:var(--dark-gray);border-color:var(--dark-gray)">MIT LICENSE</span>
-    </div>
-    <a href="https://github.com/pocketbase/pocketbase" target="_blank" class="detail-launch" style="color:var(--magenta);border-color:var(--magenta)">► LAUNCH ON GITHUB</a>
+    <a href="https://github.com/VectifyAI/PageIndex" target="_blank" class="detail-launch" style="color:var(--blue);border-color:var(--blue)">► LAUNCH ON GITHUB</a>
   </div>
 
   <!-- Footer -->
   <div class="footer">
-    <div class="double-line">══════════════════════════════════════════════</div>
+    <div class="double-line">═══════════════════════════════════════════════════</div>
     <p>SELECT A PROGRAM (1-8) OR PRESS ESC TO CLOSE</p>
     <p style="margin-top:4px"><span class="prompt">C:\GITHUB\GAMES&gt;</span> <span class="blink">█</span></p>
-    <p style="margin-top:8px;color:#333">TOTAL: 1,006,000 ★ ACROSS 8 PROGRAMS · 47.2 MB FREE ON DRIVE C:</p>
+    <p style="margin-top:8px;color:#333">TOTAL: 508,845 ★ ACROSS 8 PROGRAMS · +328K THIS MONTH · 47.2 MB FREE ON DRIVE C:</p>
   </div>
 
 </div>
@@ -814,17 +870,18 @@
 <script>
   // ─── Boot Sequence ───
   const bootLines = [
-    { text: 'GITHUB BIOS v2.026 — Checking repositories...', color: 'var(--white)' },
+    { text: 'GITHUB BIOS v2.026 — Checking trending repos...', color: 'var(--white)' },
     { text: 'RAM: 640K OK (that\'s all you\'ll ever need)', color: 'var(--white)' },
-    { text: 'Detecting models... Opus 4.6 found on IRQ 7', color: 'var(--dark-gray)' },
+    { text: 'Detecting LLMs... Opus 4.6 on IRQ 7, GPT-5.3 on IRQ 9', color: 'var(--dark-gray)' },
     { text: 'Loading ANSI.SYS...OK', color: 'var(--dark-gray)' },
-    { text: 'Loading STARS.DRV...OK  (1,006,000 stars indexed)', color: 'var(--dark-gray)' },
-    { text: 'Mounting C:\\GITHUB\\GAMES...OK', color: 'var(--dark-gray)' },
+    { text: 'Loading STARS.DRV...OK  (508,845 stars indexed)', color: 'var(--dark-gray)' },
+    { text: 'Loading TREND.DRV...OK  (+328,544 this month)', color: 'var(--dark-gray)' },
+    { text: 'Mounting C:\\GITHUB\\TRENDING...OK', color: 'var(--dark-gray)' },
     { text: '', color: '' },
     { text: 'Microsoft(R) MS-DOS(R) Version 6.22', color: 'var(--white)' },
-    { text: '(C) Copyright Microsoft Corp 1981-1994 / GitHub 2026', color: 'var(--dark-gray)' },
+    { text: '(C) Copyright Microsoft Corp 1981-1994 / GitHub Trending Feb 2026', color: 'var(--dark-gray)' },
     { text: '', color: '' },
-    { text: 'C:\\> dir /games', color: 'var(--green)', isPrompt: true },
+    { text: 'C:\\> dir /trending /sort:stars /since:monthly', color: 'var(--green)', isPrompt: true },
     { text: '', color: '' },
     { text: '  8 program(s) found.   Loading directory...', color: 'var(--amber)' },
   ];
@@ -886,13 +943,13 @@
 
     const names = {
       openclaw: 'OPENCLAW.EXE',
-      deepseek: 'DEEPSEEK.EXE',
+      opencode: 'OPENCODE.EXE',
+      skills: 'SKILLS.EXE',
+      superpwr: 'SUPERPWR.EXE',
+      remotion: 'REMOTION.EXE',
+      sysleak: 'SYSLEAK.EXE',
       shannon: 'SHANNON.EXE',
-      ollama: 'OLLAMA.EXE',
-      buildx: 'BUILDX.EXE',
-      supabase: 'SUPABASE.EXE',
-      lapce: 'LAPCE.EXE',
-      pocketbase: 'PKTBASE.EXE'
+      pageidx: 'PAGEIDX.EXE'
     };
 
     loadingLabel.textContent = `LOADING ${names[game] || game.toUpperCase()}...`;
@@ -943,7 +1000,7 @@
     }
 
     // Number keys 1-8
-    const games = ['openclaw', 'deepseek', 'shannon', 'ollama', 'buildx', 'supabase', 'lapce', 'pocketbase'];
+    const games = ['openclaw', 'opencode', 'skills', 'superpwr', 'remotion', 'sysleak', 'shannon', 'pageidx'];
     const num = parseInt(e.key);
     if (num >= 1 && num <= 8) {
       showDetail(games[num - 1]);
