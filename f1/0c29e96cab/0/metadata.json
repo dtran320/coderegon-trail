@@ -1,0 +1,38 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "f10c29e96cab",
+  "session_id": "80b0f532-f76f-43d4-aad5-81487e9fee36",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-11T22:57:45.680599Z",
+  "branch": "oregon-trail",
+  "checkpoints_count": 3,
+  "files_touched": [
+    ".diff-review/trail-openclaw.html",
+    ".gitignore",
+    "agents/trail-data-extractor.md",
+    "commands/fly-visual.md",
+    "scripts/open-viz.sh",
+    "skills/visualization/SKILL.md",
+    "skills/visualization/references/framework-trails.md",
+    "skills/visualization/references/oregon-trail.md",
+    "skills/visualization/references/pixel-art-style.md"
+  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "e9a71c32-b143-45c9-91ba-8b80bd9964e8",
+  "token_usage": {
+    "input_tokens": 441,
+    "cache_creation_tokens": 440540,
+    "cache_read_tokens": 10994222,
+    "output_tokens": 18936,
+    "api_call_count": 109
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-11T22:57:45.374197Z",
+    "agent_lines": 2154,
+    "human_added": 1237,
+    "human_modified": 1734,
+    "human_removed": 0,
+    "total_committed": 5125,
+    "agent_percentage": 42.02926829268293
+  }
+}
