@@ -1,0 +1,179 @@
+<task-notification>
+<task-id>b3fbb55</task-id>
+<output-file>REDACTED.output</output-file>
+<status>completed</status>
+<summary>Background command "Find user-invocable skills" completed (exit code 0)</summary>
+</task-notification>
+Read the output file to retrieve the result: REDACTED.output
+
+---
+
+Implement the following plan:
+
+# Plan: `/pr-quiz` — O'Reorg Trail Game for PR Understanding
+
+## Context
+
+The project has an O'Reorg Trail game that teaches framework concepts through a retro pixel-art trail game. The user wants a new command that applies this same game to PR code review — generating a PR-specific quiz game that tests understanding of the changes, with a copyable proof-of-understanding score that can be posted as a PR comment (like `/code-review:code-review`).
+
+The game will be generated using the `/playground` skill, whose self-contained HTML generation + copy button pattern maps naturally to a game with proof output.
+
+---
+
+## New Files
+
+| # | File | Purpose |
+|---|------|---------|
+| 1 | `.claude/commands/pr-quiz.md` | Command definition (YAML frontmatter + steps) |
+| 2 | `commands/pr-quiz.md` | Mirror copy (project convention) |
+| 3 | `agents/pr-quiz-extractor.md` | Agent: PR diff → TRAIL_DATA JSON |
+| 4 | `skills/visualization/references/pr-quiz-proof.md` | Proof format spec + win screen copy button spec |
+
+No existing files need modification.
+
+---
+
+## File 1: `agents/pr-quiz-extractor.md`
+
+**Pattern:** Follows `agents/trail-data-extractor.md` structure
+**Model:** sonnet
+**Tools:** Read, Grep, Glob, Bash(git:*), Bash(gh:*)
+
+**Input:** Full PR diff text + PR metadata (title, description, author, number, URL)
+
+**Algorithm:**
+1. Group changed files into logical sections (same grouping algorithm as `commands/diff-review.md` Step 2 — by feature first, then by layer)
+2. Rank sections by importance (1-7 scale from `skills/narration/references/ranking.md`)
+3. Select top 4-8 sections as **trail stops**, each with:
+   - Trail-themed location name (e.g., "Auth Pass", "Schema Ridge")
+   - Most representative 15-25 line diff hunk as the code snippet
+   - TTS-friendly narration explaining WHY the changes matter
+   - Mapped `landmarkType` (schema changes = river, core logic = mountain, config = camp)
+4. Generate 4-8 **quiz events** based on actual PR changes:
+   - Question types from `agents/quiz-generator.md`: why, what-if, trace, connect, spot-the-issue
+   - Each event mapped to a trail event type (weather/river/encounter/misfortune)
+   - 3 choices per event with explanations
+   - Each event tied to one of 4 party member concepts
+5. Select 4 **party members** — the 4 most important concepts/areas in the PR
+6. Generate 8+ **death messages** — PR-specific humor based on actual changes
+7. Derive **trail name** from PR title (e.g., "The Authentication Trail")
+
+**Output:** `TRAIL_DATA:` JSON block matching the format in `skills/visualization/SKILL.md`, with added `prMeta` field:
+```json
+{
+  "prMeta": { "number": 42, "title": "...", "author": "...", "url": "...", "repo": "org/repo" }
+}
+```
+
+---
+
+## File 2: `skills/visualization/references/pr-quiz-proof.md`
+
+Defines the proof format that the HTML game generates and the terminal command parses.
+
+**Proof format (markdown):**
+```markdown
+## PR Understanding Proof
+
+| Field | Value |
+|-------|-------|
+| PR | [#42 - Title](url) |
+| Score | 5/6 (83%) |
+| Survivors | 3/4 |
+| Best Streak | 4 |
+| Date | 2026-02-12 |
+
+### Concept Mastery
+- ⭐⭐⭐ Input Validation (all correct)
+- ⭐⭐ Error Handling (mostly correct)
+- ⭐ API Contract (needs review)
+
+*O'Reorg Trail PR Quiz | Hash: `a3f8b2`*
+```
+
+**Hash:** Simple integrity check: `first6chars(btoa(prNumber + score + totalQuestions + survivors + timestamp))`
+
+**Win screen spec:** "Copy Proof of Understanding" button after the score card. Uses `navigator.clipboard.writeText()` with "Copied!" feedback. Falls back to selectable textarea. Keyboard shortcut: `C`.
+
+---
+
+## File 3: `.claude/commands/pr-quiz.md` (+ mirror `commands/pr-quiz.md`)
+
+**Pattern:** Follows `commands/fly-visual.md` structure
+**Model:** opus
+**Argument-hint:** `<PR# | URL> [--post-proof]`
+**Allowed-tools:** Same as fly-visual + Bash(gh:*) for PR operations
+
+### Command Flow
+
+**Step 1: Parse Arguments and Fetch PR Data**
+- Extract PR number from input (number, URL with `/pull/`, or error if missing)
+- Fetch PR context: `gh pr view <number> --json title,body,author,number,url`
+- Fetch diff: `gh pr diff <number>`
+- Validate: non-empty diff, PR is open
+
+**Step 2: Extract Trail Data via Agent**
+- Spawn `pr-quiz-extractor` agent (via Task tool, subagent_type: general-purpose)
+- Input: diff text + PR metadata
+- Output: TRAIL_DATA JSON
+- Validate: has 4-8 stops, 4-8 events, 4 party members
+
+**Step 3: Generate the HTML Game via `/playground`**
+- Invoke the `playground` skill (via Skill tool)
+- Provide the playground with the full game specification:
+  - The TRAIL_DATA JSON to embed
+  - Game spec inherited from fly-visual (canvas rendering, pixel art, state machine, scoring, keyboard support)
+  - Title: "O'REORG TRAIL — PR Review Edition" with PR title as subtitle
+  - The proof button spec from `skills/visualization/references/pr-quiz-proof.md`
+  - The "prompt output" panel = proof/score card with Copy button
+- The playground generates a self-contained HTML game file
+
+**Step 4: Write and Open**
+- Write to `.diff-review/pr-quiz-{PR_NUMBER}.html`
+- Open in browser: `open .diff-review/pr-quiz-{PR_NUMBER}.html`
+- TTS announcement via `scripts/tts.sh`
+
+**Step 5: Terminal Feedback and Proof Handling**
+- Display PR info summary + "Paste proof here when done, or type 'done' to exit"
+- When user pastes proof (detected by `## PR Understanding Proof` header):
+  - Parse and display formatted summary
+  - Ask: "Post this as a comment on PR #{number}? (yes/no)"
+  - If yes: `gh pr comment {number} --body "{proof}"`
+- When user types `done`: exit without posting
+
+---
+
+## Reused Infrastructure
+
+| What | From | How |
+|------|------|-----|
+| PR argument parsing | `commands/diff-review.md` Step 1 | Same URL/number extraction, `gh pr diff/view` |
+| File grouping | `commands/diff-review.md` Step 2 | Same feature-first, then-by-layer algorithm |
+| Importance ranking | `skills/narration/references/ranking.md` | Same 1-7 scale |
+| Question types | `agents/quiz-generator.md` | Same why/what-if/trace/connect/spot-the-issue taxonomy |
+| Trail data format | `skills/visualization/SKILL.md` | Same JSON structure (stops, events, partyMembers, deathMessages) |
+| Game mechanics | `skills/visualization/references/oreorg-trail.md` | Same state machine, scoring, party health, death conditions |
+| Pixel art style | `skills/visualization/references/pixel-art-style.md` | Same aesthetic guidelines |
+| Narration style | `skills/narration/SKILL.md` | Same TTS-friendly guidelines |
+| TTS | `scripts/tts.sh` | Same announcement wrapper |
+| HTML generation | `/playground` skill | Generates self-contained HTML with copy button |
+
+---
+
+## Verification
+
+1. **Unit test the agent:** Spawn `pr-quiz-extractor` manually with a known PR diff and verify the TRAIL_DATA JSON has correct structure
+2. **End-to-end test:** Run `/pr-quiz` against an existing PR in this repo (e.g., one of the recent commits)
+3. **Play through the game:** Verify questions are relevant to the PR changes, scoring works, all game states function
+4. **Copy proof:** Click "Copy Proof" on win screen, verify clipboard contains valid markdown
+5. **Paste and post:** Paste proof back in terminal, verify parsing works, test `gh pr comment` posting
+6. **Edge cases:** Test with a small PR (few changes), large PR (many files), config-only PR
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/flowclub/.REDACTED.jsonl
+
+If this plan can be broken down into multiple independent tasks, consider using the TeamCreate tool to create a team and parallelize the work.
+
+---
+
+okay, can we put this in a branch
