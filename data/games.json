@@ -1,0 +1,209 @@
+{
+  "title": "GITHUB GAME DIRECTORY v2.026 — SHAREWARE EDITION",
+  "subtitle": "TRENDING GAME DIRECTORY v2.026",
+  "source": "github.com/trending — Monthly — Feb 2026",
+  "sourceUrl": "https://github.com/trending?since=monthly",
+  "generated": "2026-02-12T00:00:00Z",
+  "games": [
+    {
+      "id": "openclaw",
+      "name": "OPENCLAW.EXE",
+      "repo": "openclaw/openclaw",
+      "language": "TypeScript",
+      "license": "MIT",
+      "genre": "Strategy/Agent Sim",
+      "stars": 185567,
+      "trend": "+179,081",
+      "description": "Your own personal AI agent. Any OS. Any platform. The lobster way.",
+      "color": "red",
+      "detail": {
+        "title": "OPENCLAW.EXE — AGENT UNLEASHED",
+        "asciiArt": "    /\\_/\\    ╔═══════════════════════════════╗\n   ( o.o )   ║  AUTONOMOUS AI AGENT          ║\n    > ^ <    ║  100K ★ in 48 hours           ║\n   /|   |\\   ║  179K ★ this month alone      ║\n  (_|   |_)  ║  \"The Lobster sees all.\" 🦞   ║\n   OPENCLAW  ╚═══════════════════════════════╝",
+        "paragraphs": [
+          "The open-source AI agent that shattered every GitHub record. Born as \"Clawdbot\" by Austrian developer Peter Steinberger, renamed twice after trademark disputes, and reached 100K stars in 48 hours — faster than any repo in GitHub history. Now at 185K and climbing.",
+          "Run it locally on a Mac Mini. Talk to it via WhatsApp, Telegram, or Slack. Plug in any LLM — Opus 4.6, GPT-5.3, Grok. Let the agent handle your tasks while you sleep. WARNING: 11.3% of marketplace skills were found to be malicious. Choose your loadout carefully, commander."
+        ],
+        "tags": [
+          { "label": "TYPESCRIPT", "color": "red" },
+          { "label": "AI AGENT", "color": "yellow" },
+          { "label": "MIT", "color": "dark-gray" }
+        ]
+      }
+    },
+    {
+      "id": "opencode",
+      "name": "OPENCODE.EXE",
+      "repo": "anomalyco/opencode",
+      "language": "TypeScript",
+      "license": "MIT",
+      "genre": "RPG/Coding Quest",
+      "stars": 102594,
+      "trend": "+43,550",
+      "description": "The open source coding agent. Write code through dialogue, not keystrokes.",
+      "color": "cyan",
+      "detail": {
+        "title": "OPENCODE.EXE — THE CODING QUEST",
+        "asciiArt": "  ╔═══════════════════════════════════╗\n  ║  > opencode \"fix the auth bug\"   ║\n  ║                                   ║\n  ║  Analyzing codebase...            ║\n  ║  Found 3 files to modify.        ║\n  ║  Applying patches... ████████░   ║\n  ║  Tests passing. PR ready.        ║\n  ║                                   ║\n  ║  XP +450   LEVEL UP! → LV.12    ║\n  ╚═══════════════════════════════════╝",
+        "paragraphs": [
+          "The open source coding agent that hit 100K stars. Describe what you want in plain English — OpenCode reads your codebase, plans the changes, writes the code, runs the tests, and opens the PR. You review. It iterates.",
+          "Every task is a quest. Every bug is a boss fight. Watch your agent level up as it learns your codebase patterns, your testing conventions, your deployment rituals. The RPG where the NPCs write better code than you do."
+        ],
+        "tags": [
+          { "label": "TYPESCRIPT", "color": "cyan" },
+          { "label": "CODING AGENT", "color": "green" },
+          { "label": "MIT", "color": "dark-gray" }
+        ]
+      }
+    },
+    {
+      "id": "skills",
+      "name": "SKILLS.EXE",
+      "repo": "anthropics/skills",
+      "language": "Python",
+      "license": "MIT",
+      "genre": "Skill Tree RPG",
+      "stars": 68125,
+      "trend": "+30,543",
+      "description": "Public repository for Agent Skills. Unlock abilities. Level up your agent.",
+      "color": "magenta",
+      "detail": {
+        "title": "SKILLS.EXE — THE SKILL TREE",
+        "asciiArt": "         ◆ MASTER AGENT\n        / \\\n       /   \\\n    ◇ CODE  ◇ REVIEW\n    / \\      / \\\n   /   \\    /   \\\n  ○ FIX ○ TEST ○ DEPLOY ○ AUDIT\n  │     │       │        │\n  ◦ lint ◦ e2e  ◦ k8s    ◦ sec\n    SKILL POINTS: ████████░░ 82/100",
+        "paragraphs": [
+          "Anthropic's public catalog of agent skills — the official ability tree for Claude Code and its ecosystem. Each skill is a markdown spec that teaches an AI agent a new capability: reviewing PRs, deploying services, debugging production incidents, writing documentation.",
+          "Unlock new branches of the skill tree. Combine skills for combo attacks. Stack /diff-review with /deploy for the legendary \"ship it\" finisher. 68K developers are already grinding this tree. What's your build?"
+        ],
+        "tags": [
+          { "label": "PYTHON", "color": "magenta" },
+          { "label": "AGENT SKILLS", "color": "yellow" },
+          { "label": "MIT", "color": "dark-gray" }
+        ]
+      }
+    },
+    {
+      "id": "superpwr",
+      "name": "SUPERPWR.EXE",
+      "repo": "obra/superpowers",
+      "language": "Shell",
+      "license": "MIT",
+      "genre": "Action/Powers Sim",
+      "stars": 49831,
+      "trend": "+33,411",
+      "description": "An agentic skills framework & dev methodology that works. Gain superpowers.",
+      "color": "amber",
+      "detail": {
+        "title": "SUPERPWR.EXE — POWERS UNLEASHED",
+        "asciiArt": "  ┌──────────────────────────────────┐\n  │   ⚡ S U P E R P O W E R S ⚡   │\n  │──────────────────────────────────│\n  │  ABILITY          STATUS        │\n  │  ├─ Agentic Dev   [ACTIVE]  ██  │\n  │  ├─ Auto-Debug    [ACTIVE]  ██  │\n  │  ├─ Code Review   [ACTIVE]  ██  │\n  │  ├─ Ship & Deploy [LOCKED]  ░░  │\n  │  └─ ???           [LOCKED]  ░░  │\n  │                                  │\n  │  POWER LEVEL: ████████░░  80%   │\n  └──────────────────────────────────┘",
+        "paragraphs": [
+          "An agentic skills framework and software development methodology that actually works. Created by Jesse Vincent (obra), Superpowers gives your coding agent a structured set of abilities — each one a superpower that transforms how you build software. 33K stars gained this month alone.",
+          "Not just tools — a methodology. Each superpower comes with workflows, guardrails, and escalation paths. Your agent learns when to act, when to ask, and when to stop. The training montage for your AI sidekick."
+        ],
+        "tags": [
+          { "label": "SHELL", "color": "amber" },
+          { "label": "FRAMEWORK", "color": "cyan" },
+          { "label": "MIT", "color": "dark-gray" }
+        ]
+      }
+    },
+    {
+      "id": "remotion",
+      "name": "REMOTION.EXE",
+      "repo": "remotion-dev/remotion",
+      "language": "TypeScript",
+      "license": "CUSTOM",
+      "genre": "Creative/Studio",
+      "stars": 36201,
+      "trend": "+10,834",
+      "description": "Make videos programmatically with React. Hollywood in your terminal.",
+      "color": "bright-blue",
+      "detail": {
+        "title": "REMOTION.EXE — PIXEL STUDIO",
+        "asciiArt": "  ╔══════════════════════════════════╗\n  ║  🎬 REMOTION STUDIO              ║\n  ║──────────────────────────────────║\n  ║  import {Video} from 'remotion'; ║\n  ║                                  ║\n  ║  ┌────────────────────────┐     ║\n  ║  │ ▶ ■ ◀◀ ▶▶  00:42/3:20│     ║\n  ║  │ ████████░░░░░░░░░░░░░ │     ║\n  ║  └────────────────────────┘     ║\n  ║  RENDERING: 60fps · 4K · React  ║\n  ╚══════════════════════════════════╝",
+        "paragraphs": [
+          "Make videos programmatically with React. Write JSX, get MP4. Remotion turns every React developer into a video producer — data visualizations, social media content, product demos, conference talks — all rendered frame-by-frame with the full power of the React ecosystem.",
+          "Your creative studio fits in a terminal. Compose scenes with components. Animate with spring physics. Render in 4K at 60fps. The video game where the final boss is your client's \"just one more revision\" email."
+        ],
+        "tags": [
+          { "label": "TYPESCRIPT", "color": "bright-blue" },
+          { "label": "VIDEO", "color": "magenta" },
+          { "label": "CUSTOM", "color": "dark-gray" }
+        ]
+      }
+    },
+    {
+      "id": "sysleak",
+      "name": "SYSLEAK.EXE",
+      "repo": "asgeirtj/system_prompts_leaks",
+      "language": "HTML",
+      "license": "UNLICENSED",
+      "genre": "Espionage/Stealth",
+      "stars": 31119,
+      "trend": "+6,007",
+      "description": "Extracted system prompts from popular chatbots. Read the hidden instructions.",
+      "color": "green",
+      "detail": {
+        "title": "SYSLEAK.EXE — CLASSIFIED ACCESS",
+        "asciiArt": "  ╔═══════════════════════════════════╗\n  ║ ▒▒ CLASSIFIED — LEVEL 5 ▒▒       ║\n  ║───────────────────────────────────║\n  ║ INTERCEPTED TRANSMISSIONS:        ║\n  ║                                   ║\n  ║ > ChatGPT ......... [EXTRACTED]  ║\n  ║ > Claude ........... [EXTRACTED]  ║\n  ║ > Gemini ........... [EXTRACTED]  ║\n  ║ > Copilot .......... [EXTRACTED]  ║\n  ║ > Grok ............. [EXTRACTED]  ║\n  ║                                   ║\n  ║ CLEARANCE: TOP SECRET // ORCON   ║\n  ╚═══════════════════════════════════╝",
+        "paragraphs": [
+          "The leaked system prompts from every major AI chatbot — ChatGPT, Claude, Gemini, Copilot, Grok — all extracted and cataloged in one repo. Read the hidden instructions that shape every AI conversation. The source code behind the curtain. 31K developers chose to peek behind the veil.",
+          "An espionage thriller where every document is real. Sneak past the safety layers, extract the classified briefings, compare how each AI was programmed to behave. The stealth game where the enemy is prompt engineering itself."
+        ],
+        "tags": [
+          { "label": "HTML", "color": "green" },
+          { "label": "SECURITY", "color": "red" },
+          { "label": "UNLICENSED", "color": "dark-gray" }
+        ]
+      }
+    },
+    {
+      "id": "shannon",
+      "name": "SHANNON.EXE",
+      "repo": "KeygraphHQ/shannon",
+      "language": "TypeScript",
+      "license": "PROPRIETARY",
+      "genre": "Hacking Sim",
+      "stars": 20593,
+      "trend": "+15,531",
+      "description": "Autonomous AI hacker. 96.15% exploit success rate. Breach the firewall.",
+      "color": "orange",
+      "detail": {
+        "title": "SHANNON.EXE — HACK THE MAINFRAME",
+        "asciiArt": "  ╔═══════════════════════════════════╗\n  ║ root@target:~# ./shannon --auto  ║\n  ║───────────────────────────────────║\n  ║ [■■■■■■■■■■] RECON COMPLETE      ║\n  ║ [■■■■■■■■░░] EXPLOITING...       ║\n  ║                                   ║\n  ║ VULNS:  14 found                  ║\n  ║ CHAINS: 8 exploit paths           ║\n  ║ STATUS: 96.15% success            ║\n  ║                                   ║\n  ║ ⚠ FULL AUTOPWN IN PROGRESS ⚠    ║\n  ╚═══════════════════════════════════╝",
+        "paragraphs": [
+          "The fully autonomous AI hacker. Point Shannon at any web app and watch it find real exploits — XSS, SQLi, SSRF, auth bypass — with a 96.15% success rate on the XBOW Benchmark. No hints, no hand-holding. +15K stars in one month because security people don't mess around when something works.",
+          "Named after Claude Shannon, father of information theory. Uses LLMs to reason about attack surfaces like a senior pentester. Generates working proof-of-concept exploits, not just reports. The hacking sim where the exploits are real and the targets are your own apps."
+        ],
+        "tags": [
+          { "label": "TYPESCRIPT", "color": "orange" },
+          { "label": "SECURITY", "color": "red" },
+          { "label": "PROPRIETARY", "color": "dark-gray" }
+        ]
+      }
+    },
+    {
+      "id": "pageidx",
+      "name": "PAGEIDX.EXE",
+      "repo": "VectifyAI/PageIndex",
+      "language": "Python",
+      "license": "APACHE-2.0",
+      "genre": "Dungeon/Knowledge",
+      "stars": 14815,
+      "trend": "+9,588",
+      "description": "Document Index for vectorless, reasoning-based RAG. Mine knowledge veins.",
+      "color": "blue",
+      "detail": {
+        "title": "PAGEIDX.EXE — KNOWLEDGE MINES",
+        "asciiArt": "  ┌─────────────────────────────────────┐\n  │  LEVEL 4: THE REASONING CAVERNS    │\n  │                                     │\n  │  📄──→ 🧠──→ 💎                    │\n  │  doc    reason  answer              │\n  │                                     │\n  │  ┌──────┐  ┌───────┐  ┌────────┐  │\n  │  │PAGE 1│──│PAGE 47│──│PAGE 203│  │\n  │  └──────┘  └───────┘  └────────┘  │\n  │                                     │\n  │  NO VECTORS. PURE REASONING.       │\n  │  KNOWLEDGE MINED: ████████░░ 82%   │\n  └─────────────────────────────────────┘",
+        "paragraphs": [
+          "Document indexing for vectorless, reasoning-based RAG. While everyone else embeds documents into vector databases, PageIndex reasons through them directly — building a semantic index that an LLM can navigate like a table of contents. No embeddings. No cosine similarity. Just thinking.",
+          "Descend into the knowledge mines. Each document is a cavern. Each page a node in the reasoning graph. Mine the veins of information by following logical chains, not vector proximity. The dungeon crawler where loot drops are citations and the final boss is hallucination."
+        ],
+        "tags": [
+          { "label": "PYTHON", "color": "blue" },
+          { "label": "RAG", "color": "cyan" },
+          { "label": "APACHE-2.0", "color": "dark-gray" }
+        ]
+      }
+    }
+  ]
+}

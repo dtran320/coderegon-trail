@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Schema for retro game directory data. Each repo becomes a 'game' entry.",
+  "type": "object",
+  "required": ["title", "subtitle", "source", "games"],
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Directory title, e.g. 'GITHUB GAME DIRECTORY v2.026'"
+    },
+    "subtitle": {
+      "type": "string",
+      "description": "Subtitle line, e.g. 'TRENDING GAME DIRECTORY v2.026'"
+    },
+    "source": {
+      "type": "string",
+      "description": "Source label, e.g. 'github.com/trending — Monthly — Feb 2026'"
+    },
+    "sourceUrl": {
+      "type": "string",
+      "description": "URL for source link"
+    },
+    "generated": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this directory was generated"
+    },
+    "games": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "repo", "genre", "stars", "trend", "description", "color"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Short slug ID, e.g. 'openclaw'"
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name in .EXE format, e.g. 'OPENCLAW.EXE'"
+          },
+          "repo": {
+            "type": "string",
+            "description": "GitHub owner/repo, e.g. 'openclaw/openclaw'"
+          },
+          "language": {
+            "type": "string",
+            "description": "Primary language, e.g. 'TypeScript'"
+          },
+          "license": {
+            "type": "string",
+            "description": "License short name, e.g. 'MIT'"
+          },
+          "genre": {
+            "type": "string",
+            "description": "Game genre mapping, e.g. 'Strategy/Agent Sim'"
+          },
+          "stars": {
+            "type": "integer",
+            "description": "Total star count"
+          },
+          "trend": {
+            "type": "string",
+            "description": "Trend label, e.g. '+179,081'"
+          },
+          "description": {
+            "type": "string",
+            "description": "One-line game-style tagline for the listing"
+          },
+          "color": {
+            "type": "string",
+            "description": "CSS color variable name, e.g. 'red', 'cyan', 'amber'"
+          },
+          "detail": {
+            "type": "object",
+            "required": ["title", "asciiArt", "paragraphs", "tags"],
+            "properties": {
+              "title": {
+                "type": "string",
+                "description": "Detail panel title, e.g. 'OPENCLAW.EXE — AGENT UNLEASHED'"
+              },
+              "asciiArt": {
+                "type": "string",
+                "description": "Multi-line ASCII art for the detail panel"
+              },
+              "paragraphs": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Body text paragraphs (first is bright, rest are dimmed)"
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "label": { "type": "string" },
+                    "color": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

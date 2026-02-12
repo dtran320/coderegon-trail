@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title id="page-title">GITHUB GAME DIRECTORY v2.026 — SHAREWARE EDITION</title>
+<title id="page-title">GAME DIRECTORY</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
 
@@ -91,25 +91,7 @@
   .subheader { color: var(--dark-gray); font-size: 16px; }
   .subheader a { color: var(--dark-gray); text-decoration: underline; }
   .subheader a:hover { color: var(--white); }
-
-  .double-line {
-    color: var(--amber);
-    text-shadow: 0 0 4px rgba(255, 176, 0, 0.2);
-  }
-
-  .trending-badge {
-    display: inline-block;
-    font-size: 13px;
-    padding: 0 5px;
-    margin-left: 4px;
-    vertical-align: middle;
-    animation: pulse-glow 2s ease-in-out infinite;
-  }
-
-  @keyframes pulse-glow {
-    0%, 100% { opacity: 0.6; }
-    50% { opacity: 1; }
-  }
+  .double-line { color: var(--amber); text-shadow: 0 0 4px rgba(255, 176, 0, 0.2); }
 
   /* Menu */
   .menu-header {
@@ -240,25 +222,12 @@
   <div class="loading-bar"><div class="loading-fill" id="loading-fill"></div></div>
 </div>
 
-<!-- MAIN SCREEN (populated by JS from data/games.json) -->
+<!-- MAIN SCREEN -->
 <div id="screen">
   <div class="header">
-<pre class="ascii-art" id="header-art">
- ██████╗ ██╗████████╗██╗  ██╗██╗   ██╗██████╗
-██╔════╝ ██║╚══██╔══╝██║  ██║██║   ██║██╔══██╗
-██║  ███╗██║   ██║   ███████║██║   ██║██████╔╝
-██║   ██║██║   ██║   ██╔══██║██║   ██║██╔══██╗
-╚██████╔╝██║   ██║   ██║  ██║╚██████╔╝██████╔╝
- ╚═════╝ ╚═╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═════╝
-  ██████╗  █████╗ ███╗   ███╗███████╗███████╗
- ██╔════╝ ██╔══██╗████╗ ████║██╔════╝██╔════╝
- ██║  ███╗███████║██╔████╔██║█████╗  ███████╗
- ██║   ██║██╔══██║██║╚██╔╝██║██╔══╝  ╚════██║
- ╚██████╔╝██║  ██║██║ ╚═╝ ██║███████╗███████║
-  ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝╚══════╝
-</pre>
-    <div class="header-bar" id="header-bar">═══════ TRENDING GAME DIRECTORY v2.026 ═══════</div>
-    <div class="subheader" id="header-sub">Loading...</div>
+<pre class="ascii-art" id="header-art"></pre>
+    <div class="header-bar" id="header-bar"></div>
+    <div class="subheader" id="header-sub"></div>
     <div class="double-line">═══════════════════════════════════════════════════</div>
   </div>
 
@@ -271,79 +240,125 @@
   </div>
 
   <ul class="game-list" id="game-list"></ul>
+
+  <!-- Detail panels injected here -->
   <div id="detail-panels"></div>
 
   <div class="footer" id="footer">
     <div class="double-line">═══════════════════════════════════════════════════</div>
-    <p id="footer-hint">SELECT A PROGRAM OR PRESS ESC TO CLOSE</p>
+    <p id="footer-hint"></p>
     <p style="margin-top:4px"><span class="prompt">C:\GITHUB\GAMES&gt;</span> <span class="blink">█</span></p>
     <p style="margin-top:8px;color:#333" id="footer-stats"></p>
   </div>
 </div>
 
 <script>
-// ─── Color system ───
+// ─── Color mapping ───
 const COLOR_MAP = {
-  'red':        { css: 'var(--red)',        glow: 'rgba(255, 50, 50, 0.4)',  glowStrong: 'rgba(255,50,50,0.5)' },
-  'cyan':       { css: 'var(--cyan)',       glow: 'rgba(0, 255, 255, 0.4)',  glowStrong: 'rgba(0,255,255,0.5)' },
-  'magenta':    { css: 'var(--magenta)',    glow: 'rgba(255, 50, 255, 0.4)', glowStrong: 'rgba(255,50,255,0.5)' },
-  'amber':      { css: 'var(--amber)',      glow: 'rgba(255, 176, 0, 0.4)',  glowStrong: 'rgba(255,176,0,0.5)' },
-  'bright-blue':{ css: 'var(--bright-blue)',glow: 'rgba(85, 170, 255, 0.4)', glowStrong: 'rgba(85,170,255,0.5)' },
-  'green':      { css: 'var(--green)',      glow: 'rgba(50, 255, 50, 0.4)',  glowStrong: 'rgba(50,255,50,0.5)' },
-  'orange':     { css: 'var(--orange)',     glow: 'rgba(255, 136, 50, 0.4)', glowStrong: 'rgba(255,136,50,0.5)' },
-  'blue':       { css: 'var(--blue)',       glow: 'rgba(85, 85, 255, 0.4)',  glowStrong: 'rgba(85,85,255,0.5)' },
-  'yellow':     { css: 'var(--yellow)',     glow: 'rgba(255, 255, 50, 0.4)', glowStrong: 'rgba(255,255,50,0.5)' },
-  'dark-gray':  { css: 'var(--dark-gray)',  glow: 'rgba(85, 85, 85, 0.2)',   glowStrong: 'rgba(85,85,85,0.3)' },
-  'white':      { css: 'var(--white)',      glow: 'rgba(200, 200, 200, 0.4)',glowStrong: 'rgba(200,200,200,0.5)' },
+  'red': { css: 'var(--red)', glow: 'rgba(255, 50, 50, 0.4)', glowStrong: 'rgba(255,50,50,0.5)' },
+  'cyan': { css: 'var(--cyan)', glow: 'rgba(0, 255, 255, 0.4)', glowStrong: 'rgba(0,255,255,0.5)' },
+  'magenta': { css: 'var(--magenta)', glow: 'rgba(255, 50, 255, 0.4)', glowStrong: 'rgba(255,50,255,0.5)' },
+  'amber': { css: 'var(--amber)', glow: 'rgba(255, 176, 0, 0.4)', glowStrong: 'rgba(255,176,0,0.5)' },
+  'bright-blue': { css: 'var(--bright-blue)', glow: 'rgba(85, 170, 255, 0.4)', glowStrong: 'rgba(85,170,255,0.5)' },
+  'green': { css: 'var(--green)', glow: 'rgba(50, 255, 50, 0.4)', glowStrong: 'rgba(50,255,50,0.5)' },
+  'orange': { css: 'var(--orange)', glow: 'rgba(255, 136, 50, 0.4)', glowStrong: 'rgba(255,136,50,0.5)' },
+  'blue': { css: 'var(--blue)', glow: 'rgba(85, 85, 255, 0.4)', glowStrong: 'rgba(85,85,255,0.5)' },
+  'yellow': { css: 'var(--yellow)', glow: 'rgba(255, 255, 50, 0.4)', glowStrong: 'rgba(255,255,50,0.5)' },
+  'dark-gray': { css: 'var(--dark-gray)', glow: 'rgba(85, 85, 85, 0.2)', glowStrong: 'rgba(85,85,85,0.3)' },
+  'white': { css: 'var(--white)', glow: 'rgba(200, 200, 200, 0.4)', glowStrong: 'rgba(200,200,200,0.5)' },
 };
 
-function getColor(name) { return COLOR_MAP[name] || COLOR_MAP['white']; }
-function escapeHtml(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
-function formatNumber(n) { return n.toLocaleString(); }
+function getColor(name) {
+  return COLOR_MAP[name] || COLOR_MAP['white'];
+}
 
-// ─── Data loading: ?data=URL > data/games.json > inline fallback ───
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function formatNumber(n) {
+  return n.toLocaleString();
+}
+
+// ─── Data loading ───
+// The page can load data from:
+// 1. Inline: window.GAME_DATA set before this script
+// 2. URL param: ?data=path/to/games.json
+// 3. Default: data/games.json (relative to this template)
+// 4. Same-dir: games.json (for generated standalone pages)
+
 async function loadData() {
+  // Check for inline data first
   if (window.GAME_DATA) return window.GAME_DATA;
+
+  // Check URL param
   const params = new URLSearchParams(window.location.search);
   const dataUrl = params.get('data');
-  const sources = [dataUrl, 'data/games.json', 'games.json'].filter(Boolean);
+
+  // Try sources in order
+  const sources = [
+    dataUrl,
+    'games.json',
+    'data/games.json',
+    '../data/games.json',
+  ].filter(Boolean);
+
   for (const src of sources) {
     try {
       const resp = await fetch(src);
       if (resp.ok) return await resp.json();
     } catch (e) { /* try next */ }
   }
-  throw new Error('Could not load game data');
+
+  throw new Error('Could not load game data. Provide ?data=URL or place games.json alongside this file.');
 }
 
-// ─── Render ───
+// ─── Rendering ───
 let gameData = null;
 let currentDetail = null;
 
 function renderDirectory(data) {
   gameData = data;
 
+  // Title
   document.getElementById('page-title').textContent = data.title || 'GAME DIRECTORY';
-  if (data.headerArt) document.getElementById('header-art').textContent = data.headerArt;
-  document.getElementById('header-bar').textContent = '═══════ ' + (data.subtitle || 'GAME DIRECTORY') + ' ═══════';
+
+  // Header ASCII art
+  document.getElementById('header-art').textContent = data.headerArt || [
+    ' ██████╗ ██╗████████╗██╗  ██╗██╗   ██╗██████╗ ',
+    '██╔════╝ ██║╚══██╔══╝██║  ██║██║   ██║██╔══██╗',
+    '██║  ███╗██║   ██║   ███████║██║   ██║██████╔╝',
+    '██║   ██║██║   ██║   ██╔══██║██║   ██║██╔══██╗',
+    '╚██████╔╝██║   ██║   ██║  ██║╚██████╔╝██████╔╝',
+    ' ╚═════╝ ╚═╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═════╝',
+    '  ██████╗  █████╗ ███╗   ███╗███████╗███████╗  ',
+    ' ██╔════╝ ██╔══██╗████╗ ████║██╔════╝██╔════╝  ',
+    ' ██║  ███╗███████║██╔████╔██║█████╗  ███████╗  ',
+    ' ██║   ██║██╔══██║██║╚██╔╝██║██╔══╝  ╚════██║  ',
+    ' ╚██████╔╝██║  ██║██║ ╚═╝ ██║███████╗███████║  ',
+    '  ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝╚══════╝  ',
+  ].join('\n');
+
+  document.getElementById('header-bar').textContent =
+    '═══════ ' + (data.subtitle || 'GAME DIRECTORY') + ' ═══════';
 
   const subEl = document.getElementById('header-sub');
   if (data.sourceUrl) {
-    subEl.innerHTML = 'Source: <a href="' + escapeHtml(data.sourceUrl) + '" target="_blank">' + escapeHtml(data.source) + '</a>';
+    subEl.innerHTML = 'Source: <a href="' + escapeHtml(data.sourceUrl) + '" target="_blank">' +
+      escapeHtml(data.source || data.sourceUrl) + '</a>';
   } else {
     subEl.textContent = data.source || '';
   }
 
+  // Game list
   const listEl = document.getElementById('game-list');
   const panelsEl = document.getElementById('detail-panels');
   listEl.innerHTML = '';
   panelsEl.innerHTML = '';
 
   const totalStars = data.games.reduce((s, g) => s + (g.stars || 0), 0);
-  const totalTrend = data.games.reduce((s, g) => {
-    const m = (g.trend || '').replace(/[^0-9]/g, '');
-    return s + (parseInt(m) || 0);
-  }, 0);
 
   data.games.forEach((game, i) => {
     const c = getColor(game.color);
@@ -353,15 +368,16 @@ function renderDirectory(data) {
     li.className = 'game-entry';
     li.dataset.game = game.id;
     li.onclick = () => showDetail(game.id);
-    li.innerHTML =
-      '<div class="game-row">' +
-        '<span class="game-num">' + (i + 1) + '.</span>' +
-        '<span class="game-name" style="color:' + c.css + ';text-shadow:0 0 var(--glow-strength) ' + c.glow + '">' + escapeHtml(game.name) + '</span>' +
-        '<span class="game-genre">' + escapeHtml(game.genre) + '</span>' +
-        '<span class="game-stars">' + formatNumber(game.stars) + '</span>' +
-        '<span class="game-hot">' + escapeHtml(game.trend) + '</span>' +
-      '</div>' +
-      '<div class="game-desc">' + escapeHtml(game.description) + '</div>';
+    li.innerHTML = `
+      <div class="game-row">
+        <span class="game-num">${i + 1}.</span>
+        <span class="game-name" style="color:${c.css};text-shadow:0 0 var(--glow-strength) ${c.glow}">${escapeHtml(game.name)}</span>
+        <span class="game-genre">${escapeHtml(game.genre)}</span>
+        <span class="game-stars">${formatNumber(game.stars)}</span>
+        <span class="game-hot">${escapeHtml(game.trend)}</span>
+      </div>
+      <div class="game-desc">${escapeHtml(game.description)}</div>
+    `;
     listEl.appendChild(li);
 
     // Detail panel
@@ -370,57 +386,66 @@ function renderDirectory(data) {
       panel.className = 'detail-panel';
       panel.id = 'detail-' + game.id;
 
-      let tagsHtml = (game.detail.tags || []).map(function(t) {
-        const tc = getColor(t.color);
-        return '<span class="tag" style="color:' + tc.css + ';border-color:' + tc.css + '">' + escapeHtml(t.label) + '</span>';
-      }).join('');
+      let tagsHtml = '';
+      if (game.detail.tags) {
+        tagsHtml = game.detail.tags.map(t => {
+          const tc = getColor(t.color);
+          return `<span class="tag" style="color:${tc.css};border-color:${tc.css}">${escapeHtml(t.label)}</span>`;
+        }).join('');
+      }
 
-      let bodyHtml = (game.detail.paragraphs || []).map(function(p, pi) {
-        const pColor = pi === 0 ? 'var(--white)' : 'var(--dark-gray)';
-        return '<p style="color:' + pColor + '">' + escapeHtml(p) + '</p>';
-      }).join('');
+      let bodyHtml = '';
+      if (game.detail.paragraphs) {
+        game.detail.paragraphs.forEach((p, pi) => {
+          const pColor = pi === 0 ? 'var(--white)' : 'var(--dark-gray)';
+          bodyHtml += `<p style="color:${pColor}">${escapeHtml(p)}</p>`;
+        });
+      }
 
-      panel.innerHTML =
-        '<span class="detail-close" onclick="closeDetail()">[ESC] CLOSE</span>' +
-        '<div class="detail-title" style="color:' + c.css + ';text-shadow:0 0 10px ' + c.glowStrong + '">' +
-          '▓▓ ' + escapeHtml(game.detail.title) + ' ▓▓' +
-        '</div>' +
-        '<div class="detail-meta">' + escapeHtml(game.repo) + ' · ' + escapeHtml(game.language || '?') + ' · ' + formatNumber(game.stars) + ' ★ · ' + escapeHtml(game.trend) + ' this month</div>' +
-        '<pre class="detail-art" style="color:' + c.css + '">' + escapeHtml(game.detail.asciiArt || '') + '</pre>' +
-        '<div class="detail-body">' + bodyHtml + '</div>' +
-        '<div class="detail-stats">' + tagsHtml + '</div>' +
-        '<a href="https://github.com/' + escapeHtml(game.repo) + '" target="_blank" class="detail-launch" style="color:' + c.css + ';border-color:' + c.css + '">► LAUNCH ON GITHUB</a>';
+      panel.innerHTML = `
+        <span class="detail-close" onclick="closeDetail()">[ESC] CLOSE</span>
+        <div class="detail-title" style="color:${c.css};text-shadow:0 0 10px ${c.glowStrong}">
+          ▓▓ ${escapeHtml(game.detail.title)} ▓▓
+        </div>
+        <div class="detail-meta">${escapeHtml(game.repo)} · ${escapeHtml(game.language || '?')} · ${formatNumber(game.stars)} ★ · ${escapeHtml(game.trend)} this month</div>
+        <pre class="detail-art" style="color:${c.css}">${escapeHtml(game.detail.asciiArt || '')}</pre>
+        <div class="detail-body">${bodyHtml}</div>
+        <div class="detail-stats">${tagsHtml}</div>
+        <a href="https://github.com/${escapeHtml(game.repo)}" target="_blank"
+           class="detail-launch" style="color:${c.css};border-color:${c.css}">► LAUNCH ON GITHUB</a>
+      `;
       panelsEl.appendChild(panel);
     }
   });
 
   // Footer
-  document.getElementById('footer-hint').textContent = 'SELECT A PROGRAM (1-' + data.games.length + ') OR PRESS ESC TO CLOSE';
+  document.getElementById('footer-hint').textContent =
+    `SELECT A PROGRAM (1-${data.games.length}) OR PRESS ESC TO CLOSE`;
   document.getElementById('footer-stats').textContent =
-    'TOTAL: ' + formatNumber(totalStars) + ' ★ ACROSS ' + data.games.length + ' PROGRAMS · +' + formatNumber(totalTrend) + ' THIS MONTH · 47.2 MB FREE ON DRIVE C:';
+    `TOTAL: ${formatNumber(totalStars)} ★ ACROSS ${data.games.length} PROGRAMS · 47.2 MB FREE ON DRIVE C:`;
 }
 
-// ─── Detail panel ───
+// ─── Detail Panel Logic ───
 function showDetail(gameId) {
   closeDetail();
-  var loadingEl = document.getElementById('loading');
-  var loadingLabel = document.getElementById('loading-label');
-  var loadingFill = document.getElementById('loading-fill');
+  const loadingEl = document.getElementById('loading');
+  const loadingLabel = document.getElementById('loading-label');
+  const loadingFill = document.getElementById('loading-fill');
 
-  var game = gameData.games.find(function(g) { return g.id === gameId; });
-  loadingLabel.textContent = 'LOADING ' + (game ? game.name : gameId.toUpperCase()) + '...';
+  const game = gameData.games.find(g => g.id === gameId);
+  loadingLabel.textContent = `LOADING ${game ? game.name : gameId.toUpperCase()}...`;
   loadingFill.style.width = '0%';
   loadingEl.classList.add('active');
 
-  var progress = 0;
-  var interval = setInterval(function() {
+  let progress = 0;
+  const interval = setInterval(() => {
     progress += Math.random() * 15 + 5;
     if (progress >= 100) {
       progress = 100;
       clearInterval(interval);
-      setTimeout(function() {
+      setTimeout(() => {
         loadingEl.classList.remove('active');
-        var panel = document.getElementById('detail-' + gameId);
+        const panel = document.getElementById('detail-' + gameId);
         if (panel) {
           panel.classList.add('active');
           currentDetail = gameId;
@@ -434,15 +459,15 @@ function showDetail(gameId) {
 
 function closeDetail() {
   if (currentDetail) {
-    var panel = document.getElementById('detail-' + currentDetail);
+    const panel = document.getElementById('detail-' + currentDetail);
     if (panel) panel.classList.remove('active');
     currentDetail = null;
   }
 }
 
-// ─── Keyboard ───
-var bootDone = false;
-document.addEventListener('keydown', function(e) {
+// ─── Keyboard Navigation ───
+let bootDone = false;
+document.addEventListener('keydown', (e) => {
   if (!bootDone) {
     document.getElementById('startup').classList.add('hidden');
     bootDone = true;
@@ -450,50 +475,51 @@ document.addEventListener('keydown', function(e) {
   }
   if (e.key === 'Escape') { closeDetail(); return; }
   if (gameData) {
-    var num = parseInt(e.key);
+    const num = parseInt(e.key);
     if (num >= 1 && num <= gameData.games.length) {
       showDetail(gameData.games[num - 1].id);
     }
   }
 });
 
-// ─── Boot + init ───
+// ─── Boot Sequence ───
 async function boot() {
-  var data = await loadData();
-  var totalStars = data.games.reduce(function(s, g) { return s + (g.stars || 0); }, 0);
-  var totalTrend = data.games.reduce(function(s, g) {
-    var m = (g.trend || '').replace(/[^0-9]/g, '');
+  const data = await loadData();
+  const totalStars = data.games.reduce((s, g) => s + (g.stars || 0), 0);
+  const totalTrend = data.games.reduce((s, g) => {
+    const m = (g.trend || '').replace(/[^0-9]/g, '');
     return s + (parseInt(m) || 0);
   }, 0);
 
-  var bootLines = [
-    { text: 'GITHUB BIOS v2.026 — Checking trending repos...', color: 'var(--white)' },
+  const bootLines = [
+    { text: 'GITHUB BIOS v2.026 — Checking repos...', color: 'var(--white)' },
     { text: "RAM: 640K OK (that's all you'll ever need)", color: 'var(--white)' },
     { text: 'Detecting LLMs... Opus 4.6 on IRQ 7, GPT-5.3 on IRQ 9', color: 'var(--dark-gray)' },
     { text: 'Loading ANSI.SYS...OK', color: 'var(--dark-gray)' },
-    { text: 'Loading STARS.DRV...OK  (' + formatNumber(totalStars) + ' stars indexed)', color: 'var(--dark-gray)' },
-    { text: 'Loading TREND.DRV...OK  (+' + formatNumber(totalTrend) + ' this month)', color: 'var(--dark-gray)' },
-    { text: 'Mounting C:\\GITHUB\\TRENDING...OK', color: 'var(--dark-gray)' },
+    { text: `Loading STARS.DRV...OK  (${formatNumber(totalStars)} stars indexed)`, color: 'var(--dark-gray)' },
+    { text: `Loading TREND.DRV...OK  (+${formatNumber(totalTrend)} this month)`, color: 'var(--dark-gray)' },
+    { text: 'Mounting C:\\GITHUB\\DIRECTORY...OK', color: 'var(--dark-gray)' },
     { text: '', color: '' },
     { text: 'Microsoft(R) MS-DOS(R) Version 6.22', color: 'var(--white)' },
-    { text: '(C) Copyright Microsoft Corp 1981-1994 / GitHub Trending Feb 2026', color: 'var(--dark-gray)' },
+    { text: '(C) Copyright Microsoft Corp 1981-1994 / GitHub ' + (data.source || ''), color: 'var(--dark-gray)' },
     { text: '', color: '' },
-    { text: 'C:\\> dir /trending /sort:stars /since:monthly', color: 'var(--green)', isPrompt: true },
+    { text: 'C:\\> dir /repos /sort:stars', color: 'var(--green)', isPrompt: true },
     { text: '', color: '' },
-    { text: '  ' + data.games.length + ' program(s) found.   Loading directory...', color: 'var(--amber)' },
+    { text: `  ${data.games.length} program(s) found.   Loading directory...`, color: 'var(--amber)' },
   ];
 
-  var startupEl = document.getElementById('startup');
-  var startupText = document.getElementById('startup-text');
-  var bootIndex = 0;
+  const startupEl = document.getElementById('startup');
+  const startupText = document.getElementById('startup-text');
+
+  let bootIndex = 0;
 
   function typeBoot() {
     if (bootIndex >= bootLines.length) {
-      setTimeout(function() { startupEl.classList.add('hidden'); bootDone = true; }, 800);
+      setTimeout(() => { startupEl.classList.add('hidden'); bootDone = true; }, 800);
       return;
     }
-    var line = bootLines[bootIndex];
-    var div = document.createElement('div');
+    const line = bootLines[bootIndex];
+    const div = document.createElement('div');
     div.className = 'line';
     div.style.color = line.color;
     div.style.fontFamily = "'VT323', 'Courier New', monospace";
@@ -504,23 +530,23 @@ async function boot() {
     }
     div.textContent = line.text || '\u00A0';
     startupText.appendChild(div);
-    requestAnimationFrame(function() { div.classList.add('visible'); });
+    requestAnimationFrame(() => div.classList.add('visible'));
     bootIndex++;
-    var delay = line.text === '' ? 100 : (line.isPrompt ? 500 : 120);
-    setTimeout(typeBoot, delay);
+    setTimeout(typeBoot, line.text === '' ? 100 : (line.isPrompt ? 500 : 120));
   }
 
-  startupEl.addEventListener('click', function() { startupEl.classList.add('hidden'); bootDone = true; });
+  startupEl.addEventListener('click', () => { startupEl.classList.add('hidden'); bootDone = true; });
 
+  // Render directory first (hidden behind boot screen), then start boot animation
   renderDirectory(data);
   setTimeout(typeBoot, 400);
 }
 
-boot().catch(function(err) {
+boot().catch(err => {
   document.getElementById('startup').classList.add('hidden');
   document.getElementById('screen').innerHTML =
-    '<p style="color:var(--red);text-align:center;margin-top:40px">ERROR: ' + err.message + '</p>' +
-    '<p style="color:var(--dark-gray);text-align:center;margin-top:8px">Place a games.json in data/ or use ?data=URL</p>';
+    '<p style="color:var(--red);text-align:center;margin-top:40px">ERROR: ' + escapeHtml(err.message) + '</p>' +
+    '<p style="color:var(--dark-gray);text-align:center;margin-top:8px">Place a games.json file alongside this HTML, or use ?data=URL</p>';
 });
 </script>
 
