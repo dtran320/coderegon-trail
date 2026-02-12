@@ -1,0 +1,38 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "157c39ac7a89",
+  "session_id": "e4852d17-832f-4a06-9123-70513bc84f46",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-12T13:57:27.776902Z",
+  "branch": "elevenlabs-tts",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".gitignore",
+    "CLAUDE.md",
+    "config/tts.json",
+    "lib/shared-instructions.md",
+    "package.json",
+    "scripts/lib/config.sh",
+    "scripts/tts-elevenlabs.js",
+    "scripts/tts.sh",
+    "skills/narration/SKILL.md",
+    "skills/narration/references/voice-personas.md"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 29,
+    "cache_creation_tokens": 134678,
+    "cache_read_tokens": 1230728,
+    "output_tokens": 2104,
+    "api_call_count": 26
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-12T13:57:27.742815Z",
+    "agent_lines": 210,
+    "human_added": 96,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 306,
+    "agent_percentage": 68.62745098039215
+  }
+}

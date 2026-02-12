@@ -1,0 +1,66 @@
+Implement the following plan:
+
+# ElevenLabs TTS Integration
+
+## Context
+
+The `elevenlabs-tts` branch exists to add ElevenLabs as a third TTS engine alongside macOS `say` and OpenAI. PLAN.md already captures user decisions: use Node.js + official `@elevenlabs/elevenlabs-js` SDK, keep section-by-section narration, ElevenLabs is opt-in via `DIFF_REVIEW_TTS_ENGINE=elevenlabs`.
+
+## Files to Create
+
+### 1. `package.json`
+Minimal Node.js manifest with `@elevenlabs/elevenlabs-js` dependency. Run `npm install`.
+
+### 2. `scripts/tts-elevenlabs.js`
+Standalone Node.js CLI (~90 lines) that:
+- Parses args: `--voice <id>`, `--speed <float>`, `--model <id>`, `--debug`; remaining args or stdin = text
+- Inits `ElevenLabsClient` with `ELEVENLABS_API_KEY`
+- Calls `textToSpeech.convert()` with `outputFormat: "mp3_44100_128"`
+- Collects stream to buffer (handle both Node Readable and Web ReadableStream)
+- Writes temp mp3, spawns `afplay` detached, cleans up after playback
+- Exits non-zero on failure (so tts.sh falls back)
+- Defaults: voice from `ELEVENLABS_VOICE_ID` env or hardcoded `pjcYQlDFKMbcOUp6F5GD`, model `eleven_turbo_v2_5`, speed `1.0`
+
+## Files to Modify
+
+### 3. `.gitignore`
+Add `node_modules/`.
+
+### 4. `scripts/tts.sh`
+- Add `elevenlabs` engine case that delegates to `node "${SCRIPT_DIR}/tts-elevenlabs.js"` with fallback to macOS `say`
+- Add default voice logic for elevenlabs engine (use `ELEVENLABS_VOICE_ID` env var)
+- Update help text to list `elevenlabs` as an engine option
+
+### 5. `scripts/lib/config.sh`
+Add `elevenlabs` branch in `load_config()` to read `.elevenlabs.voice`, `.elevenlabs.speed`, `.elevenlabs.model` from config file.
+
+### 6. `config/tts.json`
+Add `"elevenlabs"` section with defaults: model `eleven_turbo_v2_5`, voice `""` (empty = use env var or hardcoded), speed `1.0`.
+
+### 7. `skills/narration/references/voice-personas.md`
+Add ElevenLabs column to voice table and a new section documenting ElevenLabs voice IDs for team mode with env var overrides.
+
+### 8. `lib/shared-instructions.md`
+Add ElevenLabs invocation examples and break tag documentation (`<break time="1.0s" />`).
+
+### 9. `skills/narration/SKILL.md`
+Add break tag guidance to TTS-Friendly Rules section (only for ElevenLabs engine).
+
+### 10. `CLAUDE.md`
+Update TTS System section to mention ElevenLabs. Add `node`/`npm` as optional dependencies.
+
+## Verification
+
+1. `ELEVENLABS_API_KEY=... ./scripts/tts.sh --engine elevenlabs "Hello from ElevenLabs"` — should play audio
+2. `./scripts/tts.sh --engine elevenlabs "Hello"` (no API key) — should fall back to macOS say
+3. `./scripts/tts.sh --engine elevenlabs --voice "pNInz6obpgDQGcFmaJgB" "Backend here"` — team voice test
+4. Set `"engine": "elevenlabs"` in tts.json, run `./scripts/tts.sh "Hello"` — config file test
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/flowclub/.REDACTED.jsonl
+
+If this plan can be broken down into multiple independent tasks, consider using the TeamCreate tool to create a team and parallelize the work.
+
+---
+
+Commit and push this code, and if we're on a feature branch and there's not already a PR against dev, create one. If we're on the default (main or dev) branch, ask for confirmation before pushing:
