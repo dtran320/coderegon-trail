@@ -4,22 +4,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A Claude Code plugin that provides TTS-narrated code walkthroughs — walking through PRs, diffs, and codebases like a staff engineer pairing with you. No build step; the plugin is entirely markdown specs + shell scripts following Claude Code plugin conventions.
+A Claude Code plugin for learning codebases through play. The flagship feature is **O'Reorg Trail** (`/fly-visual`) — a retro pixel art Oregon Trail-style game that teaches web framework request pipelines via an interactive HTML game. Also includes TTS-narrated code walkthroughs (`/diff-review`, `/walkthrough`) for PRs, diffs, and codebases. No build step; the plugin is entirely markdown specs + shell scripts following Claude Code plugin conventions.
 
 ## Architecture
 
 ```
 commands/          User-facing CLI commands (markdown specs)
+  fly-visual.md      /fly-visual - O'Reorg Trail game (primary command)
   diff-review.md     /diff-review - walk through diffs ranked by importance
   walkthrough.md     /walkthrough - guided codebase tour (8 sections)
 
 agents/            Claude-powered analysis agents (model: sonnet)
-  diff-narrator.md      Analyzes diffs, generates TTS-friendly narration + fly-through snippet plans
-  codebase-narrator.md  Analyzes codebase structure for walkthroughs + fly-through snippet plans
-  domain-splitter.md    Splits codebase into 2-4 domains for team mode
-  quiz-generator.md     Generates comprehension questions from review/walkthrough content
+  trail-data-extractor.md  Detects framework in a repo and extracts trail data for O'Reorg Trail
+  diff-narrator.md         Analyzes diffs, generates TTS-friendly narration + fly-through snippet plans
+  codebase-narrator.md     Analyzes codebase structure for walkthroughs + fly-through snippet plans
+  domain-splitter.md       Splits codebase into 2-4 domains for team mode
+  quiz-generator.md        Generates comprehension questions from review/walkthrough content
 
-skills/narration/  Narration generation guidelines
+skills/visualization/  O'Reorg Trail game generation guidelines
+  SKILL.md               Core game principles, HTML generation, state machine, scoring
+  references/
+    oreorg-trail.md      Complete game mechanics, event types, scoring, death messages
+    framework-trails.md  Per-framework trail definitions (stops, events, party members)
+    pixel-art-style.md   Visual style guide, color palette, canvas rendering, layout specs
+
+skills/narration/  TTS narration generation guidelines
   SKILL.md             Core narration principles, verbosity levels, fly-through + quiz templates
   references/
     ranking.md         Section importance ranking (1-7 scale)
@@ -37,15 +46,22 @@ scripts/           Shell infrastructure
   lib/utils.sh       Shared shell utilities
 
 config/tts.json    Default TTS configuration
+examples/          Example generated game files
 ```
 
 ## Key Execution Flows
+
+**O'Reorg Trail (`/fly-visual`):** Parse framework arg (or auto-detect from repo) → extract trail data from `framework-trails.md` or via `trail-data-extractor` agent → generate self-contained HTML game via `frontend-design` skill → write HTML file and open in browser → game plays in browser (title → setup → travel/stop/event loop → win or death)
+
+**O'Reorg Trail Game Loop:** Title screen → party setup (4 members = framework concepts) → travel between ~8 stops (each = a pipeline stage with code + narration) → quiz events between stops (weather/river/encounter/misfortune/fortune) → wrong answers damage health and party members → arrive at Response Frontier to win, or die trying
+
+**Supported Frameworks:** Next.js (App Router Trail), Rails (Convention Trail), Django (WSGI Wagon Trail), Express (Middleware Prairie), React/Vite (Component Canyon), Laravel (Artisan Trail), OpenClaw (Gateway Trail). Next.js and OpenClaw have full trail data; others have stop outlines for Phase 2.
 
 **Diff Review:** Parse target args → fetch diff (git/gh) → group files into logical sections → rank by importance (1=core logic, 7=config) → present overview → walk through sections with TTS narration → handle navigation commands
 
 **Walkthrough:** Parse scope → spawn 3 parallel Explore agents (architecture, entry points, patterns) → synthesize into 8 sections (overview → architecture → entry points → domain logic → data layer → integrations → testing → build/deploy) → present with TTS narration
 
-**Fly-Through Mode (`fly` command):** Within any section → narrator agent generates a SNIPPET_PLAN (4-8 code snippets ordered by execution flow) → each snippet is displayed via Read tool with TTS narration → auto-advances after estimated TTS duration + buffer → user can pause/resume/stop
+**Fly-Through Mode (`fly` command):** Within any diff-review/walkthrough section → narrator agent generates a SNIPPET_PLAN (4-8 code snippets ordered by execution flow) → each snippet is displayed via Read tool with TTS narration → auto-advances after estimated TTS duration + buffer → user can pause/resume/stop
 
 **Comprehension Quiz (auto-triggers):** After every 2-3 sections → quiz-generator agent creates 3 questions (why/what-if/trace/connect/spot-the-issue) → presents one at a time with TTS → evaluates free-form answers generously (partial credit) → provides feedback with file:line references → tracks running score → disabled with `--no-quiz`
 
@@ -70,6 +86,8 @@ Requires: `bash`, `jq`, `git`, `gh` (GitHub CLI), `say` (macOS), `afplay` (macOS
 
 - Commands, agents, and skills are defined as **markdown files with YAML frontmatter** (model, tools, description)
 - Agents use model `sonnet`; commands use `opus`
+- O'Reorg Trail games are self-contained HTML files — all CSS, JS, and game data inline, no external dependencies
+- Trail data maps framework request/render pipelines to ~8 stops with code snippets, narration, and quiz events
 - Narration must be conversational and TTS-friendly: sentences under 25 words, say "slash" for paths, spell out abbreviations, explain WHY not WHAT, never read code syntax literally
 - Navigation state is tracked through conversation context (no external state files), including fly-through position and quiz scores
 - Shell scripts use `set -euo pipefail`, source helpers from `scripts/lib/`, use `$PLUGIN_ROOT` for paths
