@@ -1408,7 +1408,7 @@ function renderStatusBar() {
     var titleMusic = musicPlaying
       ? 'Music: <span style="color:#55FF55;">On</span> <span style="color:#555555;">(M to toggle off)</span>'
       : 'Music: <span style="color:#FF5555;">Off</span> <span style="color:#555555;">(M to toggle on)</span>';
-    statusBar.innerHTML = '<span style="color:#555555;">The O\x27Reorg Trail v1.0</span>  |  ' + titleMusic;
+    statusBar.innerHTML = '<span style="color:#555555;">The O\'Reorg Trail v1.0</span>  |  ' + titleMusic;
     return;
   }
 
@@ -1505,7 +1505,7 @@ function enterTravel() {
   showRiver = false;
   currentEventType = '';
   currentEventTitle = '';
-  day += Math.floor(Math.random() * 3) + 1;
+  day += Math.floor(Math.random() * 7) + 1;
   travelFlavorIndex = Math.floor(Math.random() * travelFlavors.length);
   renderTravelScreen();
   renderStatusBar();
