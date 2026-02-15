@@ -1,0 +1,35 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "288dffa2e6af",
+  "session_id": "29ee8e24-df80-4b12-b8be-dfc39898a037",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-15T04:17:27.209493Z",
+  "branch": "feature/pr-quiz",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".claude/commands/pr-quiz.md",
+    "agents/pr-quiz-extractor.md",
+    "commands/pr-quiz.md",
+    "skills/visualization/references/pr-quiz-proof.md"
+  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "a6c391f9-0c5d-41e9-a9fa-26e96c90a034",
+  "checkpoint_transcript_start": 7445,
+  "transcript_lines_at_start": 7445,
+  "token_usage": {
+    "input_tokens": 695,
+    "cache_creation_tokens": 202481,
+    "cache_read_tokens": 2175903,
+    "output_tokens": 3700,
+    "api_call_count": 26
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-15T04:17:25.443475Z",
+    "agent_lines": 0,
+    "human_added": 4,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 4,
+    "agent_percentage": 0
+  }
+}
