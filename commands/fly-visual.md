@@ -1,8 +1,9 @@
 ---
-description: "Launch an O'Reorg Trail game to learn a web framework's request pipeline"
-argument-hint: "[next | rails | django | express | react | laravel | openclaw]"
+description: "Launch an O'Reorg Trail game to learn a web framework's request pipeline — or review a PR"
+argument-hint: "[next | rails | django | express | react | laravel | openclaw | PR# | PR-URL | git-range]"
 allowed-tools:
   - Bash(git:*)
+  - Bash(gh:*)
   - Bash(say:*)
   - Bash(afplay:*)
   - Bash(curl:*)
@@ -18,31 +19,41 @@ model: opus
 
 # Fly Visual — O'Reorg Trail Game
 
-You generate and launch a retro pixel art Oregon Trail-style game that teaches a web framework's request pipeline. The game is a self-contained HTML file opened in the browser.
+You generate and launch a retro pixel art Oregon Trail-style game that teaches a web framework's request pipeline — or reviews a pull request. The game is a self-contained HTML file opened in the browser.
 
 **User input:** "$ARGUMENTS"
 
-Use the `visualization` skill for game generation guidelines. Follow the trail data in `skills/visualization/references/framework-trails.md`.
+Use the `visualization` skill for game generation guidelines. Follow the trail data in `skills/visualization/references/framework-trails.md` for framework trails, and `skills/visualization/references/pr-trail.md` for PR trails.
 
-## Step 1: Parse Arguments and Determine Framework
+## Step 1: Parse Arguments and Determine Mode
 
-Parse the user's input to determine which framework trail to generate:
+Parse the user's input. **Check for PR inputs first** (before framework name matching):
 
-| Input | Framework | Trail Name |
-|-------|-----------|------------|
-| `next`, `nextjs`, `next.js` | Next.js | The App Router Trail |
-| `rails`, `ruby`, `ror` | Rails | The Convention Trail |
-| `django`, `python` | Django | The WSGI Wagon Trail |
-| `express`, `node` | Express.js | The Middleware Prairie |
-| `react`, `vite` | React/Vite | The Component Canyon |
-| `laravel`, `php` | Laravel | The Artisan Trail |
-| `openclaw`, `claw`, `gateway` | OpenClaw | The Gateway Trail |
-| (empty) | Auto-detect | Analyze current repo |
+| Input | Detection | Mode | Action |
+|-------|-----------|------|--------|
+| `123` (purely numeric) | PR number | PR | → pr-trail-extractor |
+| URL containing `/pull/` | PR URL | PR | → pr-trail-extractor (extract PR number from URL) |
+| Contains `..` (e.g., `main..feature`) | Git range | PR | → pr-trail-extractor |
+| `HEAD~N` pattern | Recent commits | PR | → pr-trail-extractor |
+| `next`, `nextjs`, `next.js` | Framework name | Framework | The App Router Trail |
+| `rails`, `ruby`, `ror` | Framework name | Framework | The Convention Trail |
+| `django`, `python` | Framework name | Framework | The WSGI Wagon Trail |
+| `express`, `node` | Framework name | Framework | The Middleware Prairie |
+| `react`, `vite` | Framework name | Framework | The Component Canyon |
+| `laravel`, `php` | Framework name | Framework | The Artisan Trail |
+| `openclaw`, `claw`, `gateway` | Framework name | Framework | The Gateway Trail |
+| (empty) | No input | Framework | Auto-detect from repo |
 
 ### Auto-Detection (if no framework specified)
 Spawn a `trail-data-extractor` agent (via Task tool, subagent_type: general-purpose) to detect the framework from the current repository. If detection confidence is low, ask the user to specify.
 
 ## Step 2: Extract Trail Data
+
+### For PR Inputs (PR number, URL, git range, HEAD~N)
+1. Spawn a `pr-trail-extractor` agent (via Task tool, subagent_type: general-purpose)
+2. Pass the PR source (number, URL, or range) to the agent
+3. Agent fetches the diff, groups changes, and returns a TRAIL_DATA JSON block with `trailTheme: "pr"`
+4. Parse the returned JSON
 
 ### For Canonical Trails (framework specified by name)
 1. Read `skills/visualization/references/framework-trails.md`
@@ -219,16 +230,27 @@ Support: `typescript`, `ruby`, `python`, `javascript`, `php`
 
    Or write the file directly, then open:
    ```
+   # For framework trails:
    Write tool → .diff-review/trail-{framework}.html
    Bash: open .diff-review/trail-{framework}.html
+
+   # For PR trails:
+   Write tool → .diff-review/trail-pr-{number-or-range}.html
+   Bash: open .diff-review/trail-pr-{number-or-range}.html
    ```
 
 3. Trigger TTS announcement:
    ```
+   # For framework trails:
    Bash: ${CLAUDE_PLUGIN_ROOT}/scripts/tts.sh "I've opened the O'Reorg Trail in your browser. You're about to travel the {trail name}. Happy trails, partner."
+
+   # For PR trails:
+   Bash: ${CLAUDE_PLUGIN_ROOT}/scripts/tts.sh "I've opened the O'Reorg Trail in your browser. You're about to review PR {number} on the {trail name}. Happy trails, partner."
    ```
 
 ## Step 5: Terminal Feedback
+
+### For Framework Trails
 
 Display in the terminal:
 
@@ -249,6 +271,33 @@ Party Members:
   2. {concept 2}
   3. {concept 3}
   4. {concept 4}
+
+Type 'done' when you've finished the trail.
+================================================================
+```
+
+### For PR Trails
+
+Display in the terminal:
+
+```
+================================================================
+  O'REORG TRAIL — {Trail Name}
+================================================================
+
+Game opened in your browser!
+
+PR:         #{number} — {PR title}
+Trail:      {Trail Name}
+Stops:      {N} change groups to review
+Events:     {N} comprehension challenges
+Destination: The Merge Frontier
+
+Party Members:
+  1. {domain 1}
+  2. {domain 2}
+  3. {domain 3}
+  4. {domain 4}
 
 Type 'done' when you've finished the trail.
 ================================================================
