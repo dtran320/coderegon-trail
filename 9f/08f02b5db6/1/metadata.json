@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "9f08f02b5db6",
+  "session_id": "70fb5dbe-2447-43d3-a620-4e27152dec26",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-03T00:39:22.538469Z",
+  "branch": "pr-trail-game",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "agents/pr-trail-extractor.md",
+    "commands/fly-visual.md",
+    "skills/visualization/references/pr-trail.md"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 2196,
+    "cache_creation_tokens": 64544,
+    "cache_read_tokens": 771523,
+    "output_tokens": 9041,
+    "api_call_count": 16
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-03T00:39:22.507931Z",
+    "agent_lines": 423,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 423,
+    "agent_percentage": 100
+  }
+}

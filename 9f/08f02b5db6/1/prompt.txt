@@ -1,0 +1,99 @@
+Implement the following plan:
+
+# Plan: PR Comprehension Game via O'Reorg Trail
+
+## Context
+
+The O'Reorg Trail game (`/fly-visual`) currently teaches web framework request pipelines — you travel 8 stops representing pipeline stages (middleware, router, controller, etc.) and answer quiz questions along the way. But the game format is perfect for PR comprehension too: travel through the PR's change groups, answer questions about what changed and why.
+
+The goal is to extend `/fly-visual` so it accepts PR inputs (PR number, URL, git range) and generates a PR-specific trail game. The game engine and HTML generation stay the same — only the trail data source changes.
+
+## Approach: Extend fly-visual + New Agent
+
+**3 files touched:**
+
+### 1. Create `agents/pr-trail-extractor.md` (new agent)
+
+A sonnet-model agent that takes a PR source and produces TRAIL_DATA JSON. Flow:
+
+1. **Fetch PR** — `gh pr diff <N>` + `gh pr view <N>` (or `git diff <range>` for branches)
+2. **Group changes** — Feature-first grouping (related files together), then layer fallback. Rank each group 1-7 by importance.
+3. **Build 5-8 stops** — Each change group becomes a stop, ordered most-important-first. Picks the "money" code snippet (15-25 lines of the actual file, not diff format) via Read tool.
+4. **Derive 4 party members** — Key domains/layers touched by the PR (e.g., "API Layer", "Data Model", "Business Logic", "Test Coverage")
+5. **Generate quiz events** — 1 event per stop, mixing types (weather/river/encounter/misfortune). Questions test understanding of the changes (why/what-if/trace/connect/spot-the-issue). 3 choices each.
+6. **Generate death messages** — 3 universal PR messages + 5-8 PR-specific ones
+7. **Output** — `TRAIL_DATA:` JSON block with `trailTheme: "pr"` and `winDestination: "The Merge Frontier"`
+
+Trail name derived from PR title: "Add JWT auth" → "The JWT Auth Trail"
+
+Landmark type mapping:
+| Change Rank | Landmark |
+|---|---|
+| 1 (core logic) | mountain |
+| 2 (breaking API) | river |
+| 3 (data model) | desert |
+| 4 (non-breaking API) | forest |
+| 5 (utility) | camp |
+| 6 (tests) | town |
+| 7 (config) | camp |
+| First stop always | town |
+
+### 2. Modify `commands/fly-visual.md`
+
+Extend Step 1 parse table to detect PR inputs (before framework name matching):
+
+| Input | Detection | Action |
+|---|---|---|
+| `123` (numeric) | PR number | → pr-trail-extractor |
+| URL with `/pull/` | PR URL | → pr-trail-extractor |
+| Contains `..` | Git range | → pr-trail-extractor |
+| `HEAD~N` | Recent commits | → pr-trail-extractor |
+
+Add a Step 2 branch "For PR Inputs" that spawns the pr-trail-extractor agent.
+
+Update Step 5 terminal output to show PR info instead of framework info when `trailTheme === "pr"`.
+
+Update `argument-hint` to include PR examples.
+
+### 3. Create `skills/visualization/references/pr-trail.md` (new reference)
+
+Theming overrides for PR trails that the visualization skill consults:
+- Title screen subtitle: "A PR Review Adventure"
+- Win destination: "The Merge Frontier" (not "Response Frontier")
+- Wagon flag color: GitHub purple (`#6f42c1`)
+- Party member icon mapping for PR domains (api, service, data, test → geometric shapes)
+- Universal PR death messages
+- Narration framing: "your team travels through codebase changes" instead of "request pipeline"
+
+## Files
+
+| File | Action |
+|---|---|
+| `agents/pr-trail-extractor.md` | **Create** — new agent spec |
+| `commands/fly-visual.md` | **Modify** — add PR input detection in Step 1, new agent dispatch in Step 2, adjust Step 5 output |
+| `skills/visualization/references/pr-trail.md` | **Create** — PR theming reference |
+
+## What Stays Unchanged
+
+- `skills/visualization/SKILL.md` — game generation guidelines work as-is
+- `skills/visualization/references/pixel-art-style.md` — visual style unchanged
+- `skills/visualization/references/oreorg-trail.md` — game mechanics unchanged
+- The HTML game engine — `trailTheme` and `winDestination` are additive fields; the visualization skill reads them for copy strings
+
+## Verification
+
+1. From any repo with a GitHub remote: `/fly-visual 123` (a real PR number)
+2. Verify: agent fetches diff, groups changes, produces TRAIL_DATA
+3. Verify: HTML game opens with PR-specific trail name, stops, quiz events
+4. Verify: party members reflect the PR's domains, not framework concepts
+5. Verify: win screen says "The Merge Frontier"
+6. Verify: framework trails still work unchanged (`/fly-visual next`)
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/flowclub/.REDACTED.jsonl
+
+If this plan can be broken down into multiple independent tasks, consider using the TeamCreate tool to create a team and parallelize the work.
+
+---
+
+great! let's commit this to a new branch.
