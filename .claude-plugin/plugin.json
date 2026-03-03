@@ -1,7 +1,7 @@
 {
-  "name": "diff-pair-review",
+  "name": "oreorg-trail",
   "version": "1.0.0",
-  "description": "Narrated code walkthroughs - diffs and codebases explained like a staff engineer pairing with you",
+  "description": "Learn codebases through play - O'Reorg Trail games, TTS-narrated code walkthroughs, and comprehension quizzes",
   "author": {
     "name": "Flow Club"
   },
