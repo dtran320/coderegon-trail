@@ -1,0 +1,136 @@
+Implement the following plan:
+
+# Plan: Rename "O'Reorg Trail" → "Coderegon Trail"
+
+## Context
+
+Rebrand the game from "O'Reorg Trail" to "Coderegon Trail" across the entire project.
+
+## Mapping
+
+| Old | New |
+|-----|-----|
+| O'Reorg Trail | Coderegon Trail |
+| O'REORG TRAIL | CODEREGON TRAIL |
+| oreorg-trail | coderegon-trail |
+| O&#39;Reorg Trail | Coderegon Trail |
+| O\'Reorg Trail | Coderegon Trail |
+
+## Files to Edit (16 files)
+
+### Core docs
+1. `CLAUDE.md` — ~7 occurrences
+2. `README.md` — ~2 occurrences
+
+### Commands
+3. `commands/fly-visual.md` — ~8 occurrences
+4. `.claude/commands/fly-visual.md` — ~6 occurrences
+
+### Agents
+5. `agents/trail-data-extractor.md` — ~3 occurrences
+6. `agents/pr-trail-extractor.md` — ~3 occurrences
+
+### Skills
+7. `skills/visualization/SKILL.md` — ~3 occurrences
+8. `skills/visualization/references/oreorg-trail.md` — ~3 occurrences
+9. `skills/visualization/references/framework-trails.md` — ~1 occurrence
+10. `skills/visualization/references/pixel-art-style.md` — ~2 occurrences
+11. `skills/visualization/references/pr-trail.md` — ~2 occurrences
+
+### Plugin config
+12. `.claude-plugin/plugin.json` — name field
+
+### Scripts
+13. `scripts/open-viz.sh` — ~1 occurrence
+
+### HTML game files
+14. `examples/trail-openclaw.html` — title + in-game text
+15. `index.html` — same
+16. `.diff-review/trail-pr-6.html` — title + in-game text (gitignored)
+
+## File Rename
+
+- `skills/visualization/references/oreorg-trail.md` → `coderegon-trail.md`
+- Update references to this filename in: `CLAUDE.md`, `skills/visualization/SKILL.md`
+
+## NOT Changing
+
+- `.entire/`, `.git/entire-sessions/` — generated session logs
+- GitHub repo URL — separate repo rename on GitHub
+
+## Verification
+
+`grep -ri "oreorg" --include='*.md' --include='*.json' --include='*.sh' --include='*.html' .` returns 0 results (excluding `.git/` and `.entire/`)
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/flowclub/.REDACTED.jsonl
+
+If this plan can be broken down into multiple independent tasks, consider using the TeamCreate tool to create a team and parallelize the work.
+
+---
+
+what about any commands, and can we also update the url for davidtran.me/oreorg-trail/ to redirect to /openclaw-coderegon-trail/
+
+---
+
+oh it's a github page. the main repo is at dtran320.github.io but we somehow deployed to just that URL from here
+
+---
+
+yes
+
+---
+
+[Request interrupted by user for tool use]
+
+---
+
+sorry, we just want that specific HTML file deployed for 1 to be /openclaw-coderegon-trail/ since that's an example. but the repo itself should still be name coderegon-trail
+
+---
+
+[Request interrupted by user for tool use]
+
+---
+
+Sorry, i want to create a directory of pre-made examples including the openclaw one. We can deploy the whole directory to davidtran.me/coderegon-trail/ and then deploy the previous example to /coderegon-trail/openclaw or something like that and redirect the previous /oreorg-trail/ there
+
+---
+
+<bash-input>git status</bash-input>
+
+---
+
+<bash-stdout>On branch pr-trail-game
+Your branch is up to date with 'origin/pr-trail-game'.
+
+Changes not staged for commit:
+  (use "git add/rm <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   .claude-plugin/plugin.json
+	modified:   .claude/commands/fly-visual.md
+	modified:   CLAUDE.md
+	modified:   README.md
+	modified:   agents/pr-trail-extractor.md
+	modified:   agents/trail-data-extractor.md
+	modified:   commands/fly-visual.md
+	modified:   examples/trail-openclaw.html
+	modified:   index.html
+	modified:   scripts/open-viz.sh
+	modified:   skills/visualization/SKILL.md
+	modified:   skills/visualization/references/framework-trails.md
+	deleted:    skills/visualization/references/oreorg-trail.md
+	modified:   skills/visualization/references/pixel-art-style.md
+	modified:   skills/visualization/references/pr-trail.md
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	.entire/
+	openclaw/
+	skills/visualization/references/coderegon-trail.md
+
+no changes added to commit (use "git add" and/or "git commit -a")</bash-stdout><bash-stderr></bash-stderr>
+
+---
+
+can we commit and push this

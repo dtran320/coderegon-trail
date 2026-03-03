@@ -1,7 +1,9 @@
 {
   "cli_version": "0.4.2",
   "checkpoint_id": "ad0f84b19ce2",
+  "session_id": "a9ef8c15-7913-4711-9ec9-572538f007f0",
   "strategy": "manual-commit",
+  "created_at": "2026-03-03T22:31:15.755976Z",
   "branch": "pr-trail-game",
   "checkpoints_count": 4,
   "files_touched": [
@@ -24,27 +26,21 @@
     "skills/visualization/references/pixel-art-style.md",
     "skills/visualization/references/pr-trail.md"
   ],
-  "sessions": [
-    {
-      "metadata": "/ad/0f84b19ce2/0/metadata.json",
-      "transcript": "/ad/0f84b19ce2/0/full.jsonl",
-      "context": "/ad/0f84b19ce2/0/context.md",
-      "content_hash": "/ad/0f84b19ce2/0/content_hash.txt",
-      "prompt": "/ad/0f84b19ce2/0/prompt.txt"
-    },
-    {
-      "metadata": "/ad/0f84b19ce2/1/metadata.json",
-      "transcript": "/ad/0f84b19ce2/1/full.jsonl",
-      "context": "/ad/0f84b19ce2/1/context.md",
-      "content_hash": "/ad/0f84b19ce2/1/content_hash.txt",
-      "prompt": "/ad/0f84b19ce2/1/prompt.txt"
-    }
-  ],
+  "agent": "Claude Code",
   "token_usage": {
-    "input_tokens": 71,
-    "cache_creation_tokens": 394772,
-    "cache_read_tokens": 4308911,
-    "output_tokens": 22112,
-    "api_call_count": 55
+    "input_tokens": 62,
+    "cache_creation_tokens": 387105,
+    "cache_read_tokens": 3383998,
+    "output_tokens": 19313,
+    "api_call_count": 48
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-03T22:31:15.585838Z",
+    "agent_lines": 2081,
+    "human_added": 0,
+    "human_modified": 245,
+    "human_removed": 1791,
+    "total_committed": 2326,
+    "agent_percentage": 89.46689595872743
   }
 }
