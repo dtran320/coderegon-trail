@@ -1,0 +1,67 @@
+Implement the following plan:
+
+# Plan: Prototype PR Trail Game + PR Comment Gate
+
+## Context
+
+We just committed the PR trail game specs (agent, command extension, theming reference) to the `pr-trail-game` branch. Now we want to **prove it works** by:
+1. Creating a real PR for this branch
+2. Generating an actual HTML trail game for that PR
+3. Deploying the game to Vercel so anyone can play it via URL
+4. Commenting on the PR with the game link and a "play before merge" requirement
+
+This is a prototype — manual execution of the pipeline we specced out. Future automation (GitHub Action, Claude hook) can follow.
+
+## Steps
+
+### 1. Push branch + create PR
+- `git push -u origin pr-trail-game`
+- `gh pr create` with title and body describing the PR trail feature
+- Capture the PR number for the next steps
+
+### 2. Generate TRAIL_DATA for the PR
+Follow the `pr-trail-extractor` agent logic manually:
+- `gh pr diff <N>` to get the diff
+- `gh pr view <N> --json title,body,files` for metadata
+- Group the 3 changed files into logical stops (agent spec, command changes, theming reference)
+- Build TRAIL_DATA JSON with `trailTheme: "pr"`, party members derived from the PR's domains, quiz events about the changes, and PR-specific death messages
+
+### 3. Generate the HTML game
+- Use the `frontend-design` skill (via Skill tool) with the TRAIL_DATA embedded
+- Follow the visualization skill guidelines for canvas rendering, game state machine, code display
+- Target: self-contained ~2000-3000 line HTML file with the full game loop
+
+### 4. Deploy to Vercel
+- Use the Vercel MCP tools (`deploy_to_vercel`) to deploy the HTML file
+- Get the live URL (e.g., `https://pr-trail-game-xxx.vercel.app`)
+
+### 5. Comment on the PR
+- `gh pr comment <N>` with:
+  - Link to the deployed game
+  - "Play and complete the O'Reorg Trail before approving this PR"
+  - Brief description of what the game covers (the PR's changes)
+
+## Files Modified/Created
+
+| File | Action |
+|------|--------|
+| `.diff-review/trail-pr-<N>.html` | **Create** — generated HTML game (local, gitignored) |
+
+No new committed files — the game lives on Vercel, linked from the PR comment.
+
+## Verification
+
+1. PR exists on GitHub with the `pr-trail-game` branch
+2. Vercel URL loads the game in a browser
+3. Game shows PR-specific trail name, stops mapped to our 3 files, quiz events about the changes
+4. PR comment contains the game link and play requirement
+5. Game is completable (title → setup → stops → win at Merge Frontier)
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/flowclub/.REDACTED.jsonl
+
+If this plan can be broken down into multiple independent tasks, consider using the TeamCreate tool to create a team and parallelize the work.
+
+---
+
+okay let's commit and push

@@ -3,8 +3,9 @@
   "checkpoint_id": "40da0f3cc90c",
   "strategy": "manual-commit",
   "branch": "pr-trail-game",
-  "checkpoints_count": 0,
+  "checkpoints_count": 1,
   "files_touched": [
+    ".diff-review/trail-pr-6.html",
     "agents/pr-trail-extractor.md",
     "commands/fly-visual.md",
     "skills/visualization/references/pr-trail.md"
@@ -16,13 +17,20 @@
       "context": "/40/da0f3cc90c/0/context.md",
       "content_hash": "/40/da0f3cc90c/0/content_hash.txt",
       "prompt": "/40/da0f3cc90c/0/prompt.txt"
+    },
+    {
+      "metadata": "/40/da0f3cc90c/1/metadata.json",
+      "transcript": "/40/da0f3cc90c/1/full.jsonl",
+      "context": "/40/da0f3cc90c/1/context.md",
+      "content_hash": "/40/da0f3cc90c/1/content_hash.txt",
+      "prompt": "/40/da0f3cc90c/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 9,
-    "cache_creation_tokens": 78388,
-    "cache_read_tokens": 261014,
-    "output_tokens": 4261,
-    "api_call_count": 5
+    "input_tokens": 147,
+    "cache_creation_tokens": 442182,
+    "cache_read_tokens": 2095223,
+    "output_tokens": 42022,
+    "api_call_count": 30
   }
 }
