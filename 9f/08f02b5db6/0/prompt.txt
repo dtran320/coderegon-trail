@@ -1,0 +1,21 @@
+how do we make this work/install it so I can use this skill to generate a comprehension game/test for any arbitrary PR in any of my repos?
+
+---
+
+yes, both 1 and 2. let's do 1 first
+
+---
+
+dexit
+
+---
+
+[Request interrupted by user]
+
+---
+
+yes, let's start part 2
+
+---
+
+[Request interrupted by user for tool use]

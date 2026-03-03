@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "9f08f02b5db6",
+  "strategy": "manual-commit",
+  "branch": "pr-trail-game",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".claude-plugin/plugin.json"
+  ],
+  "sessions": [
+    {
+      "metadata": "/9f/08f02b5db6/0/metadata.json",
+      "transcript": "/9f/08f02b5db6/0/full.jsonl",
+      "context": "/9f/08f02b5db6/0/context.md",
+      "content_hash": "/9f/08f02b5db6/0/content_hash.txt",
+      "prompt": "/9f/08f02b5db6/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 27,
+    "cache_creation_tokens": 84236,
+    "cache_read_tokens": 625098,
+    "output_tokens": 8277,
+    "api_call_count": 17
+  }
+}
