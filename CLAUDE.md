@@ -4,27 +4,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A Claude Code plugin for learning codebases through play. The flagship feature is **O'Reorg Trail** (`/fly-visual`) — a retro pixel art Oregon Trail-style game that teaches web framework request pipelines via an interactive HTML game. Also includes TTS-narrated code walkthroughs (`/diff-review`, `/walkthrough`) for PRs, diffs, and codebases. No build step; the plugin is entirely markdown specs + shell scripts following Claude Code plugin conventions.
+A Claude Code plugin for learning codebases through play. The flagship feature is **Coderegon Trail** (`/fly-visual`) — a retro pixel art Oregon Trail-style game that teaches web framework request pipelines via an interactive HTML game. Also includes TTS-narrated code walkthroughs (`/diff-review`, `/walkthrough`) for PRs, diffs, and codebases. No build step; the plugin is entirely markdown specs + shell scripts following Claude Code plugin conventions.
 
 ## Architecture
 
 ```
 commands/          User-facing CLI commands (markdown specs)
-  fly-visual.md      /fly-visual - O'Reorg Trail game (primary command)
+  fly-visual.md      /fly-visual - Coderegon Trail game (primary command)
   diff-review.md     /diff-review - walk through diffs ranked by importance
   walkthrough.md     /walkthrough - guided codebase tour (8 sections)
 
 agents/            Claude-powered analysis agents (model: sonnet)
-  trail-data-extractor.md  Detects framework in a repo and extracts trail data for O'Reorg Trail
+  trail-data-extractor.md  Detects framework in a repo and extracts trail data for Coderegon Trail
   diff-narrator.md         Analyzes diffs, generates TTS-friendly narration + fly-through snippet plans
   codebase-narrator.md     Analyzes codebase structure for walkthroughs + fly-through snippet plans
   domain-splitter.md       Splits codebase into 2-4 domains for team mode
   quiz-generator.md        Generates comprehension questions from review/walkthrough content
 
-skills/visualization/  O'Reorg Trail game generation guidelines
+skills/visualization/  Coderegon Trail game generation guidelines
   SKILL.md               Core game principles, HTML generation, state machine, scoring
   references/
-    oreorg-trail.md      Complete game mechanics, event types, scoring, death messages
+    coderegon-trail.md      Complete game mechanics, event types, scoring, death messages
     framework-trails.md  Per-framework trail definitions (stops, events, party members)
     pixel-art-style.md   Visual style guide, color palette, canvas rendering, layout specs
 
@@ -51,9 +51,9 @@ examples/          Example generated game files
 
 ## Key Execution Flows
 
-**O'Reorg Trail (`/fly-visual`):** Parse framework arg (or auto-detect from repo) → extract trail data from `framework-trails.md` or via `trail-data-extractor` agent → generate self-contained HTML game via `frontend-design` skill → write HTML file and open in browser → game plays in browser (title → setup → travel/stop/event loop → win or death)
+**Coderegon Trail (`/fly-visual`):** Parse framework arg (or auto-detect from repo) → extract trail data from `framework-trails.md` or via `trail-data-extractor` agent → generate self-contained HTML game via `frontend-design` skill → write HTML file and open in browser → game plays in browser (title → setup → travel/stop/event loop → win or death)
 
-**O'Reorg Trail Game Loop:** Title screen → party setup (4 members = framework concepts) → travel between ~8 stops (each = a pipeline stage with code + narration) → quiz events between stops (weather/river/encounter/misfortune/fortune) → wrong answers damage health and party members → arrive at Response Frontier to win, or die trying
+**Coderegon Trail Game Loop:** Title screen → party setup (4 members = framework concepts) → travel between ~8 stops (each = a pipeline stage with code + narration) → quiz events between stops (weather/river/encounter/misfortune/fortune) → wrong answers damage health and party members → arrive at Response Frontier to win, or die trying
 
 **Supported Frameworks:** Next.js (App Router Trail), Rails (Convention Trail), Django (WSGI Wagon Trail), Express (Middleware Prairie), React/Vite (Component Canyon), Laravel (Artisan Trail), OpenClaw (Gateway Trail). Next.js and OpenClaw have full trail data; others have stop outlines for Phase 2.
 
@@ -86,7 +86,7 @@ Requires: `bash`, `jq`, `git`, `gh` (GitHub CLI), `say` (macOS), `afplay` (macOS
 
 - Commands, agents, and skills are defined as **markdown files with YAML frontmatter** (model, tools, description)
 - Agents use model `sonnet`; commands use `opus`
-- O'Reorg Trail games are self-contained HTML files — all CSS, JS, and game data inline, no external dependencies
+- Coderegon Trail games are self-contained HTML files — all CSS, JS, and game data inline, no external dependencies
 - Trail data maps framework request/render pipelines to ~8 stops with code snippets, narration, and quiz events
 - Narration must be conversational and TTS-friendly: sentences under 25 words, say "slash" for paths, spell out abbreviations, explain WHY not WHAT, never read code syntax literally
 - Navigation state is tracked through conversation context (no external state files), including fly-through position and quiz scores

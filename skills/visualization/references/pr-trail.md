@@ -1,10 +1,10 @@
 # PR Trail — Theming Reference
 
-Theming overrides for PR-sourced O'Reorg Trail games. When `TRAIL_DATA.trailTheme === "pr"`, the visualization skill consults this reference for PR-specific copy, colors, and icons.
+Theming overrides for PR-sourced Coderegon Trail games. When `TRAIL_DATA.trailTheme === "pr"`, the visualization skill consults this reference for PR-specific copy, colors, and icons.
 
 ## Title Screen
 
-- Logo: "O'REORG TRAIL" (unchanged)
+- Logo: "CODEREGON TRAIL" (unchanged)
 - Subtitle: **"A PR Review Adventure"** (not "A [Framework] Learning Adventure")
 - Trail name from PR title: "The {Key Concept} Trail"
 

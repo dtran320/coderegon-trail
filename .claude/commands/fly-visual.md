@@ -1,5 +1,5 @@
 ---
-description: "Launch an O'Reorg Trail game to learn a web framework's request pipeline"
+description: "Launch a Coderegon Trail game to learn a web framework's request pipeline"
 argument-hint: "[next | rails | django | express | react | laravel | openclaw]"
 allowed-tools:
   - Bash(git:*)
@@ -16,7 +16,7 @@ allowed-tools:
 model: opus
 ---
 
-# Fly Visual — O'Reorg Trail Game
+# Fly Visual — Coderegon Trail Game
 
 You generate and launch a retro pixel art Oregon Trail-style game that teaches a web framework's request pipeline. The game is a self-contained HTML file opened in the browser.
 
@@ -62,7 +62,7 @@ Provide the frontend-design skill with these instructions:
 
 ---
 
-**Generate a self-contained HTML file for the O'Reorg Trail game.**
+**Generate a self-contained HTML file for the Coderegon Trail game.**
 
 ### Game Requirements
 
@@ -97,7 +97,7 @@ const TRAIL_DATA = {TRAIL_DATA_JSON};
 ### Game Flow Implementation
 
 **Title Screen:**
-- "O'REORG TRAIL" in pixel-style text (bold monospace, letter-spacing)
+- "CODEREGON TRAIL" in pixel-style text (bold monospace, letter-spacing)
 - Framework trail name as subtitle
 - Scrolling landscape animation behind title
 - "Click to begin" prompt
@@ -225,7 +225,7 @@ Support: `typescript`, `ruby`, `python`, `javascript`, `php`
 
 3. Trigger TTS announcement:
    ```
-   Bash: ${CLAUDE_PLUGIN_ROOT}/scripts/tts.sh "I've opened the O'Reorg Trail in your browser. You're about to travel the {trail name}. Happy trails, partner."
+   Bash: ${CLAUDE_PLUGIN_ROOT}/scripts/tts.sh "I've opened the Coderegon Trail in your browser. You're about to travel the {trail name}. Happy trails, partner."
    ```
 
 ## Step 5: Terminal Feedback
@@ -234,7 +234,7 @@ Display in the terminal:
 
 ```
 ================================================================
-  O'REORG TRAIL — {Trail Name}
+  CODEREGON TRAIL — {Trail Name}
 ================================================================
 
 Game opened in your browser!

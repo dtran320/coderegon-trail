@@ -1,7 +1,7 @@
 {
-  "name": "oreorg-trail",
+  "name": "coderegon-trail",
   "version": "1.0.0",
-  "description": "Learn codebases through play - O'Reorg Trail games, TTS-narrated code walkthroughs, and comprehension quizzes",
+  "description": "Learn codebases through play - Coderegon Trail games, TTS-narrated code walkthroughs, and comprehension quizzes",
   "author": {
     "name": "Flow Club"
   },

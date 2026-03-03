@@ -1,10 +1,10 @@
 # diff-pair-review
 
-A Claude Code plugin for learning codebases through play. The flagship feature is **O'Reorg Trail** — a retro pixel art Oregon Trail-style game that teaches web framework request pipelines. Also includes TTS-narrated code walkthroughs for PRs, diffs, and codebases.
+A Claude Code plugin for learning codebases through play. The flagship feature is **Coderegon Trail** — a retro pixel art Oregon Trail-style game that teaches web framework request pipelines. Also includes TTS-narrated code walkthroughs for PRs, diffs, and codebases.
 
 ## Commands
 
-### `/fly-visual [framework]` — O'Reorg Trail
+### `/fly-visual [framework]` — Coderegon Trail
 
 Launch a retro pixel art game that teaches a web framework's request pipeline. Travel through ~8 stops, answer quiz events disguised as trail decisions, and keep your party alive.
 
