@@ -1,0 +1,47 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "b9b21e204cf5",
+  "session_id": "a9ef8c15-7913-4711-9ec9-572538f007f0",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-04T21:32:11.109105Z",
+  "branch": "pr-trail-game",
+  "checkpoints_count": 4,
+  "files_touched": [
+    ".claude-plugin/plugin.json",
+    ".claude/commands/fly-visual.md",
+    ".diff-review/trail-openclaw.html",
+    ".diff-review/trail-pr-6.html",
+    "CLAUDE.md",
+    "README.md",
+    "agents/pr-trail-extractor.md",
+    "agents/trail-data-extractor.md",
+    "commands/fly-visual.md",
+    "examples/trail-openclaw.html",
+    "index.html",
+    "scripts/open-viz.sh",
+    "skills/visualization/SKILL.md",
+    "skills/visualization/references/framework-trails.md",
+    "skills/visualization/references/oreorg-trail.md",
+    "skills/visualization/references/pixel-art-style.md",
+    "skills/visualization/references/pr-trail.md"
+  ],
+  "agent": "Claude Code",
+  "checkpoint_transcript_start": 662,
+  "transcript_lines_at_start": 662,
+  "token_usage": {
+    "input_tokens": 75,
+    "cache_creation_tokens": 129569,
+    "cache_read_tokens": 5816072,
+    "output_tokens": 20629,
+    "api_call_count": 45
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-04T21:32:10.900162Z",
+    "agent_lines": 34,
+    "human_added": 7528,
+    "human_modified": 3976,
+    "human_removed": 0,
+    "total_committed": 11538,
+    "agent_percentage": 0.29467845380481883
+  }
+}

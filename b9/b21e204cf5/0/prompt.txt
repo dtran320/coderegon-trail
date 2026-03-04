@@ -1,0 +1,333 @@
+Implement the following plan:
+
+# Plan: Rename "O'Reorg Trail" → "Coderegon Trail"
+
+## Context
+
+Rebrand the game from "O'Reorg Trail" to "Coderegon Trail" across the entire project.
+
+## Mapping
+
+| Old | New |
+|-----|-----|
+| O'Reorg Trail | Coderegon Trail |
+| O'REORG TRAIL | CODEREGON TRAIL |
+| oreorg-trail | coderegon-trail |
+| O&#39;Reorg Trail | Coderegon Trail |
+| O\'Reorg Trail | Coderegon Trail |
+
+## Files to Edit (16 files)
+
+### Core docs
+1. `CLAUDE.md` — ~7 occurrences
+2. `README.md` — ~2 occurrences
+
+### Commands
+3. `commands/fly-visual.md` — ~8 occurrences
+4. `.claude/commands/fly-visual.md` — ~6 occurrences
+
+### Agents
+5. `agents/trail-data-extractor.md` — ~3 occurrences
+6. `agents/pr-trail-extractor.md` — ~3 occurrences
+
+### Skills
+7. `skills/visualization/SKILL.md` — ~3 occurrences
+8. `skills/visualization/references/oreorg-trail.md` — ~3 occurrences
+9. `skills/visualization/references/framework-trails.md` — ~1 occurrence
+10. `skills/visualization/references/pixel-art-style.md` — ~2 occurrences
+11. `skills/visualization/references/pr-trail.md` — ~2 occurrences
+
+### Plugin config
+12. `.claude-plugin/plugin.json` — name field
+
+### Scripts
+13. `scripts/open-viz.sh` — ~1 occurrence
+
+### HTML game files
+14. `examples/trail-openclaw.html` — title + in-game text
+15. `index.html` — same
+16. `.diff-review/trail-pr-6.html` — title + in-game text (gitignored)
+
+## File Rename
+
+- `skills/visualization/references/oreorg-trail.md` → `coderegon-trail.md`
+- Update references to this filename in: `CLAUDE.md`, `skills/visualization/SKILL.md`
+
+## NOT Changing
+
+- `.entire/`, `.git/entire-sessions/` — generated session logs
+- GitHub repo URL — separate repo rename on GitHub
+
+## Verification
+
+`grep -ri "oreorg" --include='*.md' --include='*.json' --include='*.sh' --include='*.html' .` returns 0 results (excluding `.git/` and `.entire/`)
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/flowclub/.REDACTED.jsonl
+
+If this plan can be broken down into multiple independent tasks, consider using the TeamCreate tool to create a team and parallelize the work.
+
+---
+
+what about any commands, and can we also update the url for davidtran.me/oreorg-trail/ to redirect to /openclaw-coderegon-trail/
+
+---
+
+oh it's a github page. the main repo is at dtran320.github.io but we somehow deployed to just that URL from here
+
+---
+
+yes
+
+---
+
+[Request interrupted by user for tool use]
+
+---
+
+sorry, we just want that specific HTML file deployed for 1 to be /openclaw-coderegon-trail/ since that's an example. but the repo itself should still be name coderegon-trail
+
+---
+
+[Request interrupted by user for tool use]
+
+---
+
+Sorry, i want to create a directory of pre-made examples including the openclaw one. We can deploy the whole directory to davidtran.me/coderegon-trail/ and then deploy the previous example to /coderegon-trail/openclaw or something like that and redirect the previous /oreorg-trail/ there
+
+---
+
+<bash-input>git status</bash-input>
+
+---
+
+<bash-stdout>On branch pr-trail-game
+Your branch is up to date with 'origin/pr-trail-game'.
+
+Changes not staged for commit:
+  (use "git add/rm <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   .claude-plugin/plugin.json
+	modified:   .claude/commands/fly-visual.md
+	modified:   CLAUDE.md
+	modified:   README.md
+	modified:   agents/pr-trail-extractor.md
+	modified:   agents/trail-data-extractor.md
+	modified:   commands/fly-visual.md
+	modified:   examples/trail-openclaw.html
+	modified:   index.html
+	modified:   scripts/open-viz.sh
+	modified:   skills/visualization/SKILL.md
+	modified:   skills/visualization/references/framework-trails.md
+	deleted:    skills/visualization/references/oreorg-trail.md
+	modified:   skills/visualization/references/pixel-art-style.md
+	modified:   skills/visualization/references/pr-trail.md
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	.entire/
+	openclaw/
+	skills/visualization/references/coderegon-trail.md
+
+no changes added to commit (use "git add" and/or "git commit -a")</bash-stdout><bash-stderr></bash-stderr>
+
+---
+
+can we commit and push this
+
+---
+
+okay let's merge into the oregon-trail branh
+
+---
+
+Great! For the other repos, can we generate games for https://github.com/tobi/qmd, https://github.com/badlogic/pi-mono, https://github.com/ruvnet/RuView, https://github.com/KeygraphHQ/shannon, https://github.com/clockworklabs/SpacetimeDB, https://github.com/obra/superpowers
+
+---
+
+Is there anything in this repo, esp the "code knowledge graph" that would be useful for generating better questions for these games?
+
+https://github.com/elcruzo/better-docs
+
+---
+
+<teammate-message teammate_id="qmd-game" color="blue" summary="QMD game complete at qmd/index.html">
+QMD game complete. Written to `/Users/flowclub/code/oreorg-trail/qmd/index.html` (1920 lines).
+
+The game includes:
+- All 8 stops mapping the hybrid search pipeline (Independence MO through Oregon City)
+- 6 quiz events: Search Storm (weather), Fellow Traveler (encounter), Search River Crossing (river), Fusion Storm (weather), Reranker Breakdown (misfortune), Position-Aware Pioneer (encounter)
+- 4 party members: Hybrid Search, Smart Chunking, Query Expansion, Position-Aware Blending
+- 8 custom death messages
+- Custom canvas overlays for each event (storm with lightning, campfire encounters, river crossing turbulence, swirling fusion particles, red danger smoke for reranker breakdown, starlit pioneer with lantern)
+- Trail name "The Hybrid Search Trail" with subtitle "A QMD Learning Adventure"
+- Complete game engine copied from OpenClaw template
+</teammate-message>
+
+<teammate-message teammate_id="qmd-game" color="blue">
+{"type":"idle_notification","from":"qmd-game","timestamp":"2026-03-04T20:13:00.546Z","idleReason":"available"}
+</teammate-message>
+
+<teammate-message teammate_id="pi-mono-game" color="green" summary="Pi Mono game complete at pi-mono/index.html">
+Pi Mono game complete. Written to `/Users/flowclub/code/oreorg-trail/pi-mono/index.html` (1922 lines).
+
+Trail: "The Agent Loop Trail - A Pi Mono Learning Adventure"
+
+8 stops mapping the agent execution pipeline:
+1. Independence, MO / CLI Input (town)
+2. Chimney Rock / Session Setup (camp)
+3. Fort Laramie / Model Resolution (mountain)
+4. Independence Rock / Tool Initialization (mountain)
+5. South Pass / LLM Communication (river)
+6. Fort Bridger / Tool Execution (forest)
+7. The Dalles / Agent Loop (camp)
+8. Oregon City / Session Persistence (town)
+
+6 quiz events with unique canvas overlays:
+- Config Storm (weather, after stop 1) - green data rain
+- Provider River Crossing (river, after stop 3) - fog over water
+- Tool Maker encounter (after stop 4) - person with anvil + sparks
+- Streaming Storm (weather, after stop 5) - falling code characters
+- Tool Execution Failure (misfortune, after stop 6) - red sky + fire
+- Loop Pioneer encounter (after stop 7) - person + infinity symbol
+
+Party: Unified LLM API, Agent Loop, Session Persistence, Tool System
+
+All 8 custom death messages included. Complete game engine copied from OpenClaw template.
+</teammate-message>
+
+---
+
+<teammate-message teammate_id="pi-mono-game" color="green">
+{"type":"idle_notification","from":"pi-mono-game","timestamp":"2026-03-04T20:13:11.592Z","idleReason":"available"}
+</teammate-message>
+
+---
+
+<teammate-message teammate_id="system">
+{"type":"teammate_terminated","message":"qmd-game has shut down."}
+</teammate-message>
+
+<teammate-message teammate_id="system">
+{"type":"teammate_terminated","message":"pi-mono-game has shut down."}
+</teammate-message>
+
+<teammate-message teammate_id="shannon-game" color="purple" summary="Shannon trail game complete with all features">
+Shannon game complete at `/Users/flowclub/code/oreorg-trail/shannon/index.html`.
+
+Includes all 8 stops (Target Acquisition through Report Generation), 4 party members (Reconnaissance, Exploitation, Browser Automation, Proof-by-Exploit), 6 quiz events with custom canvas overlays (Scope Storm, Security Scout, Vulnerability River, Injection Storm, Auth Bypass Gone Wrong, Proof-by-Exploitation Pioneer), 8 death messages, and pentesting-themed travel flavors. Full game engine copied from the OpenClaw template.
+</teammate-message>
+
+<teammate-message teammate_id="qmd-game" color="blue">
+{"type":"shutdown_approved","requestId":"shutdown-1772655192547@qmd-game","from":"qmd-game","timestamp":"2026-03-04T20:13:19.056Z","paneId":"in-process","backendType":"in-process"}
+</teammate-message>
+
+<teammate-message teammate_id="pi-mono-game" color="green">
+{"type":"shutdown_approved","requestId":"shutdown-1772655193569@pi-mono-game","from":"pi-mono-game","timestamp":"2026-03-04T20:13:19.069Z","paneId":"in-process","backendType":"in-process"}
+</teammate-message>
+
+<teammate-message teammate_id="shannon-game" color="purple">
+{"type":"idle_notification","from":"shannon-game","timestamp":"2026-03-04T20:13:33.214Z","idleReason":"available"}
+</teammate-message>
+
+---
+
+<teammate-message teammate_id="system">
+{"type":"teammate_terminated","message":"shannon-game has shut down."}
+</teammate-message>
+
+<teammate-message teammate_id="shannon-game" color="purple">
+{"type":"shutdown_approved","requestId":"shutdown-1772655225021@shannon-game","from":"shannon-game","timestamp":"2026-03-04T20:13:50.471Z","paneId":"in-process","backendType":"in-process"}
+</teammate-message>
+
+---
+
+<teammate-message teammate_id="spacetimedb-game" color="orange">
+{"type":"idle_notification","from":"spacetimedb-game","timestamp":"2026-03-04T20:14:01.974Z","idleReason":"available"}
+</teammate-message>
+
+---
+
+<teammate-message teammate_id="system">
+{"type":"teammate_terminated","message":"spacetimedb-game has shut down."}
+</teammate-message>
+
+<teammate-message teammate_id="spacetimedb-game" color="orange">
+{"type":"shutdown_approved","requestId":"shutdown-1772655259253@spacetimedb-game","from":"spacetimedb-game","timestamp":"2026-03-04T20:14:24.754Z","paneId":"in-process","backendType":"in-process"}
+</teammate-message>
+
+<teammate-message teammate_id="superpowers-game" color="pink" summary="Superpowers trail game complete at superpowers/index.html">
+Superpowers trail game is complete at `/Users/flowclub/code/oreorg-trail/superpowers/index.html` (1917 lines).
+
+Summary:
+- **Trail Name:** The Superpowers Trail - A Superpowers Learning Adventure
+- **8 Stops:** Independence MO (Session Hook) -> Chimney Rock (Brainstorming) -> Fort Laramie (Workspace Isolation) -> Independence Rock (Implementation Planning) -> South Pass (Subagent-Driven Dev) -> Fort Bridger (TDD) -> The Dalles (Code Review Gate) -> Oregon City (Branch Completion)
+- **6 Quiz Events:** Hook Storm (weather), Design Gate Crossing (river), Planning Pioneer (encounter), Subagent Storm (weather), TDD Failure (misfortune), Review Gate Pioneer (encounter)
+- **4 Party Members:** Hard-Gate Enforcement, Subagent-Driven Dev, TDD Discipline, Skills as Workflows
+- **8 Death Messages:** All custom Superpowers-themed
+- **Code snippets:** Bash/Markdown skill definitions showing hooks, brainstorming gates, worktree setup, implementation plans, subagent dispatch, TDD cycle, code review, and branch completion
+- **Event overlays:** Custom canvas animations for each event (lightning storms, river rapids, campfire encounters, fire/smoke for TDD failure, gate structure for review pioneer)
+- **Complete game engine:** All CSS, canvas rendering, state machine, music system, keyboard handling copied from template
+</teammate-message>
+
+<teammate-message teammate_id="superpowers-game" color="pink">
+{"type":"idle_notification","from":"superpowers-game","timestamp":"2026-03-04T20:17:03.742Z","idleReason":"available"}
+</teammate-message>
+
+---
+
+<teammate-message teammate_id="system">
+{"type":"teammate_terminated","message":"superpowers-game has shut down."}
+</teammate-message>
+
+<teammate-message teammate_id="superpowers-game" color="pink">
+{"type":"shutdown_approved","requestId":"shutdown-1772655554575@superpowers-game","from":"superpowers-game","timestamp":"2026-03-04T20:19:19.876Z","paneId":"in-process","backendType":"in-process"}
+</teammate-message>
+
+---
+
+<teammate-message teammate_id="ruview-game" color="yellow" summary="RuView game complete with all 8 stops and 6 events">
+RuView game complete at `/Users/flowclub/code/oreorg-trail/ruview/index.html` (1922 lines).
+
+All 8 stops mapping the WiFi sensing pipeline:
+1. Independence, MO / CSI Capture
+2. Chimney Rock / Signal Preprocessing
+3. Fort Laramie / Subcarrier Analysis
+4. Independence Rock / Motion Detection
+5. South Pass / Pose Estimation
+6. Fort Bridger / Vital Sign Detection
+7. The Dalles / Through-Wall Sensing
+8. Oregon City / Edge Intelligence
+
+6 quiz events with custom canvas overlays:
+- Signal Storm (weather, after stop 1) - lightning + radio wave interference lines
+- Signal Engineer encounter (after stop 2) - person with antenna emitting radio waves
+- Presence Detection River (after stop 4) - signal ripples in water
+- Pose Estimation Storm (after stop 5) - animated wireframe body with UV dots
+- Vital Sign Failure (misfortune, after stop 6) - EKG flatline + red danger border
+- Through-Wall Pioneer (encounter, after stop 7) - ghostly person behind wall with WiFi waves
+
+All Rust code snippets with Rust keyword highlighting. Cyan WiFi-themed wagon flag. 8 death messages. Party: CSI Pipeline, Pose Estimation, Vital Signs, Edge Intelligence.
+</teammate-message>
+
+<teammate-message teammate_id="ruview-game" color="yellow">
+{"type":"idle_notification","from":"ruview-game","timestamp":"2026-03-04T21:19:43.123Z","idleReason":"available"}
+</teammate-message>
+
+---
+
+<teammate-message teammate_id="system">
+{"type":"teammate_terminated","message":"ruview-game has shut down."}
+</teammate-message>
+
+<teammate-message teammate_id="ruview-game" color="yellow">
+{"type":"shutdown_approved","requestId":"shutdown-1772657818542@ruview-game","from":"ruview-game","timestamp":"2026-03-04T21:19:49.678Z","paneId":"in-process","backendType":"in-process"}
+</teammate-message>
+
+<teammate-message teammate_id="ruview-game" color="yellow">
+{"type":"shutdown_approved","requestId":"shutdown-1772657818542@ruview-game","from":"ruview-game","timestamp":"2026-03-04T21:19:49.678Z","paneId":"in-process","backendType":"in-process"}
+</teammate-message>
+
+---
+
+yes

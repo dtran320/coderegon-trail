@@ -1,0 +1,42 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "b9b21e204cf5",
+  "strategy": "manual-commit",
+  "branch": "pr-trail-game",
+  "checkpoints_count": 4,
+  "files_touched": [
+    ".claude-plugin/plugin.json",
+    ".claude/commands/fly-visual.md",
+    ".diff-review/trail-openclaw.html",
+    ".diff-review/trail-pr-6.html",
+    "CLAUDE.md",
+    "README.md",
+    "agents/pr-trail-extractor.md",
+    "agents/trail-data-extractor.md",
+    "commands/fly-visual.md",
+    "examples/trail-openclaw.html",
+    "index.html",
+    "scripts/open-viz.sh",
+    "skills/visualization/SKILL.md",
+    "skills/visualization/references/framework-trails.md",
+    "skills/visualization/references/oreorg-trail.md",
+    "skills/visualization/references/pixel-art-style.md",
+    "skills/visualization/references/pr-trail.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/b9/b21e204cf5/0/metadata.json",
+      "transcript": "/b9/b21e204cf5/0/full.jsonl",
+      "context": "/b9/b21e204cf5/0/context.md",
+      "content_hash": "/b9/b21e204cf5/0/content_hash.txt",
+      "prompt": "/b9/b21e204cf5/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 75,
+    "cache_creation_tokens": 129569,
+    "cache_read_tokens": 5816072,
+    "output_tokens": 20629,
+    "api_call_count": 45
+  }
+}
