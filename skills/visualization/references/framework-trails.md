@@ -669,6 +669,105 @@ Follow an HTTP request through the full Rails request pipeline: from the Rack en
 - **concept**: "Convention Routing"
 - **difficulty**: hard
 
+#### Event 7 (after Stop 1): Encounter — The RESTful Resources Guide
+- **type**: encounter
+- **title**: "A Rails Guide Appears"
+- **text**: "A fellow traveler shows you a single line in routes.rb: `resources :articles`. 'This one line generates seven routes,' they say. What does the resources macro give you?"
+- **choices**:
+  - "Seven RESTful routes — index, show, new, create, edit, update, and destroy — mapped to controller actions automatically" (correct) — "The resources macro follows REST conventions to generate a complete CRUD interface. Each route maps to a controller action by convention: GET slash articles maps to index, POST maps to create, and so on. This is Rails convention over configuration at its core."
+  - "A single route that accepts any HTTP method and dispatches based on the request body" (incorrect) — "Rails routes are explicit about HTTP methods. Each of the seven routes has a specific method — GET, POST, PATCH, DELETE. This separation follows REST principles and prevents accidental mutations from GET requests."
+  - "An auto-generated admin interface for the articles table" (incorrect) — "Rails does not generate admin interfaces automatically — that is Django's approach. The resources macro only generates routes and expects you to write the controller. Gems like ActiveAdmin provide admin panels."
+- **concept**: "Convention Routing"
+- **difficulty**: easy
+
+#### Event 8 (after Stop 2): Weather — The Generator Whirlwind
+- **type**: weather
+- **title**: "Generator Whirlwind!"
+- **text**: "A whirlwind of files hits your project. A junior developer ran `rails generate scaffold Article` and it created a model, migration, controller, views, helpers, tests, and stylesheets — twenty files in one command. They are overwhelmed."
+- **choices**:
+  - "Use more targeted generators like rails generate model or rails generate controller to create only what you need" (correct) — "Scaffold generates everything at once, which is great for prototyping but overwhelming in a real project. Targeted generators like rails generate model Article title:string body:text create just the model and migration. You stay in control of what gets added to your codebase."
+  - "Always use scaffold and delete the files you don't need afterward" (incorrect) — "Generating files just to delete them wastes time and risks leaving behind unwanted code. Targeted generators exist precisely to give you control. Use scaffold for quick prototypes, targeted generators for production code."
+  - "Avoid generators entirely and create all files manually" (incorrect) — "Manual file creation means you miss Rails conventions — the correct directory structure, naming patterns, and boilerplate that generators handle. Generators ensure consistency with Rails conventions."
+- **concept**: "ActiveRecord"
+- **difficulty**: easy
+
+#### Event 9 (after Stop 3): Misfortune — The Association Confusion
+- **type**: misfortune
+- **title**: "Association Confusion!"
+- **text**: "Your app crashes with 'undefined method comments for Article'. You added `has_many :comments` to Article but forgot something. Comment records exist in the database with an article_id column, but Rails can't find them."
+- **choices**:
+  - "Add the belongs_to :article declaration to the Comment model — both sides of the association must be declared" (correct) — "Rails associations are bidirectional by convention. has_many on Article declares the 'one' side, but Comment needs belongs_to :article to declare the 'many' side. Without it, Rails doesn't know how to connect Comment back to Article via the article_id foreign key."
+  - "Run a migration to add a comments_id column to the articles table" (incorrect) — "The foreign key belongs on the 'many' side — comments has article_id, not the reverse. Adding comments_id to articles would be backwards. The issue isn't the schema, it's the missing belongs_to declaration."
+  - "Change has_many to has_one since each comment belongs to one article" (incorrect) — "has_one and has_many describe the cardinality from Article's perspective. An article has MANY comments, so has_many is correct. has_one would mean each article can only have a single comment."
+- **concept**: "ActiveRecord"
+- **difficulty**: easy
+
+#### Event 10 (after Stop 4): Weather — The Scope Fog
+- **type**: weather
+- **title**: "The Scope Fog"
+- **text**: "Dense fog rolls in. Your controller has `Article.where(published: true).where('publish_date <= ?', Time.current).order(publish_date: :desc)` repeated in six different actions. The code is duplicated everywhere and hard to maintain."
+- **choices**:
+  - "Define a scope on the model: scope :published, -> { where(published: true).where('publish_date <= ?', Time.current) }" (correct) — "Scopes encapsulate common query patterns as chainable, reusable methods on the model. Article.published.order(publish_date: :desc) reads clearly and the query logic lives in one place. Scopes are composable — you can chain them like Article.published.recent.featured."
+  - "Create a service object that wraps the query in a method" (incorrect) — "A service object for a simple query filter is over-engineering. Scopes are Rails' built-in answer for reusable query fragments. They live on the model where query logic belongs and integrate with ActiveRecord's chainable interface."
+  - "Store the query results in a constant at boot time so the query only runs once" (incorrect) — "Storing dynamic query results in a constant means the data is frozen at boot time. New articles would never appear until you restart the server. Scopes run fresh queries each time, which is what you want for current data."
+- **concept**: "ActiveRecord"
+- **difficulty**: medium
+
+#### Event 11 (after Stop 5): River — The Callback Cascade
+- **type**: river
+- **title**: "The Callback River"
+- **text**: "You've reached a dangerous crossing. Your Article model has before_save, after_save, before_validation, and after_create callbacks that trigger emails, update counters, and sync to an external API. A simple update to fix a typo triggers all of them. How do you cross safely?"
+- **choices**:
+  - "Use conditional callbacks with if: or unless: guards, and consider moving side effects to service objects for complex operations" (correct) — "Callbacks with guards like after_save :notify_subscribers, if: :published_changed? only fire when relevant. For complex side effects like API syncs, service objects make the flow explicit. The key principle: callbacks should be for data consistency, not business workflows."
+  - "Remove all callbacks and put everything in the controller" (incorrect) — "Moving all logic to controllers means duplicating it everywhere articles are saved — admin panel, background jobs, console. Some callbacks like data normalization belong on the model. The issue is indiscriminate callbacks, not callbacks as a concept."
+  - "Override the save method to control exactly what runs on each save" (incorrect) — "Overriding save is fragile — you need to remember to call super, and you lose the declarative clarity of named callbacks with conditions. Conditional callbacks and service objects give you the same control with better maintainability."
+- **concept**: "ERB Templates"
+- **difficulty**: hard
+
+#### Event 12 (after Stop 5): Misfortune — The Nested Route Trap
+- **type**: misfortune
+- **title**: "Nested Route Overload!"
+- **text**: "Your routes are nested three levels deep: resources :users do resources :posts do resources :comments. URL helpers are monstrously long: edit_user_post_comment_path. The routes file is unreadable."
+- **choices**:
+  - "Use shallow: true to only nest routes that actually need the parent ID, flattening the rest" (correct) — "Shallow nesting means collection routes like index and create stay nested (they need the parent), but member routes like show, edit, update, destroy use just the resource's own ID. comments_path(post) for creating, but edit_comment_path(comment) for editing. Much cleaner URLs and helpers."
+  - "Remove all nesting and pass parent IDs as query parameters instead" (incorrect) — "Query parameters for parent relationships lose the RESTful URL structure that conveys resource hierarchy. Shallow nesting preserves the relationship where it matters (creation and listing) without the excessive depth."
+  - "Keep the deep nesting since it accurately represents the data relationships" (incorrect) — "Deep nesting generates unnecessarily long URLs and helpers. A comment doesn't need the user AND post in its edit URL — the comment ID is sufficient to find it. Shallow nesting reflects the real access patterns, not the full data hierarchy."
+- **concept**: "Convention Routing"
+- **difficulty**: medium
+
+#### Event 13 (after Stop 6): Misfortune — The Thread Safety Trap
+- **type**: misfortune
+- **title**: "Thread Safety Disaster!"
+- **text**: "Your production app using Puma has a mysterious bug: users occasionally see each other's data. Your controller sets a class-level instance variable `@@current_user` to avoid passing the user through method calls. Under concurrent requests, this shared state is causing data leaks."
+- **choices**:
+  - "Never use class variables or class-level instance variables for per-request state — use Current attributes or pass state through method parameters" (correct) — "Class variables are shared across all threads in a process. When two requests run simultaneously, they overwrite each other's @@current_user. Rails provides CurrentAttributes (ActiveSupport::CurrentAttributes) for thread-safe per-request state, or you can simply pass the user as a parameter."
+  - "Switch from Puma to a single-threaded server like WEBrick to avoid the issue" (incorrect) — "Single-threaded servers solve the symptom by eliminating concurrency, but they cannot handle production traffic. The root cause is shared mutable state. Fix the architecture, don't cripple your infrastructure."
+  - "Add a mutex lock around the class variable to prevent simultaneous access" (incorrect) — "A mutex would prevent data races but would serialize all requests through a bottleneck — destroying concurrency benefits entirely. The fix is to not share per-request state across threads at all."
+- **concept**: "ERB Templates"
+- **difficulty**: hard
+
+#### Event 14 (after Stop 3): Weather — The Metaprogramming Trap
+- **type**: weather
+- **title**: "Metaprogramming Whiteout!"
+- **text**: "A blizzard of mysterious methods appears. A gem defines methods dynamically using method_missing and define_method. When a bug occurs in one of these ghost methods, the stack trace shows no source file or line number. Debugging is nearly impossible."
+- **choices**:
+  - "Prefer explicit method definitions and use define_method over method_missing — define_method creates real methods that appear in stack traces and respond_to?" (correct) — "define_method registers actual methods on the class — they show up in method lookups, respond_to?, and stack traces. method_missing is a last resort that only fires when no method matches. Always define real methods where possible. If you must use method_missing, always pair it with respond_to_missing?."
+  - "Disable metaprogramming in production by setting a Rails configuration flag" (incorrect) — "There's no Rails flag to disable metaprogramming — it's a core Ruby feature used throughout Rails itself. ActiveRecord, routing, and associations all use it. The solution is disciplined use, not wholesale disabling."
+  - "Add rescue blocks around every method_missing call to catch errors" (incorrect) — "Rescue blocks hide errors rather than preventing them. The problem is that method_missing creates methods that don't exist at the class level — they're invisible to introspection tools and debugging. The fix is generating real methods."
+- **concept**: "ActiveRecord"
+- **difficulty**: hard
+
+#### Event 15 (after Stop 4): Misfortune — The Callback Order Trap
+- **type**: misfortune
+- **title**: "Callback Execution Order Bug!"
+- **text**: "Your model has both before_save and before_validation callbacks. A before_save callback normalizes the title to lowercase, but validation rejects the original uppercase title before the normalization runs. Users see a confusing validation error."
+- **choices**:
+  - "Move data normalization to before_validation so it runs before validators check the data" (correct) — "Rails callbacks run in a specific order: before_validation → validate → after_validation → before_save → before_create/update → save → after_create/update → after_save. Normalization in before_save is too late — validation already rejected the data. Put cleanup in before_validation."
+  - "Skip validation with save(validate: false) so the normalization can run first" (incorrect) — "Skipping validation removes all data integrity checks — not just the one conflicting with normalization. You'd allow invalid data into the database. The fix is running normalization at the right lifecycle point, not bypassing validation."
+  - "Add a custom validator that normalizes the data inside the validation step" (incorrect) — "Validators should validate, not mutate data. Mixing mutation into validation violates single responsibility and makes the validation unpredictable. Rails provides before_validation specifically for data cleanup before validation runs."
+- **concept**: "ActiveRecord"
+- **difficulty**: hard
+
 ### Death Messages
 - "Died of N+1 query disease. Should have used dot includes."
 - "Lost in the convention — named the controller wrong and Rails could not find it."
@@ -1003,7 +1102,106 @@ Follow an HTTP request from the WSGI entry point through Django's middleware sta
   - "Use lazy evaluation — wrap expensive queries in SimpleLazyObject so they only execute if the template actually accesses them" (correct) — "SimpleLazyObject defers the database query until the variable is actually used in a template. API views that return JSON never touch the context variables, so the queries never run. You get the convenience of global context without the performance cost on pages that don't need it."
   - "Move all the data fetching into each view's get_context_data method" (incorrect) — "That works but defeats the purpose of context processors — sharing data across many templates. You'd duplicate the same queries in dozens of views. Lazy evaluation gives you both convenience and performance."
   - "Add caching with a five-minute timeout to the context processor" (incorrect) — "Caching helps but adds complexity — you need cache invalidation when categories change, and stale data might confuse users. Lazy evaluation is simpler and more correct: if a page doesn't need the data, the query simply never runs."
-- **concept**: "Admin Panel"
+- **concept**: "ORM QuerySets"
+- **difficulty**: hard
+
+#### Event 7 (after Stop 1): Encounter — The MVT Pattern Guide
+- **type**: encounter
+- **title**: "A Django Guide Appears"
+- **text**: "A friendly guide meets your wagon. 'Django follows the MVT pattern — Model, View, Template. But newcomers from other frameworks get confused. In Django, what does the View do compared to MVC frameworks?'"
+- **choices**:
+  - "The View handles request logic and picks which template to render — it's like the Controller in MVC" (correct) — "Exactly. Django's View is the controller. It receives the request, queries the model, and passes data to the template. Django's Template is the view layer. The naming is different from MVC, but the separation of concerns is the same."
+  - "The View is the HTML template that the user sees in the browser" (incorrect) — "That's the Template in Django. The naming confusion comes from MVC where 'view' means the visual layer. In Django, views are Python functions or classes that handle request logic."
+  - "The View is the database model that defines the data structure" (incorrect) — "That's the Model. The View sits between the Model and the Template — it fetches data from models and passes it to templates for rendering."
+- **concept**: "Views and Request Handling"
+- **difficulty**: easy
+
+#### Event 8 (after Stop 2): Weather — The Admin Site Storm
+- **type**: weather
+- **title**: "Admin Configuration Storm!"
+- **text**: "A storm of admin requests hits your site. You registered your Post model with admin.site.register(Post) but the admin list shows only 'Post object (1)' for every entry. Users can't tell which post is which."
+- **choices**:
+  - "Add a __str__ method to the Post model that returns the title" (correct) — "Django's admin uses __str__ to display objects throughout the interface. Adding def __str__(self): return self.title gives every post a readable name. You can also customize the admin further with list_display, search_fields, and list_filter in a ModelAdmin class."
+  - "Override the admin template to show the title field directly" (incorrect) — "Overriding templates works but is far more complex than needed. The __str__ method is Django's standard way to give objects human-readable names, used everywhere — not just the admin."
+  - "Create a custom admin view that queries the title separately" (incorrect) — "A custom view for something this simple is massive overkill. Django's admin is designed to work with __str__ and ModelAdmin customization. One line in your model fixes this."
+- **concept**: "ORM QuerySets"
+- **difficulty**: easy
+
+#### Event 9 (after Stop 4): Weather — The Migration Conflict
+- **type**: weather
+- **title**: "Migration Conflict!"
+- **text**: "Two developers on your team both created migrations for the same model at the same time. Django is refusing to migrate with an 'Inconsistent migration history' error. Both migrations depend on the same parent."
+- **choices**:
+  - "Create a merge migration using python manage.py makemigrations --merge" (correct) — "Django can automatically create a merge migration that combines the two branches. The merge migration depends on both conflicting migrations, resolving the diamond dependency. This is the standard workflow for teams with concurrent model changes."
+  - "Delete one of the migrations and re-run makemigrations" (incorrect) — "Deleting a migration that's already been applied to other developers' databases or staging environments will cause drift between the code and the actual schema. The merge command exists precisely to handle this situation safely."
+  - "Manually edit one migration to depend on the other" (incorrect) — "Manually rewriting migration dependencies is fragile and error-prone. If the migrations modify the same fields, you could create an invalid sequence. The --merge flag handles the dependency graph correctly."
+- **concept**: "ORM QuerySets"
+- **difficulty**: medium
+
+#### Event 10 (after Stop 3): Encounter — The Signals Sage
+- **type**: encounter
+- **title**: "A Signals Expert Appears"
+- **text**: "A traveler shows you their code: when a new user registers, a Profile is automatically created using a post_save signal on the User model. 'Signals let models communicate without importing each other,' they explain. What is the main risk of overusing signals?"
+- **choices**:
+  - "Signals create implicit control flow — it's hard to trace what happens when a model saves because listeners aren't visible in the calling code" (correct) — "Signals are powerful but invisible. When you call user.save(), there's no hint in that line of code that a Profile gets created, an email gets sent, or a cache gets invalidated. In large codebases, signal handlers become hidden side effects that make debugging extremely difficult."
+  - "Signals are slow because they use the database to send notifications between models" (incorrect) — "Signals are in-process Python function calls — they don't use the database at all. They're actually very fast. The concern isn't performance, it's maintainability and the hidden coupling they create."
+  - "Signals can only be used with built-in Django models, not custom ones" (incorrect) — "Signals work with any Django model, custom or built-in. You can even create your own custom signals. The concern is about code clarity, not capability limitations."
+- **concept**: "Middleware Pipeline"
+- **difficulty**: medium
+
+#### Event 11 (after Stop 5): Misfortune — The Form Validation Bug
+- **type**: misfortune
+- **title**: "Form Validation Bypass!"
+- **text**: "A security report comes in: users are submitting forms with empty required fields. Your form class has the correct field definitions, but the view is calling form.save() without checking anything first."
+- **choices**:
+  - "Always check form.is_valid() before accessing cleaned_data or calling save" (correct) — "is_valid() runs all field validators, the clean method, and populates cleaned_data with sanitized values. Without it, you're saving raw, unvalidated input. Django forms are designed with a two-step pattern: validate first with is_valid(), then use the cleaned data."
+  - "Add HTML5 required attributes to the form fields so the browser validates" (incorrect) — "Client-side validation is easily bypassed with browser dev tools or curl. Server-side validation with is_valid() is the real defense. HTML5 attributes are a nice UX addition, but they're not a security boundary."
+  - "Use a try-except around form.save() to catch validation errors" (incorrect) — "By the time save() is called, it's too late — unvalidated data may have already been written. The is_valid() method is the gatekeeper that must run before any data processing."
+- **concept**: "Views and Request Handling"
+- **difficulty**: easy
+
+#### Event 12 (after Stop 6): River — The Q Objects Crossing
+- **type**: river
+- **title**: "The Complex Query River"
+- **text**: "You've reached a treacherous river. Your blog needs to find all posts that are either published by the current user OR published and in the 'news' category. A simple filter chain can't express OR conditions. How do you cross?"
+- **choices**:
+  - "Use Q objects to combine conditions with the OR operator: Post.objects.filter(Q(author=user) | Q(status='published', category='news'))" (correct) — "Q objects let you build complex queries with AND, OR, and NOT operators. The pipe symbol means OR, the ampersand means AND, and the tilde means NOT. Without Q objects, Django's filter chain only supports AND conditions."
+  - "Run two separate queries and combine the results in Python with a set union" (incorrect) — "Two queries means two database round-trips, and combining in Python loses pagination, ordering, and database-level optimizations. Q objects generate a single SQL query with an OR clause — much more efficient."
+  - "Use raw SQL since Django's ORM can't handle OR conditions" (incorrect) — "Django's ORM handles OR conditions perfectly through Q objects. Raw SQL bypasses Django's protections and is harder to maintain. Q objects generate clean, efficient SQL while keeping your code Pythonic."
+- **concept**: "ORM QuerySets"
+- **difficulty**: hard
+
+#### Event 13 (after Stop 3): Misfortune — The Connection Pool Drought
+- **type**: misfortune
+- **title**: "Database Connection Drought!"
+- **text**: "Your Django app is crashing under load with 'too many connections' errors. Each request opens a new database connection, and your PostgreSQL server has hit its max_connections limit. The database is refusing new connections."
+- **choices**:
+  - "Configure CONN_MAX_AGE in DATABASES settings to reuse connections across requests instead of opening a new one each time" (correct) — "By default, Django opens and closes a database connection for every request. Setting CONN_MAX_AGE to a value like 600 (seconds) keeps connections alive and reusable. For high-traffic apps, use a connection pooler like PgBouncer for even better connection management."
+  - "Increase max_connections on the PostgreSQL server to allow more simultaneous connections" (incorrect) — "Raising the limit is a temporary fix. Each connection consumes server memory, and under heavy load you'll hit the new limit too. The real solution is connection reuse so you need fewer connections in the first place."
+  - "Switch to SQLite which doesn't have connection limits" (incorrect) — "SQLite has no connection pooling and uses file-level locking — it can only handle one write at a time. It's great for development but completely unsuitable for production traffic. The fix is connection reuse, not a different database."
+- **concept**: "Middleware Pipeline"
+- **difficulty**: hard
+
+#### Event 14 (after Stop 4): Misfortune — The Raw SQL Trap
+- **type**: misfortune
+- **title**: "SQL Injection Attack!"
+- **text**: "A security scan reveals a critical vulnerability. One of your views constructs a SQL query by concatenating user input directly: Post.objects.raw('SELECT * FROM post WHERE title LIKE \"%%%s%%\"' % search_term). An attacker sends a search term containing a DROP TABLE statement."
+- **choices**:
+  - "Never concatenate user input into SQL — use parameterized queries: Post.objects.raw('SELECT * FROM post WHERE title LIKE %s', ['%' + search_term + '%'])" (correct) — "Parameterized queries send the SQL structure and data separately. The database treats parameters as data, never as executable SQL. Even if search_term contains DROP TABLE, it's treated as a literal string to search for. Django's ORM does this automatically — raw() with parameters is the safe alternative."
+  - "Sanitize the search_term by removing dangerous SQL keywords like DROP, DELETE, and SELECT" (incorrect) — "Keyword blacklists are endlessly bypassable — attackers use case variations, Unicode tricks, and comment injection to sneak past filters. Parameterized queries are bulletproof because they separate code from data at the protocol level."
+  - "Wrap the query in a try-except to catch any SQL errors from malicious input" (incorrect) — "Error handling doesn't prevent the injection — the malicious SQL may execute successfully before any error occurs. A DROP TABLE runs fine as SQL. Prevention through parameterized queries is the only safe approach."
+- **concept**: "ORM QuerySets"
+- **difficulty**: hard
+
+#### Event 15 (after Stop 5): Weather — The Lazy QuerySet Trap
+- **type**: weather
+- **title**: "The Lazy Evaluation Fog"
+- **text**: "A mysterious fog causes your view to make the same database query three times. Your view assigns posts = Post.objects.filter(published=True), then checks len(posts), iterates through posts in the template, and calls posts.count(). Each access triggers a separate database query."
+- **choices**:
+  - "QuerySets are lazy — they don't hit the database until evaluated. Calling list() or iterating forces one query, then reuse the result. Use len() on the evaluated list, not .count()" (correct) — "Django QuerySets are lazy by design — they build up SQL but don't execute until you iterate, slice, or call list(). Each separate evaluation triggers a new query. Force evaluation once with list(posts), then use the Python list for length checks and iteration."
+  - "Django caches all QuerySet results automatically after the first query" (incorrect) — "QuerySets cache their results after evaluation, but each new operation like .count() triggers a fresh query. The QuerySet caches results from its own iteration, but method calls like count() bypass the cache and hit the database directly."
+  - "Use .all() instead of .filter() to enable Django's query caching" (incorrect) — ".all() and .filter() both return lazy QuerySets. Neither enables any special caching. The solution is to evaluate the QuerySet once and reuse the result, not to change which method you call."
+- **concept**: "Template Engine"
 - **difficulty**: hard
 
 ### Death Messages
@@ -1377,6 +1575,105 @@ Follow an HTTP request from server startup through Express's middleware chain, C
   - "Keep the callbacks but add more comments to explain the flow" (incorrect) — "Comments do not fix structural problems. The issue is not understanding — it is that callback nesting makes error handling fragile and the control flow hard to follow. Refactoring to async await solves the root cause."
 - **concept**: "Async Patterns"
 - **difficulty**: easy
+
+#### Event 7 (after Stop 1): Encounter — The Static Files Guide
+- **type**: encounter
+- **title**: "A Fellow Developer Appears"
+- **text**: "A traveler shows you their Express setup. 'I serve my CSS and images with app.use(express.static('public')).' They ask: 'Where does Express look for static files, and what happens if a static file and a route have the same path?'"
+- **choices**:
+  - "express.static serves files from the 'public' directory, and middleware order determines priority — if static is first, it serves the file before routes run" (correct) — "express.static looks in the specified directory (here, 'public') for a file matching the URL. If the middleware is registered before your routes, a file at public/about.html would be served for /about.html before any route handler runs. Middleware order controls priority."
+  - "Express always checks routes first and only falls back to static files if no route matches" (incorrect) — "Express processes middleware in registration order. If express.static is registered before routes, it checks for files first. There's no built-in priority — order is everything in Express."
+  - "Static files must be in a folder called 'static' and are always served at the /static URL prefix" (incorrect) — "The directory name and URL prefix are fully configurable. You can use any folder name, and optionally mount it at a prefix with app.use('/assets', express.static('public')). Express imposes no naming conventions."
+- **concept**: "Middleware Chain"
+- **difficulty**: easy
+
+#### Event 8 (after Stop 2): Weather — The Route Params Storm
+- **type**: weather
+- **title**: "Route Parameter Storm!"
+- **text**: "A storm of 404 errors hits your API. You have two routes: app.get('/users/:id', getUser) and app.get('/users/search', searchUsers). Every request to /users/search returns a 404 because getUser is trying to find a user with ID 'search'."
+- **choices**:
+  - "Move the /users/search route BEFORE /users/:id — Express matches routes in registration order and :id matches any string" (correct) — "The :id parameter matches any string, including 'search'. Express checks routes top to bottom and stops at the first match. Putting the specific /users/search route first ensures it matches before the wildcard :id catches it."
+  - "Change the parameter to a number type: /users/:id(\\d+) to exclude non-numeric values" (incorrect) — "Express 4 doesn't have built-in parameter type validation in route patterns. While regex-based routes exist, the simpler and more idiomatic fix is route ordering. Specific routes go before parameterized ones."
+  - "Use a query parameter instead: /users?search=term" (incorrect) — "Query parameters work but change the API design. The root cause is route ordering, not URL design. Understanding that Express matches top-to-bottom is a fundamental concept for any Express developer."
+- **concept**: "Route Handlers"
+- **difficulty**: easy
+
+#### Event 9 (after Stop 3): Misfortune — The Error Handler Bug
+- **type**: misfortune
+- **title**: "Silent Error Handler!"
+- **text**: "Your Express app has an error handler, but errors are never caught by it. Instead, the default Express error page shows in production. Your error middleware looks like: app.use((err, req, res) => { ... }). What's wrong?"
+- **choices**:
+  - "Error-handling middleware must have exactly four parameters: (err, req, res, next) — Express uses the arity to distinguish it from regular middleware" (correct) — "Express identifies error handlers by their function signature having exactly four parameters. With three parameters, Express treats it as regular middleware and never routes errors to it. Even if you don't use next, you must include it in the signature."
+  - "The error handler must be registered before all routes, not after" (incorrect) — "Error handlers must be registered AFTER routes — they catch errors thrown by the middleware and routes above them. If registered first, there are no routes above to catch errors from."
+  - "You need to use app.error() instead of app.use() for error handlers" (incorrect) — "There is no app.error() method in Express. Error handlers are registered with app.use() just like regular middleware — the four-parameter signature is what makes Express treat them as error handlers."
+- **concept**: "Error Handling"
+- **difficulty**: medium
+
+#### Event 10 (after Stop 4): Encounter — The Router Sage
+- **type**: encounter
+- **title**: "A Router Expert Appears"
+- **text**: "A seasoned traveler shows you their project. Instead of putting all 50 routes in app.js, they use express.Router() to create mini-applications: one for /api/users, one for /api/posts, one for /api/comments. 'Each router has its own middleware,' they explain. What's the key benefit?"
+- **choices**:
+  - "Routers let you organize routes into modules with their own middleware, keeping each file focused on one resource" (correct) — "express.Router() creates a self-contained routing module. Each router can have its own middleware stack — for example, the admin router can require authentication while the public router doesn't. It's the Express way of organizing large applications."
+  - "Using Router makes routes faster because Express can skip middleware for unmatched prefixes" (incorrect) — "Express doesn't have route-prefix optimization built in. Routers are about code organization and middleware scoping, not performance. The request still flows through the middleware stack in order."
+  - "Router automatically handles versioning, so /v1/ and /v2/ routes are generated for you" (incorrect) — "Express Router doesn't auto-generate versioned routes. You'd mount routers at different prefixes manually: app.use('/v1', v1Router). Routers are a structural tool, not a versioning system."
+- **concept**: "Route Handlers"
+- **difficulty**: medium
+
+#### Event 11 (after Stop 5): River — The Event Loop Crossing
+- **type**: river
+- **title**: "The Event Loop River"
+- **text**: "Your Express API has a CPU-intensive route that computes statistics from a large dataset. While that request processes, all other requests hang — even simple health checks time out. The event loop is blocked."
+- **choices**:
+  - "Offload CPU-intensive work to a worker thread or child process so the event loop stays free for I/O" (correct) — "Node.js is single-threaded for JavaScript execution. CPU-heavy synchronous code blocks the event loop, starving all other requests. Worker threads run code in parallel threads, and child processes spin up separate Node instances. Either keeps the main event loop responsive."
+  - "Add more async/await keywords to make the computation non-blocking" (incorrect) — "async/await only helps with I/O operations (network, disk) that already have asynchronous APIs. CPU-bound computation is synchronous by nature — wrapping it in a promise doesn't move it off the main thread. You need actual parallelism."
+  - "Increase the server's timeout to give the computation more time to complete" (incorrect) — "Longer timeouts don't unblock the event loop. While the computation runs, the event loop can't process ANY other callbacks — including incoming connections, timeouts, and health checks. The issue is blocking, not time limits."
+- **concept**: "Async Patterns"
+- **difficulty**: hard
+
+#### Event 12 (after Stop 5): Misfortune — The Backpressure Flood
+- **type**: misfortune
+- **title**: "Stream Backpressure Flood!"
+- **text**: "Your Express endpoint streams a large file to the client, but slow clients cause memory to spike to gigabytes. You're reading from a fast disk and piping directly to res, but the client connection is slow. The read stream produces data faster than the write stream can consume it."
+- **choices**:
+  - "Use pipe() or pipeline() instead of manually reading and writing — they handle backpressure automatically by pausing the read stream when the write stream is full" (correct) — "Backpressure is the flow control mechanism in Node streams. pipe() automatically pauses the readable stream when the writable stream's buffer is full, then resumes when it drains. Without it, data accumulates in memory. pipeline() adds error handling on top."
+  - "Read the entire file into memory first, then send it all at once to avoid the streaming issue" (incorrect) — "Loading the entire file into memory is worse — a 2GB file would consume 2GB of RAM per request. Streaming with backpressure is the solution: it limits memory to the buffer size regardless of file size."
+  - "Set a maximum response size to reject files that are too large" (incorrect) — "Size limits don't fix the backpressure problem — even a 100MB file can exhaust memory if clients are slow enough. The issue is the rate mismatch between reading and writing, which pipe/pipeline solves."
+- **concept**: "Async Patterns"
+- **difficulty**: hard
+
+#### Event 13 (after Stop 2): Encounter — The next() Pattern Guide
+- **type**: encounter
+- **title**: "A Middleware Teacher Appears"
+- **text**: "A teacher draws a diagram on the ground. 'In Express, calling next() passes control to the next middleware. But there's also next(err) and next('route'). Each does something different.' What happens when you call next(err) with an error argument?"
+- **choices**:
+  - "It skips all remaining regular middleware and jumps to the next error-handling middleware (the one with four parameters)" (correct) — "Calling next with any argument (except 'route') tells Express to skip all normal middleware and find the next error handler — a middleware with the (err, req, res, next) signature. This is how errors propagate through the Express middleware chain."
+  - "It logs the error to the console and continues to the next middleware normally" (incorrect) — "next(err) doesn't log anything automatically. It changes the flow entirely — Express switches from the normal middleware chain to the error-handling chain. Understanding this flow switch is fundamental to Express error handling."
+  - "It sends a 500 error response to the client immediately" (incorrect) — "next(err) doesn't send any response. It hands the error to the next error-handling middleware, which decides what response to send. You might want different responses for different errors — 400 for validation, 404 for not found, 500 for server errors."
+- **concept**: "Middleware Chain"
+- **difficulty**: medium
+
+#### Event 14 (after Stop 3): Misfortune — The Async Context Leak
+- **type**: misfortune
+- **title**: "Async Context Leak!"
+- **text**: "Your Express app tracks request IDs for logging. You store the ID in a module-level variable at the start of each request. Under concurrent load, log entries show the wrong request IDs — one request's logs are tagged with another request's ID."
+- **choices**:
+  - "Module-level variables are shared across all requests — use AsyncLocalStorage to maintain per-request context across async boundaries" (correct) — "Node.js uses a single thread, so module variables are shared. When two async requests interleave, they overwrite each other's ID. AsyncLocalStorage (from node:async_hooks) maintains context that flows through async operations — each request gets its own isolated storage."
+  - "Add a mutex to prevent concurrent access to the request ID variable" (incorrect) — "JavaScript is single-threaded — there are no data races in the traditional sense. The problem is that async operations interleave between requests. A mutex would serialize all requests, destroying performance. AsyncLocalStorage provides isolation without blocking."
+  - "Generate the request ID in each middleware and pass it as a response header instead" (incorrect) — "The request ID needs to be available deep in the call stack for logging in services, database queries, and external API calls. Passing it via response headers only makes it available to the HTTP response. You need per-request context that flows through the entire async call chain."
+- **concept**: "Error Handling"
+- **difficulty**: hard
+
+#### Event 15 (after Stop 6): Weather — The Memory Leak Storm
+- **type**: weather
+- **title**: "Memory Leak Storm!"
+- **text**: "Your Express server's memory usage grows steadily over hours until it crashes with an out-of-memory error. Heap snapshots show thousands of accumulated event listener registrations. Every request adds a listener to a shared EventEmitter but never removes it."
+- **choices**:
+  - "Always remove event listeners when they're no longer needed — use once() for single-use listeners, or store references and call removeListener() in cleanup" (correct) — "Event listeners keep references to their callback closures and any variables those closures capture. Without removal, they accumulate indefinitely. EventEmitter.once() auto-removes after one call. For long-lived listeners, track references and remove them explicitly when the context ends."
+  - "Increase the maxListeners limit on the EventEmitter to prevent the warning" (incorrect) — "setMaxListeners() only changes when the warning fires — it doesn't fix the leak. You're still accumulating listeners and consuming memory. The warning exists to alert you to exactly this kind of bug. Silencing it makes the leak invisible."
+  - "Switch to a different event library that handles cleanup automatically" (incorrect) — "The problem isn't the EventEmitter library — it's the application code failing to clean up. Any event system requires the programmer to manage listener lifecycle. Switching libraries without fixing the cleanup pattern will produce the same leak."
+- **concept**: "Async Patterns"
+- **difficulty**: hard
 
 ### Death Messages
 - "Lost in the middleware — never called next()."
@@ -1784,6 +2081,105 @@ Follow a user interaction through a React single-page application built with Vit
 - **concept**: "State Management"
 - **difficulty**: hard
 
+#### Event 7 (after Stop 1): Encounter — The Props vs State Guide
+- **type**: encounter
+- **title**: "A React Mentor Appears"
+- **text**: "A mentor sits by the campfire. 'New React developers always ask: when should I use props and when should I use state?' They turn to you. 'What is the fundamental difference between props and state?'"
+- **choices**:
+  - "Props are passed down from parent components and are read-only; state is managed within a component and can be updated" (correct) — "Props flow downward like arguments to a function — the child receives them but cannot change them. State is internal to a component, managed with useState or useReducer. When state changes, the component re-renders. This distinction is React's core data flow model."
+  - "Props are for strings and numbers, state is for objects and arrays" (incorrect) — "Both props and state can hold any JavaScript value — strings, numbers, objects, arrays, functions. The difference is ownership: props come from outside (parent), state lives inside the component."
+  - "Props are faster because React doesn't need to track changes to them" (incorrect) — "React tracks both props and state for changes to trigger re-renders. A component re-renders when its props change OR its state changes. The difference is who controls the data, not how React handles it."
+- **concept**: "Component Tree"
+- **difficulty**: easy
+
+#### Event 8 (after Stop 2): Weather — The Key Prop Storm
+- **type**: weather
+- **title**: "Missing Key Prop Storm!"
+- **text**: "A storm of console warnings fills your browser. You're rendering a list with .map() and every item shows 'Warning: Each child in a list should have a unique key prop.' When you reorder the list, items glitch — input values jump to wrong items."
+- **choices**:
+  - "Add a unique, stable key prop from your data (like an ID) — React uses keys to track which items changed, moved, or were removed" (correct) — "Keys tell React's reconciliation algorithm which list items are the same between renders. Without keys (or with index as key), React can't tell if items moved — it just re-renders everything in order, causing input state to leak between items. Use a stable ID from your data."
+  - "Use the array index as the key since each item has a unique position" (incorrect) — "Index keys break when items are reordered, inserted, or deleted. If item at index 2 moves to index 0, React thinks index 0 is the same component and keeps its old state. This causes the exact input-jumping bug described."
+  - "Suppress the warning by generating random keys with Math.random() on each render" (incorrect) — "Random keys change every render, telling React that every item is brand new. React destroys and recreates every component in the list on each render — destroying all internal state and triggering unnecessary DOM operations. Keys must be stable across renders."
+- **concept**: "Component Tree"
+- **difficulty**: easy
+
+#### Event 9 (after Stop 3): Encounter — The Hooks Rules Sage
+- **type**: encounter
+- **title**: "A Hooks Expert Appears"
+- **text**: "A traveler examines your code and frowns. 'You have a useState call inside an if-statement. That will break eventually.' What are the rules of hooks, and why can't you call hooks conditionally?"
+- **choices**:
+  - "Hooks must be called at the top level of the component, in the same order every render — React tracks hooks by their call order, not by name" (correct) — "React stores hook state in an array, indexed by call order. If a hook is inside a condition, the array shifts when the condition changes — hook 2 gets hook 3's state. That's why hooks must always be called unconditionally, in the same order, at the top level."
+  - "Conditional hooks create race conditions because React can't guarantee when the state will be initialized" (incorrect) — "There's no race condition — React is synchronous during rendering. The real issue is the internal array tracking. React uses call position, not variable names, to match hooks to their state. Changing call order corrupts the mapping."
+  - "Hooks inside conditions cause memory leaks because React can't clean up state that is no longer used" (incorrect) — "React doesn't have a hook cleanup problem. The issue is deterministic: on each render, React walks through hooks in order. If a hook disappears because a condition is false, every subsequent hook reads the wrong state from the array."
+- **concept**: "Hooks"
+- **difficulty**: medium
+
+#### Event 10 (after Stop 4): River — The Controlled Form Crossing
+- **type**: river
+- **title**: "The Controlled Form River"
+- **text**: "Your form has five input fields. Each keystroke triggers a setState, which re-renders the entire form. On slow devices, typing feels laggy. A team member suggests making all inputs uncontrolled with useRef. How do you cross this river?"
+- **choices**:
+  - "Keep inputs controlled for validation and dynamic behavior, but optimize with React.memo on child components and consider useTransition for non-urgent updates" (correct) — "Controlled inputs give you real-time access to form state for validation, conditional rendering, and submit handling. React.memo prevents child components from re-rendering when only the form state changes. useTransition marks non-urgent updates as low priority. You keep control without sacrificing responsiveness."
+  - "Switch all inputs to uncontrolled with useRef and read values only on submit" (incorrect) — "Uncontrolled inputs lose real-time validation, dynamic field behavior (like showing/hiding fields based on other inputs), and the ability to programmatically reset or modify values. They're simpler but give up React's reactive data flow."
+  - "Debounce every onChange handler to reduce the number of re-renders" (incorrect) — "Debouncing onChange creates a jarring UX — the input value doesn't update until you stop typing, making the input feel broken. This works for search fields but not for regular form inputs where users expect immediate character echoing."
+- **concept**: "State Management"
+- **difficulty**: medium
+
+#### Event 11 (after Stop 5): Misfortune — The useEffect Cleanup Leak
+- **type**: misfortune
+- **title**: "Memory Leak Disaster!"
+- **text**: "Your component subscribes to a WebSocket in useEffect. When the user navigates away, the subscription keeps running. The callback tries to update state on an unmounted component, causing 'Can't perform a React state update on an unmounted component' warnings and memory leaks."
+- **choices**:
+  - "Return a cleanup function from useEffect that unsubscribes — React calls it when the component unmounts or before the effect re-runs" (correct) — "Every useEffect can return a cleanup function. React calls it when the component unmounts AND before re-running the effect with new dependencies. For subscriptions, timers, and event listeners, the cleanup function is essential. No cleanup means resources accumulate with every mount."
+  - "Check if the component is still mounted before updating state with an isMounted flag" (incorrect) — "The isMounted pattern is an anti-pattern — it hides the real problem. The subscription is still running and consuming resources even though you're ignoring its updates. The correct fix is to actually clean up the subscription so it stops completely."
+  - "Use a global state manager like Redux so the subscription doesn't depend on component lifecycle" (incorrect) — "Moving the subscription to Redux doesn't fix the leak — someone still needs to manage the subscription lifecycle. And now you've added a global dependency for what should be a local concern. useEffect cleanup is the correct mechanism."
+- **concept**: "Effect Lifecycle"
+- **difficulty**: easy
+
+#### Event 12 (after Stop 6): Weather — The Stale Closure Fog
+- **type**: weather
+- **title**: "The Stale Closure Fog"
+- **text**: "A fog of confusion descends. Your click handler logs the count, but it always logs the value from when the handler was created, not the current count. You increment count to 5, but the handler still logs 0. The closure captured the initial state."
+- **choices**:
+  - "Use a ref to hold the current value (useRef), or use the functional form of setState that receives the previous state" (correct) — "Closures capture variables at creation time. The handler created during render N sees count from render N, even if count changes later. useRef.current always points to the latest value. The functional updater setCount(prev => prev + 1) doesn't need the closure's count — it receives the fresh value."
+  - "Move the handler outside the component so it doesn't close over React state" (incorrect) — "A handler outside the component can't access state at all. You need the closure, but you need it to see fresh values. Refs and functional updaters solve this without abandoning component scope."
+  - "Wrap the handler in useCallback with count in the dependency array" (incorrect) — "useCallback creates a new function when count changes, but the old function (captured in event listeners or timeouts) still has the stale closure. useCallback optimizes re-renders but doesn't fix stale closures in asynchronous code."
+- **concept**: "State Management"
+- **difficulty**: hard
+
+#### Event 13 (after Stop 3): Misfortune — The Reconciliation Trap
+- **type**: misfortune
+- **title**: "Reconciliation Slowdown!"
+- **text**: "Your app renders a table with 10,000 rows. Every time a single cell changes, the entire table re-renders and the UI freezes for two seconds. React's diffing algorithm is comparing every row even though only one changed."
+- **choices**:
+  - "Wrap row components in React.memo and use virtualization (like react-window) to only render visible rows" (correct) — "React.memo skips re-rendering rows whose props haven't changed. Virtualization takes it further — only the ~30 visible rows exist in the DOM at all. Combined, you go from diffing 10,000 components to rendering ~30 and diffing their props. The 10,000-row problem becomes a 30-row problem."
+  - "Use shouldComponentUpdate in a class component to manually control rendering" (incorrect) — "shouldComponentUpdate is the class component equivalent of React.memo. It works, but it means converting to class components. React.memo achieves the same optimization for function components. Either way, without virtualization you're still mounting 10,000 DOM elements."
+  - "Split the table into multiple smaller components so React can diff them independently" (incorrect) — "Splitting the table into sections doesn't reduce the number of elements React needs to diff — it just reorganizes them. Without memoization, every section still re-renders. Without virtualization, 10,000 rows still exist in the DOM."
+- **concept**: "Effect Lifecycle"
+- **difficulty**: hard
+
+#### Event 14 (after Stop 2): Misfortune — The Batching Surprise
+- **type**: misfortune
+- **title**: "State Batching Bug!"
+- **text**: "Your click handler calls setCount(count + 1) three times in a row, expecting count to increase by 3. But it only increases by 1. Each setState call sees the same stale count value from the closure."
+- **choices**:
+  - "Use the functional updater form: setCount(prev => prev + 1) three times — each call receives the latest pending state, not the closure value" (correct) — "React batches state updates. All three setCount(count + 1) calls read the same count from the closure and queue count + 1 three times — producing the same value. The functional form setCount(prev => prev + 1) receives the latest pending state as prev, so each call builds on the previous one."
+  - "Call flushSync after each setState to force React to process them synchronously" (incorrect) — "flushSync forces immediate DOM updates but is an escape hatch with performance costs. The functional updater is the idiomatic solution — it's designed exactly for this case of sequential state updates that depend on the previous value."
+  - "Store count in a useRef instead of useState to avoid the closure issue" (incorrect) — "useRef doesn't trigger re-renders when its value changes. You'd increment the ref but the UI wouldn't update. useState with a functional updater gives you both correct sequential updates AND automatic re-rendering."
+- **concept**: "State Management"
+- **difficulty**: hard
+
+#### Event 15 (after Stop 4): River — The Code Splitting Crossing
+- **type**: river
+- **title**: "The Bundle Size River"
+- **text**: "Your React app's initial bundle is 4MB. Users on slow connections wait 8 seconds before seeing anything. The bundle includes admin pages, chart libraries, and date pickers that most users never need. How do you cross?"
+- **choices**:
+  - "Use React.lazy and Suspense to code-split routes and heavy components — they load on demand instead of upfront" (correct) — "React.lazy(() => import('./AdminPanel')) creates a split point. The admin code only downloads when a user navigates to the admin route. Suspense shows a fallback while loading. This can reduce initial bundle size by 60-80% for feature-rich apps. Vite handles the chunk splitting automatically."
+  - "Minify and gzip the bundle to reduce its download size" (incorrect) — "Minification and compression help but don't solve the fundamental problem. A 4MB bundle minified to 1.5MB still forces the browser to parse and execute 1.5MB of JavaScript before anything renders. Code splitting eliminates unnecessary code from the initial load entirely."
+  - "Move heavy libraries to a CDN so the browser can cache them separately" (incorrect) — "CDN caching helps returning visitors but not first-time users. And the browser still needs to download, parse, and execute all the library code even if it's from a CDN. Code splitting means the admin chart library is never downloaded at all unless the user visits admin."
+- **concept**: "Hooks"
+- **difficulty**: hard
+
 ### Death Messages
 - "Killed by an infinite useEffect loop. The browser tab is still frozen somewhere."
 - "Died of prop drilling — state never reached the leaf component."
@@ -2167,6 +2563,105 @@ Follow an HTTP request through Laravel's elegant pipeline: from the public entry
   - "Sanitize the input when the comment is submitted so it is safe to render raw" (incorrect) — "Input sanitization is good defense in depth, but it should never be your only protection. Escaping at render time is the standard practice because data can enter from many paths. Always escape output, sanitize input as a bonus layer."
   - "Wrap the output in a div with a content security policy attribute" (incorrect) — "Content Security Policy is a response header, not an HTML attribute on individual elements. While CSP helps, it is not a substitute for proper output escaping. The double curly brace syntax is the correct Blade-level fix."
 - **concept**: "Blade Templates"
+- **difficulty**: hard
+
+#### Event 7 (after Stop 1): Encounter — The Blade Syntax Guide
+- **type**: encounter
+- **title**: "A Blade Template Guide Appears"
+- **text**: "A fellow traveler shows you Blade syntax. 'Blade has @if, @foreach, @extends, @section, and @yield. But unlike raw PHP templates, Blade compiles to cached PHP files.' What is the main advantage of Blade over writing raw PHP in views?"
+- **choices**:
+  - "Blade provides clean, readable directives while auto-escaping output by default — it compiles to PHP for zero runtime overhead" (correct) — "Blade templates compile to plain PHP files and are cached. There's no performance penalty. The directives like @if and @foreach are cleaner than PHP tags, and the double-curly-brace syntax auto-escapes to prevent XSS. You get readability and security for free."
+  - "Blade is faster than PHP because it uses a custom template engine written in C" (incorrect) — "Blade compiles to PHP — it IS PHP under the hood. There's no separate engine. The advantage is developer experience (clean syntax, auto-escaping), not runtime performance."
+  - "Blade prevents developers from using PHP logic in templates, enforcing strict separation" (incorrect) — "Blade actually allows raw PHP with @php directive. It doesn't enforce separation — it encourages it through convenient directives. You can still write bad code in Blade, but the clean syntax nudges you toward good practices."
+- **concept**: "Blade Templates"
+- **difficulty**: easy
+
+#### Event 8 (after Stop 2): Weather — The Seeder Storm
+- **type**: weather
+- **title**: "Database Seeder Storm!"
+- **text**: "A storm hits your development environment. You need to test with realistic data, but manually creating records through the UI takes hours. A teammate mentions database seeders and factories. What is the standard Laravel approach to populating test data?"
+- **choices**:
+  - "Use model factories with Faker to define how models should look, then call them from database seeders" (correct) — "Factories define the blueprint for generating model instances: Post::factory()->count(50)->create(). Seeders orchestrate which factories to run. Together, they populate your database with realistic fake data in seconds. Run php artisan db:seed to execute them all."
+  - "Write raw SQL INSERT statements in a migration file" (incorrect) — "Migrations are for schema changes (adding tables, columns), not for test data. Mixing seed data into migrations makes them unrepeatable and pollutes the migration history. Seeders are the dedicated tool for data population."
+  - "Export a production database dump and import it into development" (incorrect) — "Production data often contains sensitive information (passwords, emails, payment details). Using it in development risks data breaches and violates privacy regulations. Factories generate safe, fake data that mimics production patterns without real user data."
+- **concept**: "Eloquent ORM"
+- **difficulty**: easy
+
+#### Event 9 (after Stop 3): Encounter — The Relationship Guide
+- **type**: encounter
+- **title**: "An Eloquent Relationships Expert Appears"
+- **text**: "A fellow traveler asks: 'Your User hasMany Posts, and each Post belongsTo a User. But what if you need a many-to-many relationship — like posts having multiple tags and tags belonging to multiple posts?' What does Laravel use for this?"
+- **choices**:
+  - "A belongsToMany relationship with a pivot table — Laravel manages the intermediate table automatically" (correct) — "belongsToMany on both models connects them through a pivot table (post_tag by convention). Laravel handles the JOIN queries, and you can attach/detach/sync related IDs. The pivot table can even have its own columns (like created_at) accessible through the withPivot method."
+  - "Create a separate Tag model with a post_id foreign key, like a hasMany relationship" (incorrect) — "A foreign key on Tag only allows each tag to belong to one post. Many-to-many requires a pivot table with two foreign keys (post_id and tag_id). The belongsToMany relationship is specifically designed for this pattern."
+  - "Store tag IDs as a JSON array in the posts table to avoid an extra table" (incorrect) — "JSON arrays can't be queried efficiently, can't enforce foreign key constraints, and can't be indexed like normal relationships. A pivot table is the standard relational approach, and Eloquent makes it effortless with belongsToMany."
+- **concept**: "Eloquent ORM"
+- **difficulty**: easy
+
+#### Event 10 (after Stop 4): River — The Scope and Accessor Crossing
+- **type**: river
+- **title**: "The Query Scope River"
+- **text**: "Your controller has Post::where('status', 'published')->where('published_at', '<=', now()) repeated in eight different methods. When the business rule changes, you'd need to update all eight places. How do you cross this river?"
+- **choices**:
+  - "Define a query scope on the model: scopePublished — then call Post::published() anywhere" (correct) — "Local scopes encapsulate query constraints into chainable methods. scopePublished($query) returns $query->where('status', 'published')->where('published_at', '<=', now()). Now Post::published()->latest()->get() reads like a sentence. Change the business rule in one place, every caller updates."
+  - "Create a helper function that runs the raw SQL query directly" (incorrect) — "Raw SQL bypasses Eloquent's query builder, loses chainability, and makes the code vulnerable to SQL injection if not parameterized. Scopes work within the query builder and compose naturally with other Eloquent methods."
+  - "Store the result of the query in a static property so it only runs once" (incorrect) — "Static caching freezes the result at the first call. New published posts would never appear until the process restarts. Scopes run fresh queries each time, ensuring current data. Cache at the HTTP layer if needed, not at the query layer."
+- **concept**: "Eloquent ORM"
+- **difficulty**: medium
+
+#### Event 11 (after Stop 4): Misfortune — The Request Validation Bypass
+- **type**: misfortune
+- **title**: "Validation Bypass!"
+- **text**: "A security incident: users are creating posts with future dates and extremely long titles that break the layout. Your controller stores the request data directly with $request->all() without any validation."
+- **choices**:
+  - "Create a Form Request class with rules for each field — Laravel validates automatically before the controller method runs" (correct) — "Form Requests (php artisan make:request StorePostRequest) define validation rules in a rules() method. Type-hint it in the controller, and Laravel validates the request before your code runs. Invalid requests automatically redirect back with errors. The controller stays clean."
+  - "Add if-statements in the controller to check each field manually" (incorrect) — "Manual validation is verbose, error-prone, and gets duplicated across controllers. Form Requests centralize rules, are reusable, and integrate with Laravel's error bag system. They also handle authorization via the authorize() method."
+  - "Set column constraints in the database migration to reject invalid data" (incorrect) — "Database constraints catch errors at the last possible moment with unhelpful SQL error messages. Validation should happen at the request level, giving users clear error messages and preventing invalid data from reaching the database at all."
+- **concept**: "Blade Templates"
+- **difficulty**: medium
+
+#### Event 12 (after Stop 5): Misfortune — The Service Provider Mystery
+- **type**: misfortune
+- **title**: "Service Provider Confusion!"
+- **text**: "Your application behaves differently in production than in development. A class that was working perfectly in dev throws 'Target is not instantiable' in production. You discover the service provider's register method calls $this->app->environment() to conditionally bind classes, but in production the environment isn't set yet during registration."
+- **choices**:
+  - "Move environment-dependent logic from register() to boot() — register should only bind classes, boot runs after all providers are registered" (correct) — "The register method runs before the application is fully bootstrapped. It should only contain $this->app->bind() and $this->app->singleton() calls. Environment checks, event listeners, route loading, and anything that depends on other services belongs in boot(), which runs after all providers are registered."
+  - "Set the APP_ENV environment variable earlier in the bootstrap process" (incorrect) — "Changing bootstrap order is fragile and breaks the provider contract. Laravel's two-phase design (register then boot) exists precisely so providers don't depend on order. Put conditional logic in boot() where the full application is available."
+  - "Remove the service provider and use the container's auto-resolution instead" (incorrect) — "Auto-resolution works for concrete classes but not for interface bindings, singletons, or conditional logic. Service providers are the designated place for wiring the container. The fix is using the right method (boot), not abandoning providers."
+- **concept**: "Service Container"
+- **difficulty**: hard
+
+#### Event 13 (after Stop 6): River — The Queue Job Crossing
+- **type**: river
+- **title**: "The Queue Job River"
+- **text**: "Your app sends a welcome email on user registration. The email takes 3 seconds to send via SMTP, blocking the response. During traffic spikes, users stare at a loading screen while emails queue up in the PHP process. How do you cross?"
+- **choices**:
+  - "Dispatch the email as a queued job — it runs in a background worker process so the HTTP response returns immediately" (correct) — "Laravel's queue system lets you dispatch(new SendWelcomeEmail($user)). The job is serialized and pushed to a queue (Redis, SQS, database). A separate worker process picks it up and sends the email asynchronously. The user gets an instant response. If the email fails, the queue retries it automatically."
+  - "Use PHP's register_shutdown_function to send the email after the response is sent" (incorrect) — "Shutdown functions run in the same PHP process, still blocking the web server worker. The process can't handle new requests until the email finishes. A queue worker is a separate process — it doesn't affect web server capacity."
+  - "Send emails via JavaScript on the client side using an SMTP library" (incorrect) — "Client-side email sending exposes your SMTP credentials to the browser. Anyone could inspect the source and find your email server password. Server-side queued processing is secure and reliable."
+- **concept**: "Service Container"
+- **difficulty**: hard
+
+#### Event 14 (after Stop 3): Misfortune — The Facade Mystery
+- **type**: misfortune
+- **title**: "Facade Confusion!"
+- **text**: "A new developer on your team is confused. They see Cache::get('key') in the codebase but can't find a Cache class anywhere in the project. 'Where does this class come from? How can I test code that uses it?' they ask."
+- **choices**:
+  - "Facades are static-looking proxies to services in the container — Cache:: resolves to the cache manager behind the scenes. In tests, use Cache::shouldReceive() to mock" (correct) — "Facades aren't truly static. Cache::get() calls app('cache')->get() under the hood. The static syntax is syntactic sugar for container resolution. For testing, Facades provide shouldReceive() which swaps the real service for a Mockery mock automatically. You get clean syntax with full testability."
+  - "Cache is a PHP built-in class that Laravel extends with additional methods" (incorrect) — "PHP has no built-in Cache class. Laravel's Cache Facade is defined in Illuminate\\Support\\Facades\\Cache. It's an alias registered in config/app.php that proxies method calls to the cache service registered in the container."
+  - "Facades are anti-patterns that should be replaced with dependency injection everywhere" (incorrect) — "Facades and dependency injection both resolve from the same container. Facades are syntactic convenience, not an anti-pattern. In controllers and commands, DI via constructor type-hinting is often cleaner. But in helpers, config files, and quick scripts, Facades are perfectly appropriate. Laravel uses both."
+- **concept**: "Service Container"
+- **difficulty**: hard
+
+#### Event 15 (after Stop 5): Weather — The Eager Loading Trap
+- **type**: weather
+- **title**: "The N+1 Whiteout!"
+- **text**: "A blizzard of SQL queries hits your app. Your API returns 50 posts with their authors and comments. The controller uses Post::all() and the PostResource accesses $this->author->name and $this->comments->count(). Laravel fires 101 queries — one for posts, 50 for authors, 50 for comment counts."
+- **choices**:
+  - "Use withCount('comments') and with('author') to eager-load — or use $preventLazyLoading in development to catch these automatically" (correct) — "Post::with('author')->withCount('comments')->get() loads everything in 2-3 queries. In AppServiceProvider::boot(), calling Model::preventLazyLoading(!app()->isProduction()) throws an exception whenever a lazy-loaded relationship fires in dev, catching N+1 bugs before they reach production."
+  - "Paginate the results to limit the query count per page" (incorrect) — "Pagination reduces the number of posts per page but doesn't fix the N+1 pattern. Even 10 posts with lazy-loaded authors and comments fires 21 queries. Eager loading with with() and withCount() is the correct fix regardless of pagination."
+  - "Cache the entire API response so the queries only run once per cache period" (incorrect) — "Caching hides the problem on subsequent requests but the first request (or cache miss) still fires 101 queries. And cache invalidation adds complexity. Fix the query pattern first with eager loading, then add caching as an optimization layer."
+- **concept**: "Eloquent ORM"
 - **difficulty**: hard
 
 ### Death Messages

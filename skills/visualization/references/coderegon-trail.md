@@ -222,6 +222,27 @@ Framework-specific tombstone inscriptions. Include at least 8 per framework, ran
 - "Died of mass assignment vulnerability."
 - "The Artisan command ran but nobody was listening."
 
+## Difficulty Tiers
+
+Each framework has 12-15 events at three difficulty tiers. The player's chosen profession determines which tiers they see:
+
+| Profession | Sees Tiers | Style |
+|---|---|---|
+| Ralph Wiggum | `easy` only | Forgiving mode — wrong answers let you try again |
+| Vibe Coder | `easy` + `medium` | "What does X do?" and "Why does X work this way?" |
+| Engineer | `medium` + `hard` | "Why/how" + "Spot the bug" / "Trace the flow" |
+| Staff Architect | `hard` only | Deep tradeoff questions, no hints |
+
+The game filters events by difficulty tier based on the selected profession, then picks up to 6 events from the filtered pool (shuffled if pool > 6). Fortune events (rewards) trigger on answer streaks regardless of tier.
+
+Each playthrough still presents ~6 events. With 12-15 events per framework across three tiers, each profession tier has at least 5 eligible events.
+
+### Tier Guidelines
+
+- **Easy**: "What does X do?" / "Which is the right pattern?" — tests recognition and basic understanding. Sourced from getting-started docs and tutorials.
+- **Medium**: "Why does X work this way?" / "What happens if...?" — tests comprehension and cause-effect reasoning. Sourced from concept guides and best practices docs.
+- **Hard**: "Spot the bug" / "Trace the flow" / "What's the tradeoff?" — tests deep architectural understanding. Sourced from advanced guides, performance docs, and security advisories.
+
 ## Event Catalog Template
 
 Each event in `framework-trails.md` follows this structure:
