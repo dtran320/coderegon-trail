@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "372b189d7ea8",
+  "strategy": "manual-commit",
+  "branch": "pr-trail-game",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "django/index.html",
+    "express/index.html",
+    "laravel/index.html",
+    "rails/index.html",
+    "react/index.html",
+    "skills/visualization/references/coderegon-trail.md",
+    "skills/visualization/references/framework-trails.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/37/2b189d7ea8/0/metadata.json",
+      "transcript": "/37/2b189d7ea8/0/full.jsonl",
+      "context": "/37/2b189d7ea8/0/context.md",
+      "content_hash": "/37/2b189d7ea8/0/content_hash.txt",
+      "prompt": "/37/2b189d7ea8/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 89,
+    "cache_creation_tokens": 516101,
+    "cache_read_tokens": 4314239,
+    "output_tokens": 25404,
+    "api_call_count": 66
+  }
+}

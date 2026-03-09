@@ -1,0 +1,38 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "372b189d7ea8",
+  "session_id": "a74fb9b4-1899-4de6-9f03-2dccab5c4193",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-09T21:46:55.813013Z",
+  "branch": "pr-trail-game",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "django/index.html",
+    "express/index.html",
+    "laravel/index.html",
+    "rails/index.html",
+    "react/index.html",
+    "skills/visualization/references/coderegon-trail.md",
+    "skills/visualization/references/framework-trails.md"
+  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "2d00bdff-6bc0-4bf3-8155-54921d4aca9e",
+  "checkpoint_transcript_start": 700,
+  "transcript_lines_at_start": 700,
+  "token_usage": {
+    "input_tokens": 89,
+    "cache_creation_tokens": 516101,
+    "cache_read_tokens": 4314239,
+    "output_tokens": 25404,
+    "api_call_count": 66
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-09T21:46:55.344283Z",
+    "agent_lines": 8,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 8,
+    "agent_percentage": 100
+  }
+}

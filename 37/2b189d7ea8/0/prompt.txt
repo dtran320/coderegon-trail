@@ -1,0 +1,880 @@
+Implement the following plan:
+
+# Plan: Difficulty Tiers & Doc-Sourced Questions for Coderegon Trail
+
+## Context
+
+The current games have 6 quiz events each, all shown to every player regardless of chosen profession. The `difficulty` field exists in trail data but the game code ignores it. Questions lean toward engineer-level (38%) with decent vibe coder coverage (45%) but sparse expert questions (18%). Major framework concepts from official docs are missing (e.g., Django admin/signals, Rails associations/scopes, React hooks rules/keys, Laravel facades/queues).
+
+The user wants:
+1. Questions sourced from framework docs at appropriate skill levels
+2. Easier questions for vibe coders, harder for engineers
+3. A mechanism for both easier and harder game versions
+
+## Approach: Tiered Question Pool + Profession-Based Selection
+
+### 1. Expand events in `framework-trails.md` (12-15 per framework, up from 6)
+
+Each framework gets questions at 3 tiers sourced from official docs:
+
+| Tier | Tag | Who sees it | Question style |
+|------|-----|-------------|----------------|
+| `easy` | Vibe Coder + Ralph | "What does X do?" / "Which is the right pattern?" |
+| `medium` | Vibe Coder + Engineer | "Why does X work this way?" / "What happens if...?" |
+| `hard` | Engineer + Staff Architect | "Spot the bug" / "Trace the flow" / "What's the tradeoff?" |
+
+**Per-framework concept additions** (from doc research):
+
+| Framework | Easy additions | Medium additions | Hard additions |
+|-----------|---------------|-----------------|----------------|
+| **Django** | MVT pattern, admin site, migrations | signals, form validation, Q objects | lazy evaluation, connection pooling, raw SQL |
+| **Rails** | RESTful resources, generators, associations | scopes, callbacks, nested routes | metaprogramming, callback order, thread safety |
+| **Express** | static files, route params, Router | error-handling middleware (4 args), next() | backpressure, event loop blocking, async context |
+| **React** | props vs state, JSX, lists+keys | hooks rules, useEffect cleanup, controlled forms | reconciliation, stale closures, batching |
+| **Laravel** | Blade syntax, seeders, relationships | scopes, accessors, request validation | service providers, queue jobs, facades internals |
+
+### 2. Update game code to filter events by profession
+
+```
+Profession mapping:
+  Ralph Wiggum  → sees: easy only (+ forgiving mode)
+  Vibe Coder    → sees: easy + medium
+  Engineer      → sees: medium + hard
+  Staff Architect → sees: hard only (+ no hints)
+```
+
+In each game's HTML, modify the event selection logic:
+- Current: `events[eventIndex]` (sequential)
+- New: filter `TRAIL_DATA.events` by `difficulty` matching profession tier, then pick sequentially from filtered list
+- Each game still shows ~6 events per playthrough, drawn from the appropriate tier
+
+### 3. Show difficulty badge in event UI
+
+Add a small tag in the event overlay showing the tier: `[EASY]`, `[MEDIUM]`, `[HARD]` — styled like the existing tag badges on the landing page.
+
+## Files to Modify
+
+| File | Change |
+|------|--------|
+| `skills/visualization/references/framework-trails.md` | Add 6-9 more events per framework (total ~12-15 each) with `difficulty: easy/medium/hard` |
+| `skills/visualization/references/coderegon-trail.md` | Document the tiered question system and profession-to-tier mapping |
+| `django/index.html` | Update event selection logic + add difficulty badge |
+| `rails/index.html` | Same |
+| `express/index.html` | Same |
+| `react/index.html` | Same |
+| `laravel/index.html` | Same |
+
+## Implementation Steps
+
+1. **Write new questions** in `framework-trails.md` — add ~8 new events per framework with explicit `difficulty: easy|medium|hard` tags, sourced from official doc concepts
+2. **Update coderegon-trail.md** — add a "Difficulty Tiers" section documenting the mapping
+3. **Modify game HTML event logic** — in each game:
+   - Add `difficultyFilter` based on selected profession index
+   - Filter `TRAIL_DATA.events` to matching tiers
+   - Pick 6 events from filtered pool (shuffle if pool > 6)
+   - Render difficulty badge in event overlay header
+4. **Regenerate all 5 games** with the new events and logic
+
+## Verification
+
+- Play each game at each profession level and confirm:
+  - Ralph/Vibe Coder see easier, more conceptual questions
+  - Engineer sees "why/how" questions with architectural thinking
+  - Staff Architect sees "spot the bug" / "trace the flow" deep questions
+  - No profession sees fewer than 5 events
+- Check that fortune events (rewards) still trigger on streaks regardless of tier
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/flowclub/.REDACTED.jsonl
+
+If this plan can be broken down into multiple independent tasks, consider using the TeamCreate tool to create a team and parallelize the work.
+
+---
+
+<teammate-message teammate_id="django-updater" color="blue" summary="Django game HTML updated with all 3 changes">
+Django game HTML updated with all 3 changes:
+
+1. Added 7 new events to TRAIL_DATA.events array (Django Guide, Admin Configuration Storm, Migration Conflict, Signals Expert, Form Validation Bypass, Complex Query River, Database Connection Drought)
+2. Added difficulty filtering in advanceFromTravel() using DIFFICULTY_TIERS mapped to the 4 profession levels
+3. Added difficulty badge rendering in renderEventScreen() with color-coded border (green/yellow/red for easy/medium/hard)
+
+File: /Users/flowclub/code/oreorg-trail/django/index.html
+</teammate-message>
+
+<teammate-message teammate_id="django-updater" color="blue">
+{"type":"idle_notification","from":"django-updater","timestamp":"2026-03-06T18:35:15.347Z","idleReason":"available"}
+</teammate-message>
+
+<teammate-message teammate_id="rails-updater" color="green" summary="Rails game HTML updated with all 3 changes">
+Completed all 3 changes to the Rails game HTML at `/Users/flowclub/code/oreorg-trail/rails/index.html`:
+
+1. **Added 7 new events** to the TRAIL_DATA events array (events 7-13): A Rails Guide Appears (encounter, easy), Generator Whirlwind (weather, easy), Association Confusion (misfortune, easy), The Scope Fog (weather, medium), The Callback River (river, hard), Nested Route Overload (misfortune, medium), Thread Safety Disaster (misfortune, hard).
+
+2. **Added difficulty filtering** in `advanceFromTravel()` — events are now filtered based on the DIFFICULTY_TIERS array matching the current difficulty level.
+
+3. **Added difficulty badge** in `renderEventScreen()` — colored badge (green/yellow/red) appears next to the event title showing EASY/MEDIUM/HARD.
+</teammate-message>
+
+<teammate-message teammate_id="rails-updater" color="green">
+{"type":"idle_notification","from":"rails-updater","timestamp":"2026-03-06T18:36:48.228Z","idleReason":"available"}
+</teammate-message>
+
+<teammate-message teammate_id="express-updater" color="yellow" summary="Express game updated with all 3 changes">
+All 3 changes applied to /Users/flowclub/code/oreorg-trail/express/index.html:
+
+1. Added 7 new events (events 7-13) to TRAIL_DATA on line 138, covering: static files (easy), route parameter ordering (easy), error handler arity (medium), Router organization (medium), event loop blocking (hard), stream backpressure (hard), and next(err) flow (medium).
+
+2. Added difficulty filtering in advanceFromTravel() at line 1552 — uses DIFFICULTY_TIERS array to filter events based on selected profession/difficulty level.
+
+3. Added difficulty badge in renderEventScreen() at line 1280 — colored badge (green=easy, yellow=medium, red=hard) displayed inline next to event titles.
+
+Verified: JSON parses correctly with all 13 events, all code changes confirmed in place.
+</teammate-message>
+
+<teammate-message teammate_id="express-updater" color="yellow">
+{"type":"idle_notification","from":"express-updater","timestamp":"2026-03-06T21:25:48.184Z","idleReason":"available"}
+</teammate-message>
+
+<teammate-message teammate_id="laravel-updater" color="orange" summary="Laravel game updates complete - all 3 changes applied">
+All 3 changes to the Laravel game are complete:
+
+1. **7 new events added** to TRAIL_DATA (events 7-13), bringing total to 13. Events cover Blade templates, database seeders, Eloquent relationships, query scopes, Form Request validation, service provider register/boot, and queue jobs. Difficulty levels: 3 easy, 2 medium, 2 hard.
+
+2. **Difficulty filtering** added in `advanceFromTravel()` at line 1571-1574. Uses DIFFICULTY_TIERS array to filter events based on selected profession difficulty.
+
+3. **Difficulty badge** added in `renderEventScreen()` at lines 1299-1303, displayed in the event header at line 1325. Color-coded: green for easy, yellow for medium, red for hard.
+
+File: `/Users/flowclub/code/oreorg-trail/laravel/index.html`
+</teammate-message>
+
+<teammate-message teammate_id="laravel-updater" color="orange">
+{"type":"idle_notification","from":"laravel-updater","timestamp":"2026-03-06T21:25:59.880Z","idleReason":"available"}
+</teammate-message>
+
+<teammate-message teammate_id="react-updater" color="purple" summary="React game HTML updated with all 3 changes">
+Completed all 3 changes to `/Users/flowclub/code/oreorg-trail/react/index.html`:
+
+1. **Added 7 new events** (events 7-13) to the TRAIL_DATA JSON on line 138. Total is now 13 events covering Component Tree, Hooks, State Management, and Effect Lifecycle concepts with easy/medium/hard difficulties.
+
+2. **Added difficulty filtering** in `advanceFromTravel()` at line 1491-1494. Uses `DIFFICULTY_TIERS` array to filter events based on the player's chosen difficulty level.
+
+3. **Added difficulty badge** in `renderEventScreen()` at lines 1223-1227. Displays a color-coded badge (green=easy, yellow=medium, red=hard) next to the event title in the header.
+</teammate-message>
+
+<teammate-message teammate_id="react-updater" color="purple">
+{"type":"idle_notification","from":"react-updater","timestamp":"2026-03-06T21:26:08.054Z","idleReason":"available"}
+</teammate-message>
+
+<teammate-message teammate_id="system">
+{"type":"teammate_terminated","message":"rails-updater has shut down."}
+</teammate-message>
+
+<teammate-message teammate_id="system">
+{"type":"teammate_terminated","message":"django-updater has shut down."}
+</teammate-message>
+
+<teammate-message teammate_id="system">
+{"type":"teammate_terminated","message":"express-updater has shut down."}
+</teammate-message>
+
+<teammate-message teammate_id="system">
+{"type":"teammate_terminated","message":"react-updater has shut down."}
+</teammate-message>
+
+<teammate-message teammate_id="system">
+{"type":"teammate_terminated","message":"laravel-updater has shut down."}
+</teammate-message>
+
+<teammate-message teammate_id="rails-updater" color="green">
+{"type":"shutdown_approved","requestId":"shutdown-1772835121682@rails-updater","from":"rails-updater","timestamp":"2026-03-06T22:12:04.634Z","paneId":"in-process","backendType":"in-process"}
+</teammate-message>
+
+<teammate-message teammate_id="django-updater" color="blue">
+{"type":"shutdown_approved","requestId":"shutdown-1772835121281@django-updater","from":"django-updater","timestamp":"2026-03-06T22:12:04.797Z","paneId":"in-process","backendType":"in-process"}
+</teammate-message>
+
+<teammate-message teammate_id="express-updater" color="yellow">
+{"type":"shutdown_approved","requestId":"shutdown-1772835122117@express-updater","from":"express-updater","timestamp":"2026-03-06T22:12:05.718Z","paneId":"in-process","backendType":"in-process"}
+</teammate-message>
+
+<teammate-message teammate_id="react-updater" color="purple">
+{"type":"shutdown_approved","requestId":"shutdown-1772835123008@react-updater","from":"react-updater","timestamp":"2026-03-06T22:12:06.362Z","paneId":"in-process","backendType":"in-process"}
+</teammate-message>
+
+<teammate-message teammate_id="laravel-updater" color="orange">
+{"type":"shutdown_approved","requestId":"shutdown-1772835123542@laravel-updater","from":"laravel-updater","timestamp":"2026-03-06T22:12:07.181Z","paneId":"in-process","backendType":"in-process"}
+</teammate-message>
+
+---
+
+Commit and push this code, and if we're on a feature branch and there's not already a PR against dev, create one. If we're on the default (main or dev) branch, ask for confirmation before pushing.
+
+After creating a PR (or if one already exists), run `/code-review:code-review` on it.
+
+---
+
+Provide a code review for the given pull request.
+
+To do this, follow these steps precisely:
+
+1. Launch a haiku agent to check if any of the following are true:
+   - The pull request is closed
+   - The pull request is a draft
+   - The pull request does not need code review (e.g. automated PR, trivial change that is obviously correct)
+   - You have already submitted a code review on this pull request
+
+   If any condition is true, stop and do not proceed.
+
+Note: Still review Claude generated PR's.
+
+2. Launch a haiku agent to return a list of file paths (not their contents) for all relevant CLAUDE.md files including:
+   - The root CLAUDE.md file, if it exists
+   - Any CLAUDE.md files in directories containing files modified by the pull request
+
+3. Launch a sonnet agent to view the pull request and return a summary of the changes
+
+4. Launch 4 agents in parallel to independently review the changes. Each agent should return the list of issues, where each issue includes a description and the reason it was flagged (e.g. "CLAUDE.md adherence", "bug"). The agents should do the following:
+
+   Agents 1 + 2: CLAUDE.md compliance sonnet agents
+   Audit changes for CLAUDE.md compliance in parallel. Note: When evaluating CLAUDE.md compliance for a file, you should only consider CLAUDE.md files that share a file path with the file or parents.
+
+   Agent 3: Opus bug agent (parallel subagent with agent 4)
+   Scan for obvious bugs. Focus only on the diff itself without reading extra context. Flag only significant bugs; ignore nitpicks and likely false positives. Do not flag issues that you cannot validate without looking at context outside of the git diff.
+
+   Agent 4: Opus bug agent (parallel subagent with agent 3)
+   Look for problems that exist in the introduced code. This could be security issues, incorrect logic, etc. Only look for issues that fall within the changed code.
+
+   **CRITICAL: We only want HIGH SIGNAL issues.** This means:
+   - Objective bugs that will cause incorrect behavior at runtime
+   - Clear, unambiguous CLAUDE.md violations where you can quote the exact rule being broken
+
+   We do NOT want:
+   - Subjective concerns or "suggestions"
+   - Style preferences not explicitly required by CLAUDE.md
+   - Potential issues that "might" be problems
+   - Anything requiring interpretation or judgment calls
+
+   If you are not certain an issue is real, do not flag it. False positives erode trust and waste reviewer time.
+
+   In addition to the above, each subagent should be told the PR title and description. This will help provide context regarding the author's intent.
+
+5. For each issue found in the previous step by agents 3 and 4, launch parallel subagents to validate the issue. These subagents should get the PR title and description along with a description of the issue. The agent's job is to review the issue to validate that the stated issue is truly an issue with high confidence. For example, if an issue such as "variable is not defined" was flagged, the subagent's job would be to validate that is actually true in the code. Another example would be CLAUDE.md issues. The agent should validate that the CLAUDE.md rule that was violated is scoped for this file and is actually violated. Use Opus subagents for bugs and logic issues, and sonnet agents for CLAUDE.md violations.
+
+6. Filter out any issues that were not validated in step 5. This step will give us our list of high signal issues for our review.
+
+7. Finally, comment on the pull request.
+   When writing your comment, follow these guidelines:
+   a. Keep your output brief
+   b. Avoid emojis
+   c. Link and cite relevant code, files, and URLs for each issue
+   d. When citing CLAUDE.md violations, you MUST quote the exact text from CLAUDE.md that is being violated (e.g., CLAUDE.md says: "Use snake_case for variable names")
+
+Use this list when evaluating issues in Steps 4 and 5 (these are false positives, do NOT flag):
+
+- Pre-existing issues
+- Something that appears to be a bug but is actually correct
+- Pedantic nitpicks that a senior engineer would not flag
+- Issues that a linter will catch (do not run the linter to verify)
+- General code quality concerns (e.g., lack of test coverage, general security issues) unless explicitly required in CLAUDE.md
+- Issues mentioned in CLAUDE.md but explicitly silenced in the code (e.g., via a lint ignore comment)
+
+Notes:
+
+- Use gh CLI to interact with GitHub (e.g., fetch pull requests, create comments). Do not use web fetch.
+- Create a todo list before starting.
+- You must cite and link each issue (e.g., if referring to a CLAUDE.md, include a link to it).
+- For your final comment, follow the following format precisely (assuming for this example that you found 3 issues):
+
+---
+
+## Code review
+
+Found 3 issues:
+
+1. <brief description of bug> (CLAUDE.md says: "<exact quote from CLAUDE.md>")
+
+<link to file and line with full sha1 + line range for context, eg. https://github.REDACTED.md#L13-L17>
+
+2. <brief description of bug> (some/other/CLAUDE.md says: "<exact quote from CLAUDE.md>")
+
+<link to file and line with full sha1 + line range for context>
+
+3. <brief description of bug> (bug due to <file and code snippet>)
+
+<link to file and line with full sha1 + line range for context>
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+
+<sub>- If this code review was useful, please react with 👍. Otherwise, react with 👎.</sub>
+
+---
+
+- Or, if you found no issues:
+
+---
+
+## Auto code review
+
+No issues found. Checked for bugs and CLAUDE.md compliance.
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+---
+
+- When linking to code, follow the following format precisely, otherwise the Markdown preview won't render correctly: https://github.com/anthropics/claude-code/blob/c21d3c10bc8e898b7ac1a2d745bdc9bc4e423afe/package.json#L10-L15
+  - Requires full git sha
+  - You must provide the full sha. Commands like `https://github.com/owner/repo/blob/$(git rev-parse HEAD)/foo/bar` will not work, since your comment will be directly rendered in Markdown.
+  - Repo name must match the repo you're code reviewing
+  - # sign after the file name
+  - Line range format is L[start]-L[end]
+  - Provide at least 1 line of context before and after, centered on the line you are commenting about (eg. if you are commenting about lines 5-6, you should link to `L4-7`)
+
+
+ARGUMENTS: 6
+
+---
+
+<teammate-message teammate_id="pr-eligibility" color="pink" summary="PR #6 is open, not draft, non-trivial, no existing reviews">
+Here are the findings for PR #6:
+
+1. **Is the PR closed?** No — state is `OPEN`.
+2. **Is it a draft?** No — `isDraft` is `false`.
+3. **Does it not need review (trivial/automated)?** No — this is a substantial feature PR ("Add PR comprehension game mode to O'Reorg Trail") with a detailed description covering a new agent, command extension, theming reference, and full plugin infrastructure. It is not trivial or automated.
+4. **Have we already submitted a code review?** No — the `reviews` array is empty.
+
+**Conclusion:** No blocking conditions. PR #6 is eligible for review.
+</teammate-message>
+
+---
+
+<teammate-message teammate_id="pr-eligibility" color="pink">
+{"type":"idle_notification","from":"pr-eligibility","timestamp":"2026-03-06T22:24:30.669Z","idleReason":"available"}
+</teammate-message>
+
+---
+
+<teammate-message teammate_id="claude-md-finder" color="cyan" summary="Only root CLAUDE.md found, none in subdirs">
+Found CLAUDE.md files:
+
+1. `/Users/flowclub/code/oreorg-trail/CLAUDE.md` (root)
+
+No CLAUDE.md files exist in the django/, express/, laravel/, rails/, react/, skills/, skills/visualization/, or skills/visualization/references/ directories. Only the root CLAUDE.md exists.
+</teammate-message>
+
+<teammate-message teammate_id="claude-md-finder" color="cyan">
+{"type":"idle_notification","from":"claude-md-finder","timestamp":"2026-03-06T22:24:51.385Z","idleReason":"available"}
+</teammate-message>
+
+<teammate-message teammate_id="system">
+{"type":"teammate_terminated","message":"pr-eligibility has shut down."}
+</teammate-message>
+
+<teammate-message teammate_id="pr-eligibility" color="pink">
+{"type":"shutdown_approved","requestId":"shutdown-1772835892546@pr-eligibility","from":"pr-eligibility","timestamp":"2026-03-06T22:24:55.289Z","paneId":"in-process","backendType":"in-process"}
+</teammate-message>
+
+---
+
+<teammate-message teammate_id="system">
+{"type":"teammate_terminated","message":"claude-md-finder has shut down."}
+</teammate-message>
+
+<teammate-message teammate_id="claude-md-finder" color="cyan">
+{"type":"shutdown_approved","requestId":"shutdown-1772836039838@claude-md-finder","from":"claude-md-finder","timestamp":"2026-03-06T22:27:22.185Z","paneId":"in-process","backendType":"in-process"}
+</teammate-message>
+
+---
+
+<teammate-message teammate_id="pr-summarizer" color="red" summary="Complete PR #6 latest commit summary with all details">
+## PR #6 Latest Commit Summary: "Add difficulty tiers and doc-sourced questions to Coderegon Trail games"
+
+Commit: `05ad10d` — 7 files changed, 582 insertions, 16 deletions.
+
+---
+
+### 1. New Content in `framework-trails.md` (+497 lines)
+
+**45 new events** added across 5 frameworks (9 per framework, expanding each from 6 to 15 events):
+
+| Framework | New Events (7-15) | Easy | Medium | Hard |
+|-----------|-------------------|------|--------|------|
+| Rails | 9 events | 3 | 2 | 4 |
+| Django | 9 events | 3 | 2 | 4 |
+| Express | 9 events | 3 | 2 | 4 |
+| React | 9 events | 3 | 2 | 4 |
+| Laravel | 9 events | 3 | 2 | 4 |
+
+Event types breakdown: 16 Misfortune, 12 Weather, 10 Encounter, 7 River.
+
+Each event has 3 answer choices with detailed explanations. Questions are sourced from official framework documentation (getting-started for easy, concept guides for medium, advanced/performance/security docs for hard).
+
+### 2. New Content in `coderegon-trail.md` (+21 lines)
+
+Added a **"Difficulty Tiers"** section specifying:
+
+| Profession | Sees Tiers | Style |
+|---|---|---|
+| Ralph Wiggum | `easy` only | Forgiving — recognition questions |
+| Vibe Coder | `easy` + `medium` | "What does X do?" + "Why does X work this way?" |
+| Engineer | `medium` + `hard` | "Why/how" + "Spot the bug" / "Trace the flow" |
+| Staff Architect | `hard` only | Deep tradeoff questions, no hints |
+
+Also defines tier guidelines: Easy = recognition/basic understanding, Medium = comprehension/cause-effect, Hard = architectural tradeoffs/debugging.
+
+### 3. JS Logic Changes in All 5 Game HTML Files (identical changes)
+
+**Difficulty filtering mechanism** (in `advanceFromTravel()`):
+```js
+var DIFFICULTY_TIERS = [['easy'],['easy','medium'],['medium','hard'],['hard']];
+var allowedTiers = DIFFICULTY_TIERS[difficulty] || ['easy','medium','hard'];
+var allStopEvents = TRAIL_DATA.events.filter(function(e) { return e.triggerStop === currentStop; });
+pendingEvents = allStopEvents.filter(function(e) { 
+  return e.type === 'fortune' || !e.difficulty || allowedTiers.indexOf(e.difficulty) !== -1; 
+});
+```
+- Uses `difficulty` variable (0-3, mapped to profession index) to select allowed tiers
+- Fortune events bypass the filter (streak rewards work at all tiers)
+- Events without a difficulty tag are also allowed through (backwards compatibility)
+
+**Difficulty badge UI** (in `renderEventScreen()`):
+```js
+var diffBadge = '';
+if (event.difficulty) {
+  var diffColors = { easy: '#55FF55', medium: '#FFFF55', hard: '#FF5555' };
+  var diffColor = diffColors[event.difficulty] || '#AAAAAA';
+  diffBadge = ' <span style="...">' + event.difficulty.toUpperCase() + '</span>';
+}
+```
+- Colored badge appended to event title header: green [EASY], yellow [MEDIUM], red [HARD]
+- Inline styled `<span>` with border, matching the retro pixel art aesthetic
+
+### 4. TRAIL_DATA JSON Updates
+
+Each game's `const TRAIL_DATA` line was updated to include the 9 new events with `difficulty` fields in the JSON event objects. This accounts for most of the line changes in each HTML file.
+
+### Key Design Decisions
+- **9 new events per framework** (identical distribution: 3 easy, 2 medium, 4 hard) — consistent experience across frameworks
+- **Fortune events bypass filtering** — ensures streak rewards work regardless of difficulty tier
+- **Profession maps to array index** (0=Ralph Wiggum, 1=Vibe Coder, 2=Engineer, 3=Staff Architect) — clean mapping via `DIFFICULTY_TIERS[difficulty]`
+- **Each playthrough still shows ~6 events** — the pool is larger now but the game picks from filtered results
+</teammate-message>
+
+<teammate-message teammate_id="pr-summarizer" color="red">
+{"type":"idle_notification","from":"pr-summarizer","timestamp":"2026-03-06T23:25:01.007Z","idleReason":"available"}
+</teammate-message>
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Summary:
+1. Primary Request and Intent:
+   The user asked to implement a plan for "Difficulty Tiers & Doc-Sourced Questions for Coderegon Trail". The plan involved:
+   - Expanding events in `framework-trails.md` from 6 to 12-15 per framework with `difficulty: easy|medium|hard` tags
+   - Documenting the tiered question system in `coderegon-trail.md`
+   - Modifying 5 game HTML files (django, rails, express, react, laravel) to filter events by profession/difficulty and show difficulty badges
+   
+   After implementation, the user ran `/commit-push-pr` which committed, pushed, and triggered a code review on PR #6.
+
+2. Key Technical Concepts:
+   - Coderegon Trail: retro pixel art Oregon Trail-style game teaching web framework request pipelines
+   - TRAIL_DATA: single-line JSON blob on line 138 of each game HTML containing stops, events, partyMembers, deathMessages
+   - PROFESSIONS array: 4 professions (Ralph Wiggum=0, Vibe Coder=1, Engineer=2, Staff Architect=3) with different health/supplies/hint settings
+   - Difficulty tiers: easy (recognition), medium (comprehension), hard (architectural tradeoffs)
+   - Profession-to-tier mapping: Ralph→easy, Vibe Coder→easy+medium, Engineer→medium+hard, Staff Architect→hard
+   - Event types: weather, river, encounter, misfortune, fortune (fortune events bypass difficulty filter)
+   - Events filtered per-stop via `triggerStop === currentStop`
+   - Team-based parallel agent execution for HTML file updates
+
+3. Files and Code Sections:
+   - `skills/visualization/references/coderegon-trail.md`
+     - Added "Difficulty Tiers" section documenting profession-to-tier mapping and tier guidelines
+     - Inserted before the existing "Event Catalog Template" section
+   
+   - `skills/visualization/references/framework-trails.md`
+     - Added 45 new events (9 per framework) with difficulty tags across Django, Rails, Express, React, Laravel
+     - Each framework now has 15 events total (5+ per tier ensuring all professions have enough)
+     - Final distribution: Django (easy=6, med=4, hard=5), Rails (easy=5, med=4, hard=6), Express (easy=5, med=5, hard=5), React (easy=5, med=5, hard=5), Laravel (easy=6, med=4, hard=5)
+   
+   - `django/index.html`, `rails/index.html`, `express/index.html`, `react/index.html`, `laravel/index.html`
+     - Each received 3 changes via parallel agents:
+     - **Change 1**: 7 new events added to TRAIL_DATA JSON (13 total per game)
+     - **Change 2**: Difficulty filtering in `advanceFromTravel()`:
+       ```javascript
+       var DIFFICULTY_TIERS = [['easy'],['easy','medium'],['medium','hard'],['hard']];
+       var allowedTiers = DIFFICULTY_TIERS[difficulty] || ['easy','medium','hard'];
+       var allStopEvents = TRAIL_DATA.events.filter(function(e) { return e.triggerStop === currentStop; });
+       pendingEvents = allStopEvents.filter(function(e) { return e.type === 'fortune' || !e.difficulty || allowedTiers.indexOf(e.difficulty) !== -1; });
+       ```
+     - **Change 3**: Difficulty badge in `renderEventScreen()`:
+       ```javascript
+       var diffBadge = '';
+       if (event.difficulty) {
+         var diffColors = { easy: '#55FF55', medium: '#FFFF55', hard: '#FF5555' };
+         var diffColor = diffColors[event.difficulty] || '#AAAAAA';
+         diffBadge = ' <span style="display:inline-block;padding:1px 6px;border:1px solid ' + diffColor + ';color:' + diffColor + ';font-size:10px;margin-left:8px;border-radius:2px;">' + event.difficulty.toUpperCase() + '</span>';
+       }
+       ```
+       And in the setTextPanel header: `typeLabel + ' — ' + escHtml(event.title) + diffBadge`
+
+4. Errors and fixes:
+   - **Staff Architect insufficient events**: Initial 7 new events per framework only gave 3-4 hard events, below the plan's "no profession sees fewer than 5 events" requirement. Fixed by adding Events 14-15 (2 more hard events) to each framework in framework-trails.md.
+   - **Fortune events filtered out for Staff Architect**: Fortune events had `difficulty: "easy"` which would be excluded by the hard-only filter. Fixed by adding `e.type === 'fortune' ||` to the filter condition in all 5 HTML files.
+   - **JSON parsing regex failure**: Using `re.search(r'const TRAIL_DATA=(.+?);', content)` failed because semicolons appear inside the JSON strings. Fixed by using line-based parsing (splitting by newlines and finding the line starting with `const TRAIL_DATA=`).
+   - **Edit tool failures after agent modifications**: Trying to edit HTML files after agents modified them caused "File has been modified since read" or "File has not been read yet" errors. Fixed by re-reading each file before editing.
+
+5. Problem Solving:
+   - Used TeamCreate + 5 parallel agents (one per framework) to update HTML files concurrently
+   - Verified JSON validity in all 5 game files using Python JSON parser
+   - Verified difficulty distribution with automated scripts checking all profession tiers have 5+ events
+   - Fixed the concept field on Django Event 6 from "Admin Panel" to "ORM QuerySets" to match party member names
+
+6. All user messages:
+   - "Implement the following plan: [detailed plan for Difficulty Tiers & Doc-Sourced Questions]"
+   - `/commit-push-pr` - "Commit and push this code, and if we're on a feature branch and there's not already a PR against dev, create one."
+
+7. Pending Tasks:
+   - Complete the code review on PR #6 (currently at step 4 of the review process)
+   - The code review skill requires: launching 4 parallel review agents, validating issues, and posting a comment on the PR
+
+8. Current Work:
+   Running `/code-review:code-review` on PR #6. Completed steps 1-3:
+   - Step 1: PR eligibility check - PR is OPEN, not draft, not trivial, no existing reviews
+   - Step 2: CLAUDE.md discovery - only root `/Users/flowclub/code/oreorg-trail/CLAUDE.md` exists
+   - Step 3: PR summary completed with full details of all changes
+   
+   About to launch Step 4: 4 parallel review agents (2 CLAUDE.md compliance sonnet agents + 2 Opus bug agents).
+   
+   Key context for code review:
+   - Full SHA: `05ad10dce7af1ea0902919d9a72d041ef1047eca`
+   - Repo: `dtran320/coderegon-trail`
+   - PR branch: `pr-trail-game` against `main`
+   - The PR diff is very large (31,767 insertions) spanning 43 files across multiple commits
+   - The latest commit (the one we implemented) is `05ad10d` with 582 insertions, 16 deletions across 7 files
+
+9. Optional Next Step:
+   Launch the 4 parallel review agents (Step 4 of the code review process). The code review skill instructions say:
+   "Launch 4 agents in parallel to independently review the changes. Each agent should return the list of issues..."
+   - Agents 1+2: CLAUDE.md compliance (sonnet)
+   - Agent 3: Opus bug agent (scan diff for obvious bugs)
+   - Agent 4: Opus bug agent (look for problems in introduced code)
+   
+   Need to provide each agent with: PR title/description, the diff content, and CLAUDE.md content. The diff is very large so agents should focus on the latest commit's changes.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/flowclub/.REDACTED.jsonl
+Continue the conversation from where it left off without asking the user any further questions. Resume directly — do not acknowledge the summary, do not recap what was happening, do not preface with "I'll continue" or similar. Pick up the last task as if the break never happened.
+
+---
+
+<teammate-message teammate_id="system">
+{"type":"teammate_terminated","message":"pr-summarizer has shut down."}
+</teammate-message>
+
+<teammate-message teammate_id="pr-summarizer" color="red">
+{"type":"shutdown_approved","requestId":"shutdown-1772839508727@pr-summarizer","from":"pr-summarizer","timestamp":"2026-03-06T23:25:12.226Z","paneId":"in-process","backendType":"in-process"}
+</teammate-message>
+
+<teammate-message teammate_id="claude-md-review-1-2" color="orange" summary="Branch review: 16 commits, Coderegon Trail game feature">
+Here are my findings on the `pr-trail-game` branch:
+
+## Branch Overview
+
+The branch has **16 commits** ahead of `main`, modifying **43 files** with **+31,767 lines** added. The branch is up to date with `origin/pr-trail-game`.
+
+## What This Branch Does
+
+This branch builds out the **Coderegon Trail** feature — a retro pixel art Oregon Trail-style game that teaches web framework request pipelines. Key changes:
+
+### Core Features Added
+1. **Coderegon Trail game engine** — Self-contained HTML games with pixel art, keyboard controls, DOS-style visuals, and music
+2. **PR comprehension game mode** — Turns PR diffs into trail-style quiz games
+3. **Trail data extractor agent** — Auto-detects frameworks and extracts trail data from repos
+4. **Difficulty tiers and doc-sourced questions** — Multiple difficulty levels with questions pulled from actual docs
+
+### Generated Example Games (12 HTML files)
+- Framework trails: Next.js (OpenClaw), Django, Express, Laravel, Rails, React
+- External repo trails: pi-mono, qmd, ruview, shannon, spacetimedb, superpowers
+- An `index.html` landing page for GitHub Pages deployment
+
+### Supporting Infrastructure
+- `commands/fly-visual.md` — Main `/fly-visual` command spec (312 lines)
+- `agents/trail-data-extractor.md` and `agents/pr-trail-extractor.md` — Agent definitions
+- `skills/visualization/` — Game mechanics, pixel art style guide, framework trail definitions (3,141 lines in `framework-trails.md`)
+- `skills/narration/` — TTS narration specs, fly-through format, quiz generation
+- Shell scripts: `tts.sh`, `fly-pause.sh`, `open-viz.sh`
+- Config and shared instructions updates
+
+### Naming History
+The feature was renamed through the branch: Oregon Code Trail → O'Reorg Trail → Coderegon Trail
+
+## Status
+- No uncommitted changes (only an untracked `.entire/` directory)
+- Branch is up to date with remote
+- Latest commit: "Add difficulty tiers and doc-sourced questions to Coderegon Trail games"
+</teammate-message>
+
+<teammate-message teammate_id="claude-md-review-1-2" color="orange">
+{"type":"idle_notification","from":"claude-md-review-1-2","timestamp":"2026-03-08T21:41:00.278Z","idleReason":"available"}
+</teammate-message>
+
+<teammate-message teammate_id="claude-md-review-1-3" color="pink" summary="CLAUDE.md review: 6 issues found, mostly missing PR mode docs">
+Here are the issues I found in the CLAUDE.md review:
+
+## CLAUDE.md Issues Found
+
+### 1. Missing agent: `pr-trail-extractor.md`
+The Architecture section lists agents but omits `agents/pr-trail-extractor.md`, which was added in commit 47e97c7 (PR comprehension game mode). This agent analyzes PRs/git ranges to extract trail data for the game's PR mode.
+
+**Fix:** Add to the agents section:
+```
+  pr-trail-extractor.md  Analyzes PRs/git ranges and extracts trail data for PR-mode Coderegon Trail
+```
+
+### 2. Missing visualization reference: `pr-trail.md`
+The `skills/visualization/references/` section in the Architecture tree omits `pr-trail.md`, which defines PR-specific theming (Merge Frontier destination, GitHub purple flag color, etc.).
+
+**Fix:** Add to the visualization references:
+```
+    pr-trail.md          PR-mode theming overrides (title, colors, destination)
+```
+
+### 3. Missing script: `open-viz.sh`
+The scripts section lists `tts.sh`, `fly-pause.sh`, `lib/config.sh`, and `lib/utils.sh` but omits `scripts/open-viz.sh`, which writes HTML visualization files and opens them in the browser.
+
+**Fix:** Add to the scripts section:
+```
+  open-viz.sh          Write HTML viz file and open in browser
+```
+
+### 4. Execution flow missing PR mode
+The "Coderegon Trail" execution flow only describes the framework path. The `/fly-visual` command now also accepts PR numbers, PR URLs, and git ranges as arguments (added in commit 47e97c7). The flow should mention both modes.
+
+**Fix:** Update the Coderegon Trail execution flow to mention:
+- PR mode: Parse PR#/URL/git-range → `pr-trail-extractor` agent extracts trail data → generate HTML game with PR theming from `pr-trail.md` → destination is "Merge Frontier" instead of "Response Frontier"
+
+### 5. Supported Frameworks section is incomplete
+The list says "Next.js and OpenClaw have full trail data; others have stop outlines for Phase 2." But looking at the branch, there are now full HTML game files for Django, Rails, Express, React, and Laravel in addition to OpenClaw. The "Phase 2" language is stale — these frameworks appear to have full trail games now.
+
+**Fix:** Update to reflect that all 7 frameworks have full trail games (or at minimum remove the "Phase 2" qualifier and note that all have generated example games).
+
+### 6. Examples section is understated
+The architecture lists `examples/` with just example game files, but the actual examples directory only has `trail-openclaw.html`. Meanwhile, there are full game HTML files at the repo root level in framework-named directories (`django/index.html`, `rails/index.html`, etc.) plus an `index.html` landing page — none of which are documented.
+
+**Fix:** Document the framework game directories and `index.html` landing page, or at least mention them.
+
+### 7. Minor: `voice-personas.md` and `ranking.md` exist but may need verification
+These are listed in the Architecture tree and confirmed present on disk. No issue here.
+
+### Summary Table
+
+| # | Severity | Issue | Location |
+|---|----------|-------|----------|
+| 1 | Medium | Missing `pr-trail-extractor.md` agent | Architecture section |
+| 2 | Low | Missing `pr-trail.md` reference | Architecture section |
+| 3 | Low | Missing `open-viz.sh` script | Architecture section |
+| 4 | Medium | PR game mode not in execution flows | Key Execution Flows |
+| 5 | Medium | "Phase 2" language stale for frameworks | Supported Frameworks |
+| 6 | Low | Framework game dirs undocumented | Architecture section |
+| 7 | None | voice-personas.md / ranking.md OK | N/A |
+
+All issues stem from the PR trail game mode and framework game generation work (commits 47e97c7 through cb73faa) not being reflected back into the CLAUDE.md documentation.
+</teammate-message>
+
+<teammate-message teammate_id="claude-md-review-1-3" color="pink">
+{"type":"idle_notification","from":"claude-md-review-1-3","timestamp":"2026-03-08T21:42:03.273Z","idleReason":"available"}
+</teammate-message>
+
+<teammate-message teammate_id="bug-review-1" color="yellow" summary="Bug review complete - no significant bugs found">
+## Bug Review Results for PR #6
+
+I reviewed the diff across all 5 framework HTML files (django, express, rails, react, laravel) focusing on the difficulty filtering logic, badge rendering, and TRAIL_DATA structure.
+
+### No significant bugs found.
+
+Here is my analysis of each concern:
+
+**1. Is `difficulty` variable available in `advanceFromTravel()`?**
+Yes. `difficulty` is declared as a module-level `let` variable at line 152, initialized to `1`, reset in `resetGame()` (line 1499), and set from `selectedDifficulty` in `startGame()` (line 1539). It is properly in scope when used in `advanceFromTravel()` at line 1579.
+
+**2. Does DIFFICULTY_TIERS correctly map profession indices 0-3?**
+Yes. The array `[['easy'],['easy','medium'],['medium','hard'],['hard']]` has 4 elements mapping to indices 0 (Ralph Wiggum), 1 (Vibe Coder), 2 (Engineer), 3 (Staff Architect). The fallback `|| ['easy','medium','hard']` handles any unexpected index safely.
+
+**3. Could pendingEvents be empty, causing issues?**
+pendingEvents CAN be empty for certain profession/stop combinations (e.g., Staff Architect sees 0 events at 4 of 6 stops in Django). However, this is **not a bug** — the code handles it gracefully at lines 1584-1588:
+```javascript
+if (pendingEvents.length > 0) {
+    showNextEvent();
+} else {
+    enterStop();  // Just skips to the stop screen
+}
+```
+This is a design choice: harder professions see fewer but harder quiz events. The game flow is unaffected.
+
+**4. Is the diffBadge HTML safe from XSS?**
+Yes. The `event.difficulty` values come from static TRAIL_DATA (verified all values are exactly `"easy"`, `"medium"`, or `"hard"` across all 5 files). The `diffBadge` is intentionally raw HTML (a styled `<span>`) concatenated after `escHtml(event.title)`, so the title is properly escaped while the badge renders correctly.
+
+**5. Are the new TRAIL_DATA events properly formatted JSON?**
+Yes. All 5 files parse correctly. Each file has exactly 13 events (6 original + 7 new), all with valid `triggerStop`, `type`, `difficulty`, `title`, `text`, and `choices` fields. The JSON is well-formed (verified by parsing with Python's json module).
+</teammate-message>
+
+<teammate-message teammate_id="bug-review-1" color="yellow">
+{"type":"idle_notification","from":"bug-review-1","timestamp":"2026-03-09T14:24:08.244Z","idleReason":"available"}
+</teammate-message>
+
+---
+
+<teammate-message teammate_id="bug-review-2" color="purple" summary="Bug review complete - 3 significant issues found">
+## Bug Review Results for PR #6
+
+I found **3 significant issues** and **1 documentation inaccuracy**.
+
+---
+
+### Issue 1: Staff Architect (difficulty=3) gets 0 events at multiple stops
+
+**Severity: High -- affects gameplay**
+
+The `DIFFICULTY_TIERS[3]` is `['hard']`, but many stops have no hard events assigned to them. This means Staff Architect players will pass through stops with no events at all, making the game feel empty.
+
+Affected stops (across all 5 frameworks):
+- **Django**: Stops 1, 2, 4 have zero events for Staff Architect (only 4 total events out of 13)
+- **Rails**: Stops 1, 2, 3 have zero events (5 total)
+- **Express**: Stops 1, 2, 3, 6 have zero events (only 4 total)
+- **React**: Stops 1, 2, 4 have zero events (only 4 total)
+- **Laravel**: Stops 1, 2, 3, 4 have zero events (only 4 total)
+
+Similarly, Greenhorn (`['easy']` only) has 0 events at several stops in each framework. The documentation in `coderegon-trail.md` claims "each profession tier has at least 5 eligible events" but Staff Architect only has 4 in Django, Express, React, and Laravel.
+
+**Location**: TRAIL_DATA events in all 5 HTML files, and the event definitions in `skills/visualization/references/framework-trails.md`.
+
+**Why it matters**: With only 4 events spread across 8 stops, Staff Architect players will have 4-5 stops with zero quiz events. The game becomes mostly travel with no interactivity. This undermines the difficulty system's purpose.
+
+---
+
+### Issue 2: Rails Events 11 and 13 have wrong `concept` field -- "ERB Templates" instead of relevant concepts
+
+**Severity: Medium -- incorrect metadata displayed to players**
+
+Two new Rails events have clearly wrong concept tags:
+
+1. **Event 11** ("The Callback River") -- about ActiveRecord callbacks (before_save, after_save, etc.) -- has concept `"ERB Templates"`. Should be `"ActiveRecord"`.
+   - File: `skills/visualization/references/framework-trails.md:1675` and `rails/index.html` TRAIL_DATA
+
+2. **Event 13** ("Thread Safety Disaster!") -- about Puma thread safety and `@@current_user` class variables -- has concept `"ERB Templates"`. Should be `"Rack Middleware"` or a general concept.
+   - File: `skills/visualization/references/framework-trails.md:1697` and `rails/index.html` TRAIL_DATA
+
+**Why it matters**: The concept field is displayed in the game as metadata. Showing "ERB Templates" for a question about ActiveRecord callbacks or thread safety is confusing to players.
+
+---
+
+### Issue 3: Express Event 8 incorrect answer explanation claims Express 4 doesn't support regex route params
+
+**Severity: Low -- misleading but doesn't break gameplay**
+
+Express Event 8 ("Route Parameter Storm!") marks `/users/:id(\\d+)` as incorrect with the explanation: "Express 4 doesn't have built-in parameter type validation in route patterns."
+
+This is factually wrong. Express 4 **does** support regex constraints in route parameters. The syntax `/users/:id(\\d+)` is documented and works. While route ordering is the simpler fix and a better teaching point, the explanation should not claim the regex approach doesn't exist.
+
+**Location**: `skills/visualization/references/framework-trails.md:1596`
+
+---
+
+### Documentation Inaccuracy (not a bug):
+
+The new `coderegon-trail.md` difficulty documentation states "each profession tier has at least 5 eligible events" but the actual data shows Staff Architect has only 4 eligible events in 4 of the 5 frameworks. The documentation also mentions "picks up to 6 events from the filtered pool (shuffled if pool > 6)" but the game code shows ALL matching events at each stop with no pool limit or shuffle.
+
+---
+
+### Verified Working:
+- DIFFICULTY_TIERS array is consistent across all 5 HTML files
+- allowedTiers filter logic is identical across all 5 HTML files
+- diffBadge rendering is consistent across all 5 HTML files
+- Fortune events correctly have `type: "fortune"` and are correctly bypassed by the difficulty filter
+- All quiz answers I sampled (beyond the Express regex issue) are factually correct
+- The concept change from "Admin Panel" to "ORM QuerySets" for Django Event 6 is reasonable
+</teammate-message>
+
+<teammate-message teammate_id="claude-md-review-2" color="green" summary="CLAUDE.md review: 4 TTS sentence length violations found">
+## CLAUDE.md Compliance Review - express/index.html, react/index.html, laravel/index.html
+
+### Issues Found
+
+**1. TTS sentence length violations (CLAUDE.md adherence)**
+
+Rule: "Narration must be conversational and TTS-friendly: sentences under 25 words"
+
+The newly added events introduce sentences exceeding 25 words in event text and choice explanations. These violations are all in new content added by this PR (the pre-existing 6 events per file had no such issues):
+
+- **express/index.html**: Event 12 ("A Middleware Teacher Appears"), choice 0 explanation has a 30-word sentence: "Calling next with any argument (except 'route') tells Express to skip all normal..."
+- **react/index.html**: Event 2 ("The Navigation River"), choice 0 explanation has a 26-word sentence; Event 7 ("Missing Key Prop Storm!"), choice 0 explanation has a 27-word sentence
+- **laravel/index.html**: Event 2 ("A Route Model Binding Expert Appears") event text has a 28-word sentence
+
+### No Issues Found (Verified Compliant)
+
+- **Self-contained HTML**: All three files remain fully self-contained with all CSS, JS, and game data inline. No external `<link>` or `<script src>` tags. Compliant with: "Coderegon Trail games are self-contained HTML files — all CSS, JS, and game data inline, no external dependencies"
+- **Stop count**: All three files have exactly 8 stops each, mapping framework request/render pipelines. Compliant with: "Trail data maps framework request/render pipelines to ~8 stops with code snippets, narration, and quiz events"
+- **Event types**: All events use only the documented types (weather, river, encounter, misfortune, fortune). Compliant with CLAUDE.md game loop specification.
+- **Quiz question quality**: All new questions test understanding (why/what-if/trace patterns), not memorization. Compliant with: "Quiz questions test understanding (why/what-if/trace), never memorization"
+- **PROFESSIONS and DIFFICULTY_TIERS**: Identical across all three files. Game logic is consistent.
+- **Stop narration**: All stop narration sentences are under 25 words across all three files.
+- **No model/agent config changes**: These HTML game files don't contain agent/model configurations, so the "Agents use model sonnet; commands use opus" rule is not applicable here.
+</teammate-message>
+
+<teammate-message teammate_id="bug-review-2" color="purple">
+{"type":"idle_notification","from":"bug-review-2","timestamp":"2026-03-09T19:56:34.460Z","idleReason":"available"}
+</teammate-message>
+
+<teammate-message teammate_id="claude-md-review-2" color="green">
+{"type":"idle_notification","from":"claude-md-review-2","timestamp":"2026-03-09T19:56:35.655Z","idleReason":"available"}
+</teammate-message>
+
+---
+
+<teammate-message teammate_id="claude-md-review-1" color="blue" summary="CLAUDE.md review 1 complete - no violations found">
+## CLAUDE.md Compliance Review - First Half (framework-trails.md, coderegon-trail.md, django/index.html, rails/index.html)
+
+**Result: No clear, unambiguous CLAUDE.md violations found.**
+
+### Rules Checked
+
+1. **"Coderegon Trail games are self-contained HTML files -- all CSS, JS, and game data inline, no external dependencies"**
+   - PASS: Both django/index.html and rails/index.html have zero external `<script src>` or `<link href>` tags. All CSS, JS, and TRAIL_DATA are inline. No CDN references.
+
+2. **"Trail data maps framework request/render pipelines to ~8 stops with code snippets, narration, and quiz events"**
+   - PASS: Django has 8 stops, Rails has 8 stops. All stops include code snippets, narration, and the new events are quiz events with choices.
+
+3. **"Agents use model sonnet; commands use opus"**
+   - N/A: No agent or command markdown files were modified in this diff.
+
+4. **"Quiz questions test understanding (why/what-if/trace), never memorization; evaluation is generous with partial credit"**
+   - PASS: All new questions test understanding. Examples: "What does the resources macro give you?", "What went wrong with the migration?", "What is the main risk of overusing signals?", "What's wrong with your error handler?" These are comprehension/reasoning questions, not memorization.
+
+5. **"Narration must be conversational and TTS-friendly: sentences under 25 words, say 'slash' for paths"**
+   - N/A for event text: Event questions and explanations are rendered as HTML text in the browser game, not narrated via TTS. The TTS convention applies to the `narration` field on stops, which were not changed. New explanation text does use "slash" appropriately (e.g., "GET slash articles maps to index").
+
+6. **Self-contained data integrity**: Django has 13 events (within the documented 12-15 range), Rails has 13 events (same). All events have valid `difficulty` fields (easy/medium/hard). Event types (weather/encounter/river/misfortune/fortune) all match the documented event types.
+
+7. **Difficulty filtering logic**: The HTML games implement `DIFFICULTY_TIERS = [['easy'],['easy','medium'],['medium','hard'],['hard']]` which correctly maps to the professions documented in the new coderegon-trail.md section (Ralph Wiggum=easy only, Vibe Coder=easy+medium, Engineer=medium+hard, Staff Architect=hard only). Fortune events bypass difficulty filtering as documented.
+
+### Minor Observation (NOT a violation)
+The new coderegon-trail.md doc says "picks up to 6 events from the filtered pool (shuffled if pool > 6)" but the actual game code shows all filtered events per stop without capping at 6. This is a doc-vs-implementation mismatch but not a CLAUDE.md convention violation -- it's internal consistency within the PR's own new documentation.
+</teammate-message>
+
+<teammate-message teammate_id="claude-md-review-1" color="blue">
+{"type":"idle_notification","from":"claude-md-review-1","timestamp":"2026-03-09T20:01:35.421Z","idleReason":"available"}
+</teammate-message>
+
+---
+
+can we fix these issues
+
+---
+
+great, push
+
+---
+
+Commit and push this code, and if we're on a feature branch and there's not already a PR against dev, create one. If we're on the default (main or dev) branch, ask for confirmation before pushing.
+
+After creating a PR (or if one already exists), run `/code-review:code-review` on it.
