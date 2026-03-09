@@ -721,7 +721,7 @@ Follow an HTTP request through the full Rails request pipeline: from the Rack en
   - "Use conditional callbacks with if: or unless: guards, and consider moving side effects to service objects for complex operations" (correct) — "Callbacks with guards like after_save :notify_subscribers, if: :published_changed? only fire when relevant. For complex side effects like API syncs, service objects make the flow explicit. The key principle: callbacks should be for data consistency, not business workflows."
   - "Remove all callbacks and put everything in the controller" (incorrect) — "Moving all logic to controllers means duplicating it everywhere articles are saved — admin panel, background jobs, console. Some callbacks like data normalization belong on the model. The issue is indiscriminate callbacks, not callbacks as a concept."
   - "Override the save method to control exactly what runs on each save" (incorrect) — "Overriding save is fragile — you need to remember to call super, and you lose the declarative clarity of named callbacks with conditions. Conditional callbacks and service objects give you the same control with better maintainability."
-- **concept**: "ERB Templates"
+- **concept**: "ActiveRecord"
 - **difficulty**: hard
 
 #### Event 12 (after Stop 5): Misfortune — The Nested Route Trap
@@ -743,7 +743,7 @@ Follow an HTTP request through the full Rails request pipeline: from the Rack en
   - "Never use class variables or class-level instance variables for per-request state — use Current attributes or pass state through method parameters" (correct) — "Class variables are shared across all threads in a process. When two requests run simultaneously, they overwrite each other's @@current_user. Rails provides CurrentAttributes (ActiveSupport::CurrentAttributes) for thread-safe per-request state, or you can simply pass the user as a parameter."
   - "Switch from Puma to a single-threaded server like WEBrick to avoid the issue" (incorrect) — "Single-threaded servers solve the symptom by eliminating concurrency, but they cannot handle production traffic. The root cause is shared mutable state. Fix the architecture, don't cripple your infrastructure."
   - "Add a mutex lock around the class variable to prevent simultaneous access" (incorrect) — "A mutex would prevent data races but would serialize all requests through a bottleneck — destroying concurrency benefits entirely. The fix is to not share per-request state across threads at all."
-- **concept**: "ERB Templates"
+- **concept**: "Rack Middleware"
 - **difficulty**: hard
 
 #### Event 14 (after Stop 3): Weather — The Metaprogramming Trap
@@ -1593,7 +1593,7 @@ Follow an HTTP request from server startup through Express's middleware chain, C
 - **text**: "A storm of 404 errors hits your API. You have two routes: app.get('/users/:id', getUser) and app.get('/users/search', searchUsers). Every request to /users/search returns a 404 because getUser is trying to find a user with ID 'search'."
 - **choices**:
   - "Move the /users/search route BEFORE /users/:id — Express matches routes in registration order and :id matches any string" (correct) — "The :id parameter matches any string, including 'search'. Express checks routes top to bottom and stops at the first match. Putting the specific /users/search route first ensures it matches before the wildcard :id catches it."
-  - "Change the parameter to a number type: /users/:id(\\d+) to exclude non-numeric values" (incorrect) — "Express 4 doesn't have built-in parameter type validation in route patterns. While regex-based routes exist, the simpler and more idiomatic fix is route ordering. Specific routes go before parameterized ones."
+  - "Change the parameter to a number type: /users/:id(\\d+) to exclude non-numeric values" (incorrect) — "While /users/:id(\\d+) with regex works in Express 4, it only solves this specific case. Route ordering is the fundamental concept — specific routes before parameterized ones. Understanding top-to-bottom matching prevents this entire class of bugs."
   - "Use a query parameter instead: /users?search=term" (incorrect) — "Query parameters work but change the API design. The root cause is route ordering, not URL design. Understanding that Express matches top-to-bottom is a fundamental concept for any Express developer."
 - **concept**: "Route Handlers"
 - **difficulty**: easy
