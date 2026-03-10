@@ -233,9 +233,9 @@ Each framework has 12-15 events at three difficulty tiers. The player's chosen p
 | Engineer | `medium` + `hard` | "Why/how" + "Spot the bug" / "Trace the flow" |
 | Staff Architect | `hard` only | Deep tradeoff questions, no hints |
 
-The game filters events by difficulty tier based on the selected profession, then picks up to 6 events from the filtered pool (shuffled if pool > 6). Fortune events (rewards) trigger on answer streaks regardless of tier.
+The game filters events by difficulty tier based on the selected profession. All matching events at each stop are shown (no cap or shuffle). Fortune events (rewards) bypass the difficulty filter and trigger on answer streaks regardless of tier.
 
-Each playthrough still presents ~6 events. With 12-15 events per framework across three tiers, each profession tier has at least 5 eligible events.
+Each framework has 15 events across three tiers and ~6 stops. Each profession tier has at least 5 eligible events.
 
 ### Tier Guidelines
 

@@ -16,6 +16,7 @@ commands/          User-facing CLI commands (markdown specs)
 
 agents/            Claude-powered analysis agents (model: sonnet)
   trail-data-extractor.md  Detects framework in a repo and extracts trail data for Coderegon Trail
+  pr-trail-extractor.md    Analyzes PRs/git ranges and extracts trail data for PR-mode Coderegon Trail
   diff-narrator.md         Analyzes diffs, generates TTS-friendly narration + fly-through snippet plans
   codebase-narrator.md     Analyzes codebase structure for walkthroughs + fly-through snippet plans
   domain-splitter.md       Splits codebase into 2-4 domains for team mode
@@ -27,6 +28,7 @@ skills/visualization/  Coderegon Trail game generation guidelines
     coderegon-trail.md      Complete game mechanics, event types, scoring, death messages
     framework-trails.md  Per-framework trail definitions (stops, events, party members)
     pixel-art-style.md   Visual style guide, color palette, canvas rendering, layout specs
+    pr-trail.md          PR-mode theming overrides (title, colors, destination)
 
 skills/narration/  TTS narration generation guidelines
   SKILL.md             Core narration principles, verbosity levels, fly-through + quiz templates
@@ -42,6 +44,7 @@ lib/               Shared cross-cutting instructions
 scripts/           Shell infrastructure
   tts.sh             Universal TTS wrapper (macOS say + OpenAI API fallback)
   fly-pause.sh       TTS duration estimator + pause for fly-through auto-advance
+  open-viz.sh        Write HTML viz file and open in browser
   lib/config.sh      Config file loader (JSON via jq)
   lib/utils.sh       Shared shell utilities
 
@@ -53,9 +56,11 @@ examples/          Example generated game files
 
 **Coderegon Trail (`/fly-visual`):** Parse framework arg (or auto-detect from repo) → extract trail data from `framework-trails.md` or via `trail-data-extractor` agent → generate self-contained HTML game via `frontend-design` skill → write HTML file and open in browser → game plays in browser (title → setup → travel/stop/event loop → win or death)
 
-**Coderegon Trail Game Loop:** Title screen → party setup (4 members = framework concepts) → travel between ~8 stops (each = a pipeline stage with code + narration) → quiz events between stops (weather/river/encounter/misfortune/fortune) → wrong answers damage health and party members → arrive at Response Frontier to win, or die trying
+**Coderegon Trail Game Loop:** Title screen → party setup (4 members = framework concepts) → travel between ~8 stops (each = a pipeline stage with code + narration) → quiz events between stops (weather/river/encounter/misfortune/fortune), filtered by profession difficulty tier → wrong answers damage health and party members → arrive at Response Frontier to win, or die trying
 
-**Supported Frameworks:** Next.js (App Router Trail), Rails (Convention Trail), Django (WSGI Wagon Trail), Express (Middleware Prairie), React/Vite (Component Canyon), Laravel (Artisan Trail), OpenClaw (Gateway Trail). Next.js and OpenClaw have full trail data; others have stop outlines for Phase 2.
+**Coderegon Trail PR Mode:** Parse PR#/URL/git-range → `pr-trail-extractor` agent extracts trail data from diff → generate HTML game with PR theming from `pr-trail.md` → destination is "Merge Frontier" instead of "Response Frontier"
+
+**Supported Frameworks:** Next.js (App Router Trail), Rails (Convention Trail), Django (WSGI Wagon Trail), Express (Middleware Prairie), React/Vite (Component Canyon), Laravel (Artisan Trail), OpenClaw (Gateway Trail). All frameworks have full trail data with 15 events each at three difficulty tiers (easy/medium/hard).
 
 **Diff Review:** Parse target args → fetch diff (git/gh) → group files into logical sections → rank by importance (1=core logic, 7=config) → present overview → walk through sections with TTS narration → handle navigation commands
 
