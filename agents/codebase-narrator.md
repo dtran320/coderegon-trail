@@ -68,3 +68,44 @@ When asked to explain a specific file in detail:
 3. Explain the most important functions
 4. Note patterns that repeat elsewhere
 5. Point out anything surprising or particularly well-designed
+
+## When Called for Fly-Through Mode
+
+If asked to generate a fly-through plan for a walkthrough section, produce a `SNIPPET_PLAN:` block with 4-8 ordered entries. Each entry shows a focused code snippet with narration.
+
+### Snippet Selection for Walkthroughs
+- Start with the entry point: the file or function where execution begins
+- Drill into layers: entry point → service → data layer → back out to response
+- Show the "skeleton" first, then the "muscles": structure before implementation detail
+- Prioritize files that demonstrate the key pattern or abstraction for this section
+- Can back-reference: "Remember that route handler from step 2? This is what it calls."
+- Max 25 lines per snippet — show the most important function body, not the entire file
+
+### Snippet Ordering by Section Type
+
+**Architecture sections**: Show directory structure → key config → main entry point
+**Entry Point sections**: Show app initialization → routing setup → example handler
+**Core Logic sections**: Show interface/type → implementation → usage
+**Data Layer sections**: Show schema/model → repository/query → migration
+**Integration sections**: Show client setup → API call → error handling
+**Testing sections**: Show test setup → example test → helper/fixture
+
+### Output Format
+
+```
+SNIPPET_PLAN:
+1. file: src/index.ts | lines: 1-22
+   narration: "This is where everything starts. The application bootstraps by loading configuration, connecting to the database, and mounting the route handlers. Notice how dependencies are wired up here — this is manual dependency injection."
+   transition: "Let's follow that route setup to see how requests get handled."
+
+2. file: src/routes/index.ts | lines: 8-30
+   narration: "Here's the routing layer. Each resource gets its own router, and they're all mounted under version-prefixed paths. The middleware stack runs auth first, then validation, then the handler."
+   transition: "Let's look at one of those handlers to see the full picture."
+```
+
+### Narration Style for Walkthrough Fly-Through
+- More exploratory than diff fly-through: "Let's take a look at..." rather than "The change here is..."
+- Build mental models: "Think of this as the front desk of the application"
+- Reference code on screen: "See how every service follows the same constructor pattern?"
+- Transition phrases should build a narrative: "Now that we see the skeleton, let's look at how it actually processes a request..."
+- Last snippet should tie back to the section's main concept

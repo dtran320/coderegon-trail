@@ -5,7 +5,12 @@
       "Bash(wc:*)",
       "Bash(npx skills:*)",
       "Bash(say:*)",
-      "Bash(git -C /Users/flowclub/code/diff-pair-review log --oneline --all)"
+      "Bash(git -C /Users/flowclub/code/diff-pair-review log --oneline --all)",
+      "WebSearch",
+      "Bash(gh repo view:*)",
+      "Bash(gh api:*)",
+      "Bash(gh pr list:*)",
+      "Bash(open:*)"
     ]
   }
 }

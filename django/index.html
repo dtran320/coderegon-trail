@@ -1,0 +1,1997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Coderegon Trail - Django Edition</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100vh;
+  overflow: hidden;
+  background: #000;
+  font-family: 'Courier New', monospace;
+  color: #AAAAAA;
+}
+#game-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+#canvas-area {
+  height: 52vh;
+  min-height: 0;
+  position: relative;
+  background: #000;
+}
+#game-canvas {
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  display: block;
+}
+#text-panel {
+  flex: 1;
+  min-height: 0;
+  background: #000;
+  border-top: 2px solid #555555;
+  overflow-y: auto;
+  padding: 8px 16px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #FFFFFF;
+}
+#text-panel::-webkit-scrollbar { width: 8px; }
+#text-panel::-webkit-scrollbar-track { background: #000; }
+#text-panel::-webkit-scrollbar-thumb { background: #555555; }
+#status-bar {
+  height: 60px;
+  min-height: 60px;
+  background: #000;
+  border-top: 2px solid #555555;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  font-size: 15px;
+  color: #AAAAAA;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.blink {
+  animation: blink-anim 1s step-end infinite;
+}
+@keyframes blink-anim {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+.shake { animation: shake 0.5s ease-in-out; }
+.code-box {
+  background: #272822;
+  border: 1px solid #555555;
+  padding: 6px 8px;
+  margin: 6px 0;
+  max-height: 130px;
+  overflow-y: auto;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.3;
+  white-space: pre;
+  color: #f8f8f2;
+}
+.code-box::-webkit-scrollbar { width: 6px; height: 6px; }
+.code-box::-webkit-scrollbar-track { background: #272822; }
+.code-box::-webkit-scrollbar-thumb { background: #555555; }
+.choice-item { cursor: pointer; padding: 2px 4px; }
+.choice-item:hover { color: #FFFF55; }
+.choice-selected { color: #FFFF55; background: #333300; }
+.stop-opt { color: #55FFFF; cursor: pointer; padding: 2px 4px; }
+.stop-opt:hover { color: #FFFF55; }
+.choice-correct { color: #55FF55; }
+.choice-wrong { color: #FF5555; }
+.choice-dimmed { color: #555555; }
+.health-green { color: #00AA00; }
+.health-yellow { color: #FFFF55; }
+.health-red { color: #FF5555; }
+.health-dead { color: #555555; text-decoration: line-through; }
+.text-cyan { color: #55FFFF; }
+.text-yellow { color: #FFFF55; }
+.text-green { color: #55FF55; }
+.text-red { color: #FF5555; }
+.text-magenta { color: #FF55FF; }
+.text-gray { color: #555555; }
+.text-white { color: #FFFFFF; }
+.text-bright { color: #FFFFFF; font-weight: bold; }
+#music-indicator {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  font-size: 11px;
+  color: #555555;
+  z-index: 10;
+  pointer-events: none;
+}
+</style>
+</head>
+<body>
+<div id="game-container">
+  <div id="canvas-area">
+    <canvas id="game-canvas" width="320" height="200"></canvas>
+    <div id="music-indicator">M: Music</div>
+  </div>
+  <div id="text-panel"></div>
+  <div id="status-bar"></div>
+</div>
+
+<script>
+// =====================================================================
+// TRAIL DATA
+// =====================================================================
+const TRAIL_DATA={"framework": "django", "trailName": "The WSGI Wagon Trail", "stops": [{"name": "WSGI Outpost", "subtitle": "The Entry Point", "concept": "WSGI Application", "landmarkType": "town", "code": {"file": "myproject/wsgi.py:1-18", "content": "# myproject/wsgi.py\nimport os\nfrom django.core.wsgi import get_wsgi_application\n\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'myproject.settings')\n\napplication = get_wsgi_application()\n\n# What get_wsgi_application() does under the hood:\n# 1. Reads DJANGO_SETTINGS_MODULE from environment\n# 2. Calls django.setup() — imports all apps, runs AppConfig.ready()\n# 3. Returns a WSGIHandler instance\n#\n# The WSGIHandler is a callable:\n#   def __call__(self, environ, start_response):\n#       request = WSGIRequest(environ)\n#       response = self.get_response(request)\n#       return response", "language": "python"}, "narration": "Every Django journey begins at the WSGI Outpost. This tiny file is what your web server — Gunicorn, uWSGI, or the dev server — actually calls. It sets the settings module, then hands back a WSGIHandler. That handler is the gateway into Django. When a request arrives, it wraps the raw WSGI environ dict into a friendly WSGIRequest object. One environment variable controls everything: DJANGO_SETTINGS_MODULE. Get that wrong, and the wagon never leaves town."}, {"name": "Middleware Mountains", "subtitle": "The Request Stack", "concept": "Middleware Pipeline", "landmarkType": "mountain", "code": {"file": "myproject/settings.py:40-62", "content": "# myproject/settings.py\nMIDDLEWARE = [\n    'django.middleware.security.SecurityMiddleware',\n    'django.contrib.sessions.middleware.SessionMiddleware',\n    'django.middleware.common.CommonMiddleware',\n    'django.middleware.csrf.CsrfViewMiddleware',\n    'django.contrib.auth.middleware.AuthenticationMiddleware',\n    'django.contrib.messages.middleware.MessageMiddleware',\n    'django.middleware.clickjacking.XFrameOptionsMiddleware',\n]\n\n# Each middleware is a class with hooks:\n# class SecurityMiddleware:\n#     def __init__(self, get_response):\n#         self.get_response = get_response\n#\n#     def __call__(self, request):\n#         # Pre-view logic (runs top-down)\n#         response = self.get_response(request)\n#         # Post-view logic (runs bottom-up)\n#         return response", "language": "python"}, "narration": "Welcome to Middleware Mountains. This ordered list is the backbone of Django's request processing. Each middleware wraps the next one like Russian nesting dolls. On the way in, they run top to bottom — security first, then sessions, then CSRF protection. On the way out, they run in reverse. Order matters enormously here. Put AuthenticationMiddleware before SessionMiddleware and your users will never be logged in. The middleware stack is Django's immune system."}, {"name": "URLconf Crossroads", "subtitle": "Path Resolution", "concept": "URL Routing", "landmarkType": "camp", "code": {"file": "myproject/urls.py:1-22", "content": "# myproject/urls.py\nfrom django.contrib import admin\nfrom django.urls import path, include\n\nurlpatterns = [\n    path('admin/', admin.site.urls),\n    path('api/', include('api.urls')),\n    path('blog/', include('blog.urls')),\n]\n\n# blog/urls.py\nfrom django.urls import path\nfrom . import views\n\napp_name = 'blog'\n\nurlpatterns = [\n    path('', views.post_list, name='post-list'),\n    path('<int:pk>/', views.post_detail, name='post-detail'),\n    path('<slug:slug>/', views.post_by_slug, name='post-slug'),\n    path('<int:pk>/comment/', views.add_comment, name='add-comment'),\n]", "language": "python"}, "narration": "You've reached the URLconf Crossroads. Django resolves URLs by walking through urlpatterns top to bottom until something matches. The include function is the key — it delegates to app-level URL files, keeping things modular. Angle brackets define path converters: int colon pk captures a number, slug colon slug captures a URL-safe string. The name argument is crucial — it lets you reverse URLs in templates and views without hardcoding paths. If nothing matches, Django raises a 404."}, {"name": "View Vista", "subtitle": "Request Handlers", "concept": "Views and Request Handling", "landmarkType": "forest", "code": {"file": "blog/views.py:1-25", "content": "# blog/views.py\nfrom django.shortcuts import render, get_object_or_404\nfrom django.views.generic import ListView, DetailView\nfrom django.http import Http404\nfrom .models import Post, Comment\n\n# Function-based view — explicit and flexible\ndef post_detail(request, pk):\n    post = get_object_or_404(Post, pk=pk, status='published')\n    comments = post.comments.filter(active=True)\n    return render(request, 'blog/post_detail.html', {\n        'post': post,\n        'comments': comments,\n    })\n\n# Class-based view — DRY for common patterns\nclass PostListView(ListView):\n    model = Post\n    queryset = Post.objects.filter(status='published')\n    template_name = 'blog/post_list.html'\n    context_object_name = 'posts'\n    paginate_by = 10\n    ordering = ['-publish_date']", "language": "python"}, "narration": "Welcome to View Vista, where requests become responses. Django gives you two styles. Function-based views are explicit — you see every step, from fetching the object to picking the template. Class-based views like ListView handle boilerplate automatically — pagination, queryset filtering, and template selection all come free. The get_object_or_404 shortcut is Django magic: it either finds your object or raises a 404 with zero extra code. Most Django developers use both styles depending on complexity."}, {"name": "ORM Oasis", "subtitle": "Data Access Layer", "concept": "ORM QuerySets", "landmarkType": "desert", "code": {"file": "blog/models.py:1-25", "content": "# blog/models.py\nfrom django.db import models\nfrom django.contrib.auth.models import User\nfrom django.utils import timezone\n\nclass Post(models.Model):\n    title = models.CharField(max_length=200)\n    slug = models.SlugField(max_length=200, unique_for_date='publish_date')\n    author = models.ForeignKey(User, on_delete=models.CASCADE,\n                               related_name='blog_posts')\n    body = models.TextField()\n    publish_date = models.DateTimeField(default=timezone.now)\n    status = models.CharField(max_length=10,\n                              choices=[('draft', 'Draft'), ('published', 'Published')],\n                              default='draft')\n\n    class Meta:\n        ordering = ['-publish_date']\n        indexes = [models.Index(fields=['-publish_date'])]\n\n    def __str__(self):\n        return self.title\n\n    # QuerySet usage:\n    # Post.objects.filter(status='published', author__username='alice')\n    # Returns SQL: SELECT * FROM blog_post WHERE status='published'\n    #              AND author_id IN (SELECT id FROM auth_user WHERE username='alice')", "language": "python"}, "narration": "You've reached the ORM Oasis — Django's most powerful feature. Each model class maps to a database table. Fields like CharField and ForeignKey define both the Python API and the database schema. The double-underscore syntax in QuerySets is where it gets interesting — author double-underscore username lets you traverse relationships without writing joins. Django builds the SQL for you. The Meta class controls ordering, indexes, and constraints. And that on_delete parameter on ForeignKey? It's not optional. Django forces you to think about data integrity from day one."}, {"name": "Template Territory", "subtitle": "Rendering HTML", "concept": "Template Engine", "landmarkType": "camp", "code": {"file": "templates/blog/post_detail.html:1-22", "content": "{% extends \"base.html\" %}\n{% load humanize %}\n\n{% block title %}{{ post.title }}{% endblock %}\n\n{% block content %}\n<article>\n    <h1>{{ post.title }}</h1>\n    <p class=\"meta\">\n        By {{ post.author.get_full_name }} |\n        {{ post.publish_date|naturaltime }}\n    </p>\n    {{ post.body|linebreaks }}\n</article>\n\n{% for comment in comments %}\n    <div class=\"comment\">\n        <strong>{{ comment.name }}</strong>\n        <p>{{ comment.body|truncatewords:50 }}</p>\n    </div>\n{% empty %}\n    <p>No comments yet.</p>\n{% endfor %}\n{% endblock %}", "language": "html"}, "narration": "Welcome to Template Territory. That extends tag on line one is everything — it says this template inherits from base dot html. The block tags define regions that child templates can override. Filters after the pipe symbol transform data: naturaltime turns a datetime into 'two hours ago,' linebreaks converts newlines to HTML paragraphs. The for-empty pattern is classic Django — it handles the empty list case right in the loop. Templates are deliberately limited in power. No arbitrary Python allowed. That's a feature, not a bug — it keeps business logic in views where it belongs."}, {"name": "Context Canyon", "subtitle": "Assembling the Data", "concept": "Context Processors", "landmarkType": "river", "code": {"file": "myproject/settings.py:55-75", "content": "# myproject/settings.py\nTEMPLATES = [{\n    'BACKEND': 'django.template.backends.django.DjangoTemplates',\n    'DIRS': [BASE_DIR / 'templates'],\n    'APP_DIRS': True,\n    'OPTIONS': {\n        'context_processors': [\n            'django.template.context_processors.debug',\n            'django.template.context_processors.request',\n            'django.contrib.auth.context_processors.auth',\n            'django.contrib.messages.context_processors.messages',\n            'blog.context_processors.site_settings',\n        ],\n    },\n}]\n\n# blog/context_processors.py\nfrom .models import Category\n\ndef site_settings(request):\n    \"\"\"Inject site-wide data into every template context.\"\"\"\n    return {\n        'categories': Category.objects.filter(active=True),\n        'site_name': 'My Django Blog',\n        'current_year': request.META.get('SERVER_NAME', ''),\n    }", "language": "python"}, "narration": "Now we cross Context Canyon — the bridge between your data and your templates. Context processors run on every single request that uses a template. They inject variables that are available everywhere without passing them explicitly. The auth processor gives you the user object. The messages processor provides flash messages. Your custom processor here adds categories and the site name to every page. Be careful though — a context processor that runs an expensive query will slow down every page load. This is global state, so use it wisely."}, {"name": "Response Frontier", "subtitle": "Sending the Reply", "concept": "HTTP Responses", "landmarkType": "town", "code": {"file": "blog/views.py:30-55", "content": "# blog/views.py\nfrom django.http import (\n    HttpResponse, JsonResponse, StreamingHttpResponse,\n    HttpResponseRedirect,\n)\nfrom django.template.loader import render_to_string\n\ndef post_api(request, pk):\n    \"\"\"JSON API endpoint.\"\"\"\n    post = get_object_or_404(Post, pk=pk, status='published')\n    return JsonResponse({\n        'title': post.title,\n        'body': post.body,\n        'author': post.author.username,\n        'published': post.publish_date.isoformat(),\n    })\n\ndef export_posts(request):\n    \"\"\"Stream large CSV export without loading all into memory.\"\"\"\n    def generate_rows():\n        yield 'title,author,date\\n'\n        for post in Post.objects.filter(status='published').iterator():\n            yield f'{post.title},{post.author.username},{post.publish_date}\\n'\n\n    response = StreamingHttpResponse(generate_rows(), content_type='text/csv')\n    response['Content-Disposition'] = 'attachment; filename=\"posts.csv\"'\n    return response", "language": "python"}, "narration": "You made it to the Response Frontier! Every view must return an HttpResponse — that's Django's one unbreakable rule. JsonResponse handles API endpoints, automatically serializing dicts to JSON and setting the content type. StreamingHttpResponse is the power tool — it yields chunks instead of building the whole response in memory. Perfect for large exports. Notice the iterator call on the QuerySet — it fetches rows one at a time instead of loading thousands into memory. The response travels back up through the middleware stack in reverse, picking up headers and cookies along the way. Your wagon has arrived."}], "events": [{"type": "weather", "trigger": "after_stop", "triggerStop": 1, "title": "Middleware Ordering Storm!", "text": "A violent storm hits your wagon train. Your Django app is throwing 403 Forbidden on every POST request, even from logged-in users. You recently reordered the MIDDLEWARE list to 'clean it up.' What went wrong?", "choices": [{"text": "CsrfViewMiddleware must come after SessionMiddleware because CSRF validation depends on the session", "correct": true, "explanation": "Exactly right. CsrfViewMiddleware reads the CSRF token from the session cookie, which SessionMiddleware sets up. If CSRF runs first, there's no session to read from — so every POST fails validation. Middleware order is a dependency chain, not just a list."}, {"text": "You need to add the csrf_exempt decorator to every view", "correct": false, "explanation": "That would disable CSRF protection entirely, leaving your app vulnerable to cross-site request forgery attacks. The real fix is getting the middleware order right so CSRF works correctly with the session."}, {"text": "You should switch from CSRF tokens to a custom authentication header", "correct": false, "explanation": "CSRF protection and authentication are different concerns. CSRF prevents other sites from submitting forms as your users. Replacing it with a custom header would break standard HTML form submissions and leave you writing security code that Django already provides."}], "concept": "Middleware Pipeline", "difficulty": "medium"}, {"type": "encounter", "trigger": "after_stop", "triggerStop": 2, "title": "A Django Elder Appears", "text": "A wise traveler shows you two templates. The first has <a href='/blog/42/'>. The second has <a href='{% url \"blog:post-detail\" pk=post.pk %}'>. 'One of these will break when you change your URL patterns,' the elder says. Which approach is better and why?", "choices": [{"text": "The url template tag with named routes — it generates URLs dynamically so they never go stale", "correct": true, "explanation": "Spot on. The url tag resolves the named route at render time. If you change the URL pattern from blog slash to articles slash, every link updates automatically. Hardcoded paths silently break and you won't know until a user hits a 404."}, {"text": "The hardcoded path — it's simpler and there's no performance overhead from URL resolution", "correct": false, "explanation": "URL resolution is extremely fast — Django caches the URL patterns. The tiny performance difference is meaningless compared to the maintenance nightmare of finding and updating every hardcoded URL when patterns change."}, {"text": "It doesn't matter — Django automatically redirects old URLs to new ones", "correct": false, "explanation": "Django does not automatically redirect old URLs. You would need to manually add redirect rules. Named URL reversal avoids the problem entirely because links are always generated from the current URL configuration."}], "concept": "URL Routing", "difficulty": "easy"}, {"type": "river", "trigger": "after_stop", "triggerStop": 3, "title": "The View Architecture River", "text": "You've reached a wide river. Your blog app needs a view that lists posts, supports pagination, filters by category, and handles both GET and POST for a search form. The current function-based view is 60 lines long. How do you cross?", "choices": [{"text": "Refactor to a ListView with get_queryset and get_context_data overrides", "correct": true, "explanation": "ListView handles pagination, template selection, and context naming automatically. Override get_queryset to add your category filter, and get_context_data to inject the search form. You go from 60 lines to about 15, and gain built-in edge case handling like invalid page numbers."}, {"text": "Keep the function-based view but split it into smaller helper functions", "correct": false, "explanation": "Splitting into helpers reduces line count but you're still reimplementing pagination, 404 handling for bad page numbers, and template context assembly that ListView provides for free. You're writing code that Django already wrote and tested."}, {"text": "Use a Django REST Framework ViewSet instead", "correct": false, "explanation": "DRF ViewSets are designed for API endpoints returning JSON, not HTML pages with templates. You'd need a serializer, lose template rendering, and add a whole dependency for something Django's generic views handle natively."}], "concept": "Template Engine", "difficulty": "medium"}, {"type": "misfortune", "trigger": "after_stop", "triggerStop": 4, "title": "N+1 Query Plague!", "text": "Disaster! Your blog listing page is making 101 database queries — one for the list of 100 posts, and one more per post to fetch each author's name. Page load times have tripled. The Django Debug Toolbar is screaming. How do you cure this plague?", "choices": [{"text": "Use select_related on the ForeignKey to author — it joins the tables in a single query", "correct": true, "explanation": "select_related performs a SQL JOIN and fetches the related author in the same query as the post. One hundred and one queries become one. Use select_related for ForeignKey and OneToOneField relationships. For ManyToManyField, use prefetch_related instead — it does a separate query but caches the results."}, {"text": "Cache the author names in a dictionary and look them up in Python", "correct": false, "explanation": "You'd still need to fetch all the authors — that's a separate query. And you'd be reimplementing what select_related does automatically at the database level, where JOINs are far more efficient than Python dictionary lookups."}, {"text": "Add an author_name CharField to the Post model to avoid the join entirely", "correct": false, "explanation": "Denormalizing data creates maintenance nightmares. When an author changes their name, you'd need to update every post. This violates database normalization for no good reason when select_related solves it in one line."}], "concept": "ORM QuerySets", "difficulty": "easy"}, {"type": "fortune", "trigger": "after_stop", "triggerStop": 5, "title": "A Cache of Custom Tags", "text": "Your understanding of Django's template system is impressive! You discovered a cache of well-written custom template tags left by a previous traveler. Your templates are cleaner and your health is restored.", "choices": [], "concept": "Template Engine", "difficulty": "easy"}, {"type": "misfortune", "trigger": "after_stop", "triggerStop": 6, "title": "Context Processor Stampede!", "text": "Panic on the trail! Every page on your site takes three seconds to load. You added a context processor that runs Category.objects.all() and fetches recent posts, comments, and user stats. It runs on EVERY request — including your JSON API endpoints that don't even use templates. How do you fix this?", "choices": [{"text": "Use lazy evaluation — wrap expensive queries in SimpleLazyObject so they only execute if the template actually accesses them", "correct": true, "explanation": "SimpleLazyObject defers the database query until the variable is actually used in a template. API views that return JSON never touch the context variables, so the queries never run. You get the convenience of global context without the performance cost on pages that don't need it."}, {"text": "Move all the data fetching into each view's get_context_data method", "correct": false, "explanation": "That works but defeats the purpose of context processors — sharing data across many templates. You'd duplicate the same queries in dozens of views. Lazy evaluation gives you both convenience and performance."}, {"text": "Add caching with a five-minute timeout to the context processor", "correct": false, "explanation": "Caching helps but adds complexity — you need cache invalidation when categories change, and stale data might confuse users. Lazy evaluation is simpler and more correct: if a page doesn't need the data, the query simply never runs."}], "concept": "ORM QuerySets", "difficulty": "hard"}, {"type": "encounter", "trigger": "after_stop", "triggerStop": 1, "title": "A Django Guide Appears", "text": "A friendly guide meets your wagon. 'Django follows the MVT pattern — Model, View, Template. But newcomers from other frameworks get confused. In Django, what does the View do compared to MVC frameworks?'", "choices": [{"text": "The View handles request logic and picks which template to render — it's like the Controller in MVC", "correct": true, "explanation": "Exactly. Django's View is the controller. It receives the request, queries the model, and passes data to the template. Django's Template is the view layer. The naming is different from MVC, but the separation of concerns is the same."}, {"text": "The View is the HTML template that the user sees in the browser", "correct": false, "explanation": "That's the Template in Django. The naming confusion comes from MVC where 'view' means the visual layer. In Django, views are Python functions or classes that handle request logic."}, {"text": "The View is the database model that defines the data structure", "correct": false, "explanation": "That's the Model. The View sits between the Model and the Template — it fetches data from models and passes it to templates for rendering."}], "concept": "Views and Request Handling", "difficulty": "easy"}, {"type": "weather", "trigger": "after_stop", "triggerStop": 2, "title": "Admin Configuration Storm!", "text": "A storm of admin requests hits your site. You registered your Post model with admin.site.register(Post) but the admin list shows only 'Post object (1)' for every entry. Users can't tell which post is which.", "choices": [{"text": "Add a __str__ method to the Post model that returns the title", "correct": true, "explanation": "Django's admin uses __str__ to display objects throughout the interface. Adding def __str__(self): return self.title gives every post a readable name. You can also customize the admin further with list_display, search_fields, and list_filter in a ModelAdmin class."}, {"text": "Override the admin template to show the title field directly", "correct": false, "explanation": "Overriding templates works but is far more complex than needed. The __str__ method is Django's standard way to give objects human-readable names, used everywhere — not just the admin."}, {"text": "Create a custom admin view that queries the title separately", "correct": false, "explanation": "A custom view for something this simple is massive overkill. Django's admin is designed to work with __str__ and ModelAdmin customization. One line in your model fixes this."}], "concept": "ORM QuerySets", "difficulty": "easy"}, {"type": "weather", "trigger": "after_stop", "triggerStop": 4, "title": "Migration Conflict!", "text": "Two developers on your team both created migrations for the same model at the same time. Django is refusing to migrate with an 'Inconsistent migration history' error. Both migrations depend on the same parent.", "choices": [{"text": "Create a merge migration using python manage.py makemigrations --merge", "correct": true, "explanation": "Django can automatically create a merge migration that combines the two branches. The merge migration depends on both conflicting migrations, resolving the diamond dependency. This is the standard workflow for teams with concurrent model changes."}, {"text": "Delete one of the migrations and re-run makemigrations", "correct": false, "explanation": "Deleting a migration that's already been applied to other developers' databases or staging environments will cause drift between the code and the actual schema. The merge command exists precisely to handle this situation safely."}, {"text": "Manually edit one migration to depend on the other", "correct": false, "explanation": "Manually rewriting migration dependencies is fragile and error-prone. If the migrations modify the same fields, you could create an invalid sequence. The --merge flag handles the dependency graph correctly."}], "concept": "ORM QuerySets", "difficulty": "medium"}, {"type": "encounter", "trigger": "after_stop", "triggerStop": 3, "title": "A Signals Expert Appears", "text": "A traveler shows you their code: when a new user registers, a Profile is automatically created using a post_save signal on the User model. 'Signals let models communicate without importing each other,' they explain. What is the main risk of overusing signals?", "choices": [{"text": "Signals create implicit control flow — it's hard to trace what happens when a model saves because listeners aren't visible in the calling code", "correct": true, "explanation": "Signals are powerful but invisible. When you call user.save(), there's no hint in that line of code that a Profile gets created, an email gets sent, or a cache gets invalidated. In large codebases, signal handlers become hidden side effects that make debugging extremely difficult."}, {"text": "Signals are slow because they use the database to send notifications between models", "correct": false, "explanation": "Signals are in-process Python function calls — they don't use the database at all. They're actually very fast. The concern isn't performance, it's maintainability and the hidden coupling they create."}, {"text": "Signals can only be used with built-in Django models, not custom ones", "correct": false, "explanation": "Signals work with any Django model, custom or built-in. You can even create your own custom signals. The concern is about code clarity, not capability limitations."}], "concept": "Middleware Pipeline", "difficulty": "medium"}, {"type": "misfortune", "trigger": "after_stop", "triggerStop": 5, "title": "Form Validation Bypass!", "text": "A security report comes in: users are submitting forms with empty required fields. Your form class has the correct field definitions, but the view is calling form.save() without checking anything first.", "choices": [{"text": "Always check form.is_valid() before accessing cleaned_data or calling save", "correct": true, "explanation": "is_valid() runs all field validators, the clean method, and populates cleaned_data with sanitized values. Without it, you're saving raw, unvalidated input. Django forms are designed with a two-step pattern: validate first with is_valid(), then use the cleaned data."}, {"text": "Add HTML5 required attributes to the form fields so the browser validates", "correct": false, "explanation": "Client-side validation is easily bypassed with browser dev tools or curl. Server-side validation with is_valid() is the real defense. HTML5 attributes are a nice UX addition, but they're not a security boundary."}, {"text": "Use a try-except around form.save() to catch validation errors", "correct": false, "explanation": "By the time save() is called, it's too late — unvalidated data may have already been written. The is_valid() method is the gatekeeper that must run before any data processing."}], "concept": "Views and Request Handling", "difficulty": "easy"}, {"type": "river", "trigger": "after_stop", "triggerStop": 6, "title": "The Complex Query River", "text": "You've reached a treacherous river. Your blog needs to find all posts that are either published by the current user OR published and in the 'news' category. A simple filter chain can't express OR conditions. How do you cross?", "choices": [{"text": "Use Q objects to combine conditions with the OR operator: Post.objects.filter(Q(author=user) | Q(status='published', category='news'))", "correct": true, "explanation": "Q objects let you build complex queries with AND, OR, and NOT operators. The pipe symbol means OR, the ampersand means AND, and the tilde means NOT. Without Q objects, Django's filter chain only supports AND conditions."}, {"text": "Run two separate queries and combine the results in Python with a set union", "correct": false, "explanation": "Two queries means two database round-trips, and combining in Python loses pagination, ordering, and database-level optimizations. Q objects generate a single SQL query with an OR clause — much more efficient."}, {"text": "Use raw SQL since Django's ORM can't handle OR conditions", "correct": false, "explanation": "Django's ORM handles OR conditions perfectly through Q objects. Raw SQL bypasses Django's protections and is harder to maintain. Q objects generate clean, efficient SQL while keeping your code Pythonic."}], "concept": "ORM QuerySets", "difficulty": "hard"}, {"type": "misfortune", "trigger": "after_stop", "triggerStop": 3, "title": "Database Connection Drought!", "text": "Your Django app is crashing under load with 'too many connections' errors. Each request opens a new database connection, and your PostgreSQL server has hit its max_connections limit. The database is refusing new connections.", "choices": [{"text": "Configure CONN_MAX_AGE in DATABASES settings to reuse connections across requests instead of opening a new one each time", "correct": true, "explanation": "By default, Django opens and closes a database connection for every request. Setting CONN_MAX_AGE to a value like 600 (seconds) keeps connections alive and reusable. For high-traffic apps, use a connection pooler like PgBouncer for even better connection management."}, {"text": "Increase max_connections on the PostgreSQL server to allow more simultaneous connections", "correct": false, "explanation": "Raising the limit is a temporary fix. Each connection consumes server memory, and under heavy load you'll hit the new limit too. The real solution is connection reuse so you need fewer connections in the first place."}, {"text": "Switch to SQLite which doesn't have connection limits", "correct": false, "explanation": "SQLite has no connection pooling and uses file-level locking — it can only handle one write at a time. It's great for development but completely unsuitable for production traffic. The fix is connection reuse, not a different database."}], "concept": "Middleware Pipeline", "difficulty": "hard"}, {"triggerStop": 4, "type": "misfortune", "title": "SQL Injection Attack!", "text": "A security scan reveals a critical vulnerability. One of your views constructs a SQL query by concatenating user input directly. An attacker sends a search term containing a DROP TABLE statement.", "choices": [{"text": "Never concatenate user input into SQL — use parameterized queries with raw() to separate code from data", "correct": true, "explanation": "Parameterized queries send the SQL structure and data separately. The database treats parameters as data, never as executable SQL. Django’s ORM does this automatically — raw() with parameters is the safe alternative."}, {"text": "Sanitize the search_term by removing dangerous SQL keywords like DROP, DELETE, and SELECT", "correct": false, "explanation": "Keyword blacklists are endlessly bypassable — attackers use case variations, Unicode tricks, and comment injection. Parameterized queries are bulletproof because they separate code from data."}, {"text": "Wrap the query in a try-except to catch any SQL errors from malicious input", "correct": false, "explanation": "Error handling doesn’t prevent the injection — the malicious SQL may execute successfully before any error occurs. A DROP TABLE runs fine as SQL."}], "concept": "ORM QuerySets", "difficulty": "hard"}, {"triggerStop": 5, "type": "weather", "title": "The Lazy Evaluation Fog", "text": "A mysterious fog causes your view to make the same database query three times. Your view assigns posts = Post.objects.filter(published=True), then checks len(posts), iterates in the template, and calls posts.count(). Each access triggers a separate query.", "choices": [{"text": "QuerySets are lazy — they don’t hit the database until evaluated. Force evaluation once with list(), then reuse the result", "correct": true, "explanation": "Django QuerySets are lazy by design — they build up SQL but don’t execute until you iterate, slice, or call list(). Each separate evaluation triggers a new query. Force evaluation once with list(posts), then use the Python list for length checks and iteration."}, {"text": "Django caches all QuerySet results automatically after the first query", "correct": false, "explanation": "QuerySets cache their results after evaluation, but each new operation like .count() triggers a fresh query. Method calls like count() bypass the cache and hit the database directly."}, {"text": "Use .all() instead of .filter() to enable Django’s query caching", "correct": false, "explanation": ".all() and .filter() both return lazy QuerySets. Neither enables any special caching. The solution is to evaluate the QuerySet once and reuse the result."}], "concept": "Template Engine", "difficulty": "hard"}], "partyMembers": [{"name": "Middleware Pipeline", "icon": "middleware", "maxHealth": 3}, {"name": "URL Routing", "icon": "routing", "maxHealth": 3}, {"name": "ORM QuerySets", "icon": "orm", "maxHealth": 3}, {"name": "Template Engine", "icon": "template", "maxHealth": 3}], "deathMessages": ["Lost in the URLconf — circular imports everywhere.", "Died of template inheritance confusion. Too many blocks, not enough extends.", "The migration history was irreconcilable. No amount of squashing could save you.", "Killed by the N+1 query plague. Should have used select_related.", "Your middleware ran in the wrong order. CSRF rejected every form submission.", "Died of context processor overload. Every page fetched the entire database.", "Drowned in a QuerySet you forgot to evaluate. It was lazy until it wasn't.", "Here lies your app. It died waiting for a circular import to resolve."]};
+
+// =====================================================================
+// GAME STATE
+// =====================================================================
+const STATES = { TITLE: 'TITLE', SETUP: 'SETUP', TRAVEL: 'TRAVEL', STOP: 'STOP', EVENT: 'EVENT', RIVER: 'RIVER', DEATH: 'DEATH', WIN: 'WIN' };
+const PROFESSIONS = [
+  { name: 'Ralph Wiggum', desc: '"I\'m learnding!"', health: 999, supplies: 999, hintFree: true, forgiving: true },
+  { name: 'Vibe Coder', desc: '"It works on my machine"', health: 100, supplies: 5, hintFree: false, forgiving: false },
+  { name: 'Engineer', desc: '"Let me check the docs"', health: 80, supplies: 2, hintFree: false, forgiving: false },
+  { name: 'Staff Architect', desc: '"I designed this system"', health: 50, supplies: 0, hintFree: false, forgiving: false }
+];
+
+let gameState = STATES.TITLE;
+let difficulty = 1;
+let health = 100;
+let maxHealthForGame = 100;
+let supplies = 5;
+let currentStop = 0;
+let day = 1;
+let score = 0;
+let totalQuestions = 0;
+let streak = 0;
+let bestStreak = 0;
+let hintsUsed = 0;
+let scrollX = 0;
+let travelTimer = null;
+let animFrame = null;
+let partyHealth = [];
+let pendingEvents = [];
+let currentEventIndex = 0;
+let eventAnswered = false;
+let eventHinted = false;
+let dimmedChoice = -1;
+let selectedEventChoice = 0;
+let selectedStopChoice = 0;
+let shuffledIndices = []; // maps display position -> original choice index
+let selectedDifficulty = 1;
+let musicPlaying = false;
+let audioCtx = null;
+let musicInitialized = false;
+let typewriterTimer = null;
+let typewriterText = '';
+let typewriterIndex = 0;
+let showRiver = false;
+let wagonWheelAngle = 0;
+let travelFlavorIndex = 0;
+let deathPending = false;
+let currentEventType = '';  // event type for canvas overlay
+let currentEventTitle = ''; // event title for canvas overlay
+
+const travelFlavors = [
+  "The WSGI handler is accepting requests smoothly...",
+  "Your middleware stack processes each layer with care...",
+  "The URLconf resolves paths without hesitation...",
+  "Your QuerySets are lazy and efficient today...",
+  "A gentle breeze carries rendered templates across the plains...",
+  "The ORM translates your Python into clean SQL...",
+  "Your migrations are in perfect order...",
+  "The admin panel gleams in the afternoon sun...",
+  "Django's batteries are fully included and charged...",
+  "The CSRF tokens rotate like wagon wheels on the trail...",
+  "A hawk circles overhead, watching your request throughput...",
+  "The trail ahead is well-documented in the Django docs...",
+  "Your context processors inject data without complaint...",
+  "The settings module holds steady in the breeze...",
+  "Your templates extend and inherit with grace..."
+];
+
+// =====================================================================
+// CANVAS RENDERING (320x200 internal)
+// =====================================================================
+const canvas = document.getElementById('game-canvas');
+const ctx = canvas.getContext('2d');
+const W = 320, H = 200;
+
+// Seeded PRNG for consistent landscape
+function seededRandom(seed) {
+  let s = seed;
+  return function() {
+    s = (s * 1664525 + 1013904223) & 0xFFFFFFFF;
+    return (s >>> 0) / 0xFFFFFFFF;
+  };
+}
+
+const rng = seededRandom(42);
+const cloudPositions = [];
+for (let i = 0; i < 5; i++) {
+  cloudPositions.push({ x: rng() * 400, y: 10 + rng() * 30, w: 25 + rng() * 30, h: 8 + rng() * 6 });
+}
+const farMountains = [];
+for (let i = 0; i < 6; i++) {
+  farMountains.push({ x: i * 70 - 20 + rng() * 30, h: 40 + rng() * 35, w: 50 + rng() * 40 });
+}
+const nearMountains = [];
+for (let i = 0; i < 8; i++) {
+  nearMountains.push({ x: i * 55 - 30 + rng() * 20, h: 25 + rng() * 25, w: 30 + rng() * 25, snow: rng() > 0.3 });
+}
+const treesData = [];
+for (let i = 0; i < 25; i++) {
+  treesData.push({ x: rng() * 600, h: 12 + rng() * 16 });
+}
+
+function getSkyColors() {
+  const progress = currentStop / Math.max(TRAIL_DATA.stops.length, 1);
+  if (progress < 0.15) {
+    return { top: '#5500AA', bottom: '#FF5555' };
+  } else if (progress < 0.7) {
+    return { top: '#5555FF', bottom: '#55FFFF' };
+  } else {
+    return { top: '#5500AA', bottom: '#FFAA00' };
+  }
+}
+
+function drawPixelCloud(x, y, w, h) {
+  ctx.fillStyle = '#FFFFFF';
+  const ix = Math.floor(x), iy = Math.floor(y), iw = Math.floor(w), ih = Math.floor(h);
+  ctx.fillRect(ix, iy, iw, ih);
+  ctx.fillRect(ix + Math.floor(iw * 0.15), iy - Math.floor(ih * 0.5), Math.floor(iw * 0.3), Math.floor(ih * 0.6));
+  ctx.fillRect(ix + Math.floor(iw * 0.4), iy - Math.floor(ih * 0.7), Math.floor(iw * 0.35), Math.floor(ih * 0.8));
+  ctx.fillRect(ix + Math.floor(iw * 0.65), iy - Math.floor(ih * 0.3), Math.floor(iw * 0.2), Math.floor(ih * 0.4));
+}
+
+function drawMountain(x, h, w, color, snowCap) {
+  const baseY = 110;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(Math.floor(x), baseY);
+  ctx.lineTo(Math.floor(x + w / 2), Math.floor(baseY - h));
+  ctx.lineTo(Math.floor(x + w), baseY);
+  ctx.closePath();
+  ctx.fill();
+  if (snowCap) {
+    ctx.fillStyle = '#FFFFFF';
+    const peakX = x + w / 2;
+    const peakY = baseY - h;
+    ctx.beginPath();
+    ctx.moveTo(Math.floor(peakX - w * 0.1), Math.floor(peakY + h * 0.18));
+    ctx.lineTo(Math.floor(peakX), Math.floor(peakY));
+    ctx.lineTo(Math.floor(peakX + w * 0.1), Math.floor(peakY + h * 0.18));
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+function drawTree(x, baseY, h) {
+  const trunkW = 3, trunkH = Math.floor(h * 0.3);
+  ctx.fillStyle = '#AA5500';
+  ctx.fillRect(Math.floor(x - 1), Math.floor(baseY - trunkH), trunkW, trunkH);
+  for (let i = 0; i < 3; i++) {
+    const layerW = (h * 0.4) * (1 - i * 0.15);
+    const layerY = baseY - trunkH - (i * h * 0.2);
+    ctx.fillStyle = i === 1 ? '#00AA00' : '#005500';
+    ctx.beginPath();
+    ctx.moveTo(Math.floor(x - layerW / 2), Math.floor(layerY));
+    ctx.lineTo(Math.floor(x + 0.5), Math.floor(layerY - h * 0.25));
+    ctx.lineTo(Math.floor(x + layerW / 2), Math.floor(layerY));
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+function drawWagon(wx, wy) {
+  // Oxen (two brown lumps)
+  ctx.fillStyle = '#AA5500';
+  ctx.fillRect(Math.floor(wx - 24), Math.floor(wy - 6), 8, 6);
+  ctx.fillRect(Math.floor(wx - 14), Math.floor(wy - 6), 8, 6);
+  // Oxen legs
+  ctx.fillStyle = '#553300';
+  ctx.fillRect(Math.floor(wx - 22), Math.floor(wy), 2, 4);
+  ctx.fillRect(Math.floor(wx - 18), Math.floor(wy), 2, 4);
+  ctx.fillRect(Math.floor(wx - 12), Math.floor(wy), 2, 4);
+  ctx.fillRect(Math.floor(wx - 8), Math.floor(wy), 2, 4);
+  // Oxen heads
+  ctx.fillStyle = '#885500';
+  ctx.fillRect(Math.floor(wx - 26), Math.floor(wy - 7), 3, 3);
+  ctx.fillRect(Math.floor(wx - 16), Math.floor(wy - 7), 3, 3);
+  // Yoke
+  ctx.fillStyle = '#AA5500';
+  ctx.fillRect(Math.floor(wx - 4), Math.floor(wy - 4), 6, 2);
+  // Wagon body
+  ctx.fillStyle = '#AA5500';
+  ctx.fillRect(Math.floor(wx + 2), Math.floor(wy - 8), 24, 10);
+  // Wagon sides darker
+  ctx.fillStyle = '#885500';
+  ctx.fillRect(Math.floor(wx + 2), Math.floor(wy - 8), 24, 1);
+  ctx.fillRect(Math.floor(wx + 2), Math.floor(wy + 1), 24, 1);
+  // Canvas cover (white curved top)
+  ctx.fillStyle = '#FFFFFF';
+  ctx.beginPath();
+  ctx.moveTo(Math.floor(wx + 3), Math.floor(wy - 8));
+  ctx.quadraticCurveTo(Math.floor(wx + 14), Math.floor(wy - 22), Math.floor(wx + 25), Math.floor(wy - 8));
+  ctx.closePath();
+  ctx.fill();
+  // Canvas cover outline
+  ctx.strokeStyle = '#AAAAAA';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(Math.floor(wx + 3), Math.floor(wy - 8));
+  ctx.quadraticCurveTo(Math.floor(wx + 14), Math.floor(wy - 22), Math.floor(wx + 25), Math.floor(wy - 8));
+  ctx.stroke();
+  // Canvas ribs
+  ctx.strokeStyle = '#AAAAAA';
+  for (let ri = 0; ri < 3; ri++) {
+    const rx = wx + 8 + ri * 5;
+    ctx.beginPath();
+    ctx.moveTo(Math.floor(rx), Math.floor(wy - 8));
+    ctx.lineTo(Math.floor(rx), Math.floor(wy - 14 - ri % 2 * 2));
+    ctx.stroke();
+  }
+  // Wheels
+  const wheelR = 5;
+  for (let wi = 0; wi < 2; wi++) {
+    const wcx = wx + 7 + wi * 14;
+    const wcy = wy + 4;
+    // Outer rim
+    ctx.fillStyle = '#553300';
+    ctx.beginPath();
+    ctx.arc(Math.floor(wcx), Math.floor(wcy), wheelR, 0, Math.PI * 2);
+    ctx.fill();
+    // Inner
+    ctx.fillStyle = '#AA5500';
+    ctx.beginPath();
+    ctx.arc(Math.floor(wcx), Math.floor(wcy), wheelR - 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    // Spokes
+    ctx.strokeStyle = '#553300';
+    ctx.lineWidth = 1;
+    for (let si = 0; si < 6; si++) {
+      const angle = wagonWheelAngle + (si * Math.PI / 3);
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(wcx), Math.floor(wcy));
+      ctx.lineTo(Math.floor(wcx + Math.cos(angle) * (wheelR - 1)), Math.floor(wcy + Math.sin(angle) * (wheelR - 1)));
+      ctx.stroke();
+    }
+    // Hub
+    ctx.fillStyle = '#553300';
+    ctx.fillRect(Math.floor(wcx - 1), Math.floor(wcy - 1), 2, 2);
+  }
+  // Green flag (Django green)
+  ctx.fillStyle = '#0C4B33';
+  ctx.fillRect(Math.floor(wx + 14), Math.floor(wy - 22), 1, -7);
+  ctx.fillStyle = '#2BA977';
+  ctx.fillRect(Math.floor(wx + 15), Math.floor(wy - 29), 6, 4);
+}
+
+function drawLandmark(type, x, baseY) {
+  switch (type) {
+    case 'town':
+      ctx.fillStyle = '#AA5500';
+      ctx.fillRect(Math.floor(x), Math.floor(baseY - 18), 14, 18);
+      ctx.fillRect(Math.floor(x + 18), Math.floor(baseY - 14), 12, 14);
+      // Roofs
+      ctx.fillStyle = '#555555';
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(x - 2), Math.floor(baseY - 18));
+      ctx.lineTo(Math.floor(x + 7), Math.floor(baseY - 25));
+      ctx.lineTo(Math.floor(x + 16), Math.floor(baseY - 18));
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(x + 16), Math.floor(baseY - 14));
+      ctx.lineTo(Math.floor(x + 24), Math.floor(baseY - 20));
+      ctx.lineTo(Math.floor(x + 32), Math.floor(baseY - 14));
+      ctx.closePath();
+      ctx.fill();
+      // Windows
+      ctx.fillStyle = '#FFFF55';
+      ctx.fillRect(Math.floor(x + 3), Math.floor(baseY - 13), 3, 3);
+      ctx.fillRect(Math.floor(x + 9), Math.floor(baseY - 13), 3, 3);
+      ctx.fillRect(Math.floor(x + 21), Math.floor(baseY - 10), 3, 3);
+      // Door
+      ctx.fillStyle = '#553300';
+      ctx.fillRect(Math.floor(x + 5), Math.floor(baseY - 7), 4, 7);
+      break;
+    case 'camp':
+      // Tent
+      ctx.fillStyle = '#AAAAAA';
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(x - 6), Math.floor(baseY));
+      ctx.lineTo(Math.floor(x + 4), Math.floor(baseY - 14));
+      ctx.lineTo(Math.floor(x + 14), Math.floor(baseY));
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#555555';
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(x + 4), Math.floor(baseY));
+      ctx.lineTo(Math.floor(x + 4), Math.floor(baseY - 14));
+      ctx.lineTo(Math.floor(x + 14), Math.floor(baseY));
+      ctx.closePath();
+      ctx.fill();
+      // Campfire
+      ctx.fillStyle = '#FF5555';
+      ctx.fillRect(Math.floor(x + 20), Math.floor(baseY - 5), 4, 3);
+      ctx.fillStyle = '#FFFF55';
+      ctx.fillRect(Math.floor(x + 21), Math.floor(baseY - 8), 2, 3);
+      ctx.fillStyle = '#FFAA00';
+      ctx.fillRect(Math.floor(x + 18), Math.floor(baseY - 2), 8, 2);
+      break;
+    case 'mountain':
+      drawMountain(x - 20, 60, 50, '#0C4B33', true);
+      drawMountain(x + 10, 45, 40, '#2BA977', true);
+      break;
+    case 'river':
+      ctx.fillStyle = '#AA5500';
+      ctx.fillRect(Math.floor(x), Math.floor(baseY - 20), 3, 20);
+      ctx.fillRect(Math.floor(x + 24), Math.floor(baseY - 20), 3, 20);
+      ctx.strokeStyle = '#AAAAAA';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(x + 1), Math.floor(baseY - 18));
+      ctx.lineTo(Math.floor(x + 25), Math.floor(baseY - 18));
+      ctx.stroke();
+      // Sign
+      ctx.fillStyle = '#AA5500';
+      ctx.fillRect(Math.floor(x + 8), Math.floor(baseY - 25), 12, 8);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(Math.floor(x + 10), Math.floor(baseY - 23), 2, 1);
+      ctx.fillRect(Math.floor(x + 13), Math.floor(baseY - 23), 2, 1);
+      ctx.fillRect(Math.floor(x + 16), Math.floor(baseY - 23), 2, 1);
+      break;
+    case 'forest':
+      for (let i = 0; i < 6; i++) {
+        drawTree(x + i * 7, baseY, 14 + (i % 3) * 3);
+      }
+      break;
+    case 'desert':
+      // Sand dune
+      ctx.fillStyle = '#FFAA00';
+      ctx.fillRect(Math.floor(x - 5), Math.floor(baseY - 3), 40, 3);
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(x - 10), Math.floor(baseY));
+      ctx.quadraticCurveTo(Math.floor(x + 5), Math.floor(baseY - 8), Math.floor(x + 20), Math.floor(baseY));
+      ctx.fill();
+      // Cactus
+      ctx.fillStyle = '#00AA00';
+      ctx.fillRect(Math.floor(x + 25), Math.floor(baseY - 18), 3, 18);
+      ctx.fillRect(Math.floor(x + 22), Math.floor(baseY - 14), 3, 6);
+      ctx.fillRect(Math.floor(x + 28), Math.floor(baseY - 12), 3, 5);
+      ctx.fillRect(Math.floor(x + 22), Math.floor(baseY - 14), 1, 1);
+      ctx.fillRect(Math.floor(x + 30), Math.floor(baseY - 12), 1, 1);
+      break;
+  }
+}
+
+function drawRiver(time) {
+  const riverY = 155;
+  const riverH = 18;
+  ctx.fillStyle = '#0000AA';
+  ctx.fillRect(0, riverY, W, riverH);
+  ctx.fillStyle = '#00AAAA';
+  for (let wx = 0; wx < W; wx += 3) {
+    const waveY = riverY + 3 + Math.sin((wx + time * 0.05) * 0.08) * 3;
+    ctx.fillRect(wx, Math.floor(waveY), 2, 1);
+    const waveY2 = riverY + 10 + Math.sin((wx + time * 0.03 + 50) * 0.1) * 2;
+    ctx.fillRect(wx, Math.floor(waveY2), 2, 1);
+  }
+  // White foam
+  ctx.fillStyle = '#55FFFF';
+  for (let wx = 0; wx < W; wx += 12) {
+    const foamY = riverY + 1 + Math.sin((wx + time * 0.04) * 0.06) * 1;
+    ctx.fillRect(wx + 2, Math.floor(foamY), 3, 1);
+  }
+}
+
+// =====================================================================
+// EVENT CANVAS OVERLAYS — unique visuals per quiz event
+// =====================================================================
+function drawEventOverlay(time) {
+  if (!currentEventType && !currentEventTitle) return;
+
+  var t = (time || 0) * 0.001; // seconds
+
+  // --- MIDDLEWARE ORDERING STORM: dark sky, lightning, rain ---
+  if (currentEventTitle.indexOf('Middleware Ordering Storm') !== -1) {
+    // Darken sky
+    ctx.fillStyle = 'rgba(0,0,50,0.45)';
+    ctx.fillRect(0, 0, W, 110);
+    // Lightning flash (periodic)
+    var flashPhase = Math.sin(t * 1.7) + Math.sin(t * 3.1);
+    if (flashPhase > 1.6) {
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.fillRect(0, 0, W, H);
+      // Lightning bolt
+      ctx.strokeStyle = '#FFFF55';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      var lx = 80 + Math.sin(t * 2.3) * 60;
+      ctx.moveTo(lx, 10);
+      ctx.lineTo(lx - 5, 35);
+      ctx.lineTo(lx + 8, 35);
+      ctx.lineTo(lx - 3, 65);
+      ctx.lineTo(lx + 10, 65);
+      ctx.lineTo(lx + 2, 95);
+      ctx.stroke();
+    }
+    // Rain
+    ctx.strokeStyle = '#5555FF';
+    ctx.lineWidth = 1;
+    for (var i = 0; i < 40; i++) {
+      var rx = (i * 8.3 + t * 80) % W;
+      var ry = (i * 13.7 + t * 120) % 110;
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(rx), Math.floor(ry));
+      ctx.lineTo(Math.floor(rx - 1), Math.floor(ry + 5));
+      ctx.stroke();
+    }
+    return;
+  }
+
+  // --- DJANGO ELDER: person standing by campfire ---
+  if (currentEventTitle.indexOf('Django Elder') !== -1) {
+    var px = 200, py = 142;
+    // Person body
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(px, py - 12, 4, 8); // torso
+    ctx.fillStyle = '#FFAA00';
+    ctx.fillRect(px, py - 15, 4, 3); // head
+    ctx.fillRect(px - 1, py - 4, 2, 5); // left leg
+    ctx.fillRect(px + 3, py - 4, 2, 5); // right leg
+    // Hat
+    ctx.fillStyle = '#555555';
+    ctx.fillRect(px - 1, py - 17, 6, 2);
+    ctx.fillRect(px, py - 19, 4, 2);
+    // Campfire
+    var fx = 212, fy = 148;
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(fx - 3, fy, 2, 3);
+    ctx.fillRect(fx + 3, fy, 2, 3);
+    ctx.fillStyle = '#FF5555';
+    var flicker = Math.sin(t * 8) * 2;
+    ctx.fillRect(fx - 1, fy - 3 + Math.floor(flicker * 0.3), 4, 3);
+    ctx.fillStyle = '#FFFF55';
+    ctx.fillRect(fx, fy - 5 + Math.floor(flicker * 0.5), 2, 2);
+    ctx.fillStyle = '#FFAA00';
+    ctx.fillRect(fx - 1, fy - 2, 4, 2);
+    // Firelight glow (subtle)
+    ctx.fillStyle = 'rgba(255,170,0,0.08)';
+    ctx.beginPath();
+    ctx.arc(fx + 1, fy - 2, 15, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+
+  // --- VIEW ARCHITECTURE RIVER: rough rapids with white water ---
+  if (currentEventTitle.indexOf('View Architecture') !== -1) {
+    // Extra turbulence on the river
+    ctx.fillStyle = '#55FFFF';
+    for (var i = 0; i < 20; i++) {
+      var sx = (i * 17 + t * 40) % W;
+      var sy = 157 + Math.sin((i * 3 + t * 5)) * 3;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), 4, 2);
+    }
+    // Floating logs / debris
+    ctx.fillStyle = '#AA5500';
+    for (var i = 0; i < 3; i++) {
+      var logX = (i * 110 + t * 25) % W;
+      var logY = 159 + Math.sin(t * 2 + i) * 2;
+      ctx.fillRect(Math.floor(logX), Math.floor(logY), 8, 2);
+    }
+    return;
+  }
+
+  // --- N+1 QUERY PLAGUE: red sky, smoke, warning ---
+  if (currentEventTitle.indexOf('N+1 Query Plague') !== -1) {
+    // Red danger tint
+    ctx.fillStyle = 'rgba(170,0,0,0.25)';
+    ctx.fillRect(0, 0, W, H);
+    // Smoke particles rising
+    ctx.fillStyle = '#555555';
+    for (var i = 0; i < 15; i++) {
+      var sx = 140 + Math.sin(i * 2.7 + t) * 30;
+      var sy = 130 - ((t * 20 + i * 15) % 90);
+      var size = 2 + (i % 3);
+      ctx.globalAlpha = 0.3 + Math.sin(t + i) * 0.15;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), size, size);
+    }
+    ctx.globalAlpha = 1.0;
+    // Fire at base
+    ctx.fillStyle = '#FF5555';
+    for (var i = 0; i < 8; i++) {
+      var fx = 130 + i * 5;
+      var fh = 4 + Math.sin(t * 6 + i * 1.5) * 3;
+      ctx.fillRect(fx, Math.floor(140 - fh), 3, Math.floor(fh));
+    }
+    ctx.fillStyle = '#FFFF55';
+    for (var i = 0; i < 5; i++) {
+      var fx = 135 + i * 6;
+      var fh = 2 + Math.sin(t * 8 + i * 2) * 2;
+      ctx.fillRect(fx, Math.floor(139 - fh), 2, Math.floor(fh));
+    }
+    // Pulsing red border
+    var pulse = (Math.sin(t * 4) + 1) * 0.15;
+    ctx.strokeStyle = 'rgba(255,0,0,' + pulse.toFixed(2) + ')';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(1, 1, W - 2, H - 2);
+    ctx.lineWidth = 1;
+    return;
+  }
+
+  // --- CACHE OF CUSTOM TAGS (fortune): sunny, flowers, rainbow ---
+  if (currentEventTitle.indexOf('Cache of Custom Tags') !== -1) {
+    // Bright sun
+    ctx.fillStyle = '#FFFF55';
+    ctx.beginPath();
+    ctx.arc(260, 30, 12, 0, Math.PI * 2);
+    ctx.fill();
+    // Sun rays
+    ctx.strokeStyle = '#FFFF55';
+    ctx.lineWidth = 1;
+    for (var i = 0; i < 8; i++) {
+      var angle = i * Math.PI / 4 + t * 0.3;
+      ctx.beginPath();
+      ctx.moveTo(260 + Math.cos(angle) * 14, 30 + Math.sin(angle) * 14);
+      ctx.lineTo(260 + Math.cos(angle) * 20, 30 + Math.sin(angle) * 20);
+      ctx.stroke();
+    }
+    // Flowers on ground
+    var flowerColors = ['#FF5555', '#FFFF55', '#FF55FF', '#55FFFF', '#55FF55'];
+    for (var i = 0; i < 12; i++) {
+      var fx = (i * 27 + 10) % W;
+      var fy = 135 + (i * 7) % 20;
+      ctx.fillStyle = '#00AA00';
+      ctx.fillRect(fx + 1, fy, 1, 4); // stem
+      ctx.fillStyle = flowerColors[i % flowerColors.length];
+      ctx.fillRect(fx, fy - 1, 3, 2); // petals
+      ctx.fillStyle = '#FFFF55';
+      ctx.fillRect(fx + 1, fy - 1, 1, 1); // center
+    }
+    // Rainbow arc
+    var rainbowColors = ['#FF5555', '#FFAA00', '#FFFF55', '#55FF55', '#5555FF', '#0C4B33'];
+    for (var rc = 0; rc < rainbowColors.length; rc++) {
+      ctx.strokeStyle = rainbowColors[rc];
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(160, 110, 70 + rc * 3, Math.PI * 1.1, Math.PI * 1.9);
+      ctx.stroke();
+    }
+    ctx.lineWidth = 1;
+    return;
+  }
+
+  // --- CONTEXT PROCESSOR STAMPEDE: heavy fog/dust cloud ---
+  if (currentEventTitle.indexOf('Context Processor Stampede') !== -1) {
+    // Dense fog layers
+    for (var layer = 0; layer < 3; layer++) {
+      var alpha = 0.15 + layer * 0.08;
+      ctx.fillStyle = 'rgba(170,170,170,' + alpha.toFixed(2) + ')';
+      for (var i = 0; i < 10; i++) {
+        var fogX = (i * 35 + t * (6 + layer * 4) + layer * 50) % (W + 60) - 30;
+        var fogY = 60 + layer * 30 + Math.sin(t * 0.4 + i * 0.9 + layer) * 10;
+        var fogR = 18 + layer * 8 + Math.sin(t * 0.3 + i) * 5;
+        ctx.beginPath();
+        ctx.arc(fogX, fogY, fogR, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    // Fog below obscuring ground details
+    ctx.fillStyle = 'rgba(170,170,170,0.25)';
+    ctx.fillRect(0, 110, W, 60);
+    return;
+  }
+}
+
+// =====================================================================
+// DEATH SCREEN — Apple II green phosphor style
+// =====================================================================
+function drawDeathScene(time) {
+  var t = (time || 0) * 0.001;
+  var G = '#33FF33'; // Apple II green
+  var GD = '#1a8a1a'; // darker green for details
+
+  // Black background
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, W, H);
+
+  // Ground line
+  ctx.fillStyle = GD;
+  ctx.fillRect(0, 148, W, 1);
+
+  // --- OX (left side) ---
+  var ox = 100, oy = 128;
+  // Body
+  ctx.fillStyle = G;
+  ctx.fillRect(ox, oy, 24, 14);
+  // Head
+  ctx.fillRect(ox - 10, oy - 2, 12, 10);
+  // Horns
+  ctx.fillRect(ox - 12, oy - 6, 3, 5);
+  ctx.fillRect(ox - 4, oy - 6, 3, 5);
+  // Snout
+  ctx.fillStyle = GD;
+  ctx.fillRect(ox - 10, oy + 4, 6, 3);
+  // Eye
+  ctx.fillStyle = '#000';
+  ctx.fillRect(ox - 7, oy, 2, 2);
+  // Legs
+  ctx.fillStyle = G;
+  ctx.fillRect(ox + 2, oy + 14, 4, 8);
+  ctx.fillRect(ox + 10, oy + 14, 4, 8);
+  ctx.fillRect(ox + 16, oy + 14, 4, 8);
+  // Tail
+  ctx.fillRect(ox + 24, oy + 2, 6, 2);
+  ctx.fillRect(ox + 29, oy, 2, 4);
+
+  // --- HITCH ---
+  ctx.fillStyle = G;
+  ctx.fillRect(ox + 28, oy + 8, 14, 2);
+
+  // --- WAGON ---
+  var wx = 142, wy = 108;
+  // Wagon bed
+  ctx.fillStyle = G;
+  ctx.fillRect(wx, wy + 20, 50, 16);
+  // Bed slats (dark lines)
+  ctx.fillStyle = GD;
+  ctx.fillRect(wx, wy + 24, 50, 1);
+  ctx.fillRect(wx, wy + 28, 50, 1);
+  ctx.fillRect(wx, wy + 32, 50, 1);
+  // Side rails
+  ctx.fillStyle = G;
+  ctx.fillRect(wx, wy + 18, 2, 18);
+  ctx.fillRect(wx + 48, wy + 18, 2, 18);
+
+  // Canvas cover (the bonnet)
+  ctx.fillStyle = G;
+  // Left arch
+  ctx.fillRect(wx + 4, wy + 4, 2, 16);
+  // Right arch
+  ctx.fillRect(wx + 44, wy + 4, 2, 16);
+  // Top cover
+  ctx.fillRect(wx + 4, wy + 2, 42, 4);
+  // Cover fill
+  ctx.fillRect(wx + 6, wy + 6, 38, 12);
+  // Cover shading
+  ctx.fillStyle = GD;
+  ctx.fillRect(wx + 8, wy + 8, 34, 2);
+  ctx.fillRect(wx + 8, wy + 12, 34, 2);
+  ctx.fillRect(wx + 8, wy + 16, 34, 1);
+
+  // Wheels
+  var wheelR = 8;
+  var wheels = [wx + 8, wx + 42];
+  var wa = t * 0.5; // slow rotation
+  ctx.strokeStyle = G;
+  ctx.lineWidth = 1.5;
+  for (var wi = 0; wi < wheels.length; wi++) {
+    var cx = wheels[wi], cy = wy + 38;
+    // Rim
+    ctx.beginPath();
+    ctx.arc(cx, cy, wheelR, 0, Math.PI * 2);
+    ctx.stroke();
+    // Spokes
+    for (var sp = 0; sp < 6; sp++) {
+      var angle = wa + sp * Math.PI / 3;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(angle) * wheelR, cy + Math.sin(angle) * wheelR);
+      ctx.stroke();
+    }
+    // Hub
+    ctx.fillStyle = G;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.lineWidth = 1;
+
+  // Subtle scanline effect
+  ctx.fillStyle = 'rgba(0,0,0,0.08)';
+  for (var sl = 0; sl < H; sl += 3) {
+    ctx.fillRect(0, sl, W, 1);
+  }
+
+  // Subtle green glow/vignette
+  var grd = ctx.createRadialGradient(W/2, H/2, 40, W/2, H/2, W * 0.7);
+  grd.addColorStop(0, 'rgba(0,0,0,0)');
+  grd.addColorStop(1, 'rgba(0,0,0,0.4)');
+  ctx.fillStyle = grd;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function renderCanvas(time) {
+  // Death screen: green phosphor Apple II style
+  if (gameState === STATES.DEATH) {
+    drawDeathScene(time);
+    return;
+  }
+
+  const skyColors = getSkyColors();
+
+  // Sky gradient (banded for EGA feel)
+  const bands = 10;
+  const skyBottom = 110;
+  for (let i = 0; i < bands; i++) {
+    const t = i / (bands - 1);
+    const r1 = parseInt(skyColors.top.substr(1, 2), 16);
+    const g1 = parseInt(skyColors.top.substr(3, 2), 16);
+    const b1 = parseInt(skyColors.top.substr(5, 2), 16);
+    const r2 = parseInt(skyColors.bottom.substr(1, 2), 16);
+    const g2 = parseInt(skyColors.bottom.substr(3, 2), 16);
+    const b2 = parseInt(skyColors.bottom.substr(5, 2), 16);
+    const r = Math.floor(r1 + (r2 - r1) * t);
+    const g = Math.floor(g1 + (g2 - g1) * t);
+    const b = Math.floor(b1 + (b2 - b1) * t);
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    const bandH = Math.ceil(skyBottom / bands) + 1;
+    ctx.fillRect(0, Math.floor(i * (skyBottom / bands)), W, bandH);
+  }
+
+  // Clouds (parallax 0.2x)
+  const cloudOffset = scrollX * 0.2;
+  for (const c of cloudPositions) {
+    let cx = ((c.x - cloudOffset) % (W + 80));
+    if (cx < -40) cx += W + 80;
+    drawPixelCloud(cx - 20, c.y, c.w, c.h);
+  }
+
+  // Far mountains (parallax 0.3x) - DARK GREEN signature Django Trail
+  const farOffset = scrollX * 0.3;
+  for (const m of farMountains) {
+    let mx = ((m.x - farOffset) % (W + 100));
+    if (mx < -50) mx += W + 100;
+    drawMountain(mx - 25, m.h, m.w, '#0C4B33', false);
+  }
+
+  // Near mountains (parallax 0.4x) - LIGHT GREEN with snow caps
+  const nearOffset = scrollX * 0.4;
+  for (const m of nearMountains) {
+    let mx = ((m.x - nearOffset) % (W + 80));
+    if (mx < -40) mx += W + 80;
+    drawMountain(mx - 20, m.h, m.w, '#2BA977', m.snow);
+  }
+
+  // Grass
+  ctx.fillStyle = '#00AA00';
+  ctx.fillRect(0, 110, W, H - 110);
+
+  // Bright grass highlights
+  ctx.fillStyle = '#55FF55';
+  const grassOffset = scrollX * 1.0;
+  for (let i = 0; i < 50; i++) {
+    let gx = ((i * 11 + 5 - grassOffset) % (W + 20));
+    if (gx < -5) gx += W + 20;
+    const gy = 113 + (i * 7 + i * i * 3) % 55;
+    ctx.fillRect(Math.floor(gx), Math.floor(gy), 2, 2);
+  }
+
+  // Trees (parallax 0.6x)
+  const treeOffset = scrollX * 0.6;
+  const treeBaseY = 128;
+  for (const t of treesData) {
+    let tx = ((t.x - treeOffset) % (W + 60));
+    if (tx < -20) tx += W + 60;
+    drawTree(tx - 10, treeBaseY, t.h);
+  }
+
+  // Landmark for current stop (only at stops/events)
+  if (gameState === STATES.STOP || gameState === STATES.EVENT || gameState === STATES.RIVER) {
+    const stop = TRAIL_DATA.stops[currentStop];
+    if (stop) {
+      drawLandmark(stop.landmarkType, 240, 150);
+    }
+  }
+
+  // Trail/ground strip
+  if (!showRiver) {
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(0, 152, W, 15);
+    // Trail texture dots
+    ctx.fillStyle = '#885500';
+    for (let i = 0; i < 35; i++) {
+      let dotX = ((i * 10 - scrollX * 1.0) % (W + 10));
+      if (dotX < -3) dotX += W + 10;
+      ctx.fillRect(Math.floor(dotX), 155 + (i % 4) * 2, 3, 1);
+    }
+    // Ruts
+    ctx.fillStyle = '#775500';
+    ctx.fillRect(0, 157, W, 1);
+    ctx.fillRect(0, 162, W, 1);
+  }
+
+  // River (when active)
+  if (showRiver) {
+    drawRiver(time || 0);
+  }
+
+  // Wagon
+  const wagonX = 65;
+  const wagonY = showRiver ? 148 : 149;
+  drawWagon(wagonX, wagonY);
+
+  // Event-specific visual overlay
+  if (gameState === STATES.EVENT || gameState === STATES.RIVER) {
+    drawEventOverlay(time);
+  }
+
+  // Ground below trail
+  ctx.fillStyle = '#885500';
+  ctx.fillRect(0, showRiver ? 173 : 167, W, 15);
+  ctx.fillStyle = '#553300';
+  ctx.fillRect(0, showRiver ? 188 : 182, W, H - 182);
+}
+
+// =====================================================================
+// MUSIC SYSTEM (Web Audio API Chiptune)
+// =====================================================================
+const NOTE_FREQ = {
+  'C3': 130.81, 'D3': 146.83, 'G2': 98.00, 'A2': 110.00,
+  'C4': 261.63, 'D4': 293.66, 'E4': 329.63, 'G4': 392.00,
+  'A4': 440.00, 'C5': 523.25, 'REST': 0
+};
+
+const melody = [
+  { note: 'E4', dur: 1 }, { note: 'G4', dur: 1 }, { note: 'A4', dur: 1 }, { note: 'G4', dur: 1 },
+  { note: 'E4', dur: 1 }, { note: 'D4', dur: 1 }, { note: 'C4', dur: 1 }, { note: 'REST', dur: 1 },
+  { note: 'E4', dur: 1 }, { note: 'G4', dur: 1 }, { note: 'A4', dur: 1 }, { note: 'C5', dur: 1 },
+  { note: 'A4', dur: 2 }, { note: 'G4', dur: 2 },
+  { note: 'C4', dur: 1 }, { note: 'D4', dur: 1 }, { note: 'E4', dur: 1 }, { note: 'G4', dur: 1 },
+  { note: 'A4', dur: 1 }, { note: 'G4', dur: 1 }, { note: 'E4', dur: 1 }, { note: 'D4', dur: 1 },
+  { note: 'C4', dur: 1 }, { note: 'E4', dur: 1 }, { note: 'G4', dur: 1 }, { note: 'E4', dur: 1 },
+  { note: 'D4', dur: 1 }, { note: 'C4', dur: 3 }
+];
+
+const bassLine = [
+  { note: 'C3', dur: 4 }, { note: 'A2', dur: 4 }, { note: 'C3', dur: 4 }, { note: 'A2', dur: 4 },
+  { note: 'C3', dur: 4 }, { note: 'G2', dur: 4 }, { note: 'D3', dur: 4 }, { note: 'C3', dur: 4 }
+];
+
+let musicScheduleTimer = null;
+let nextMelodyTime = 0;
+let nextBassTime = 0;
+
+var masterGain = null;
+
+function initAudio() {
+  if (audioCtx) return;
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = 1.0;
+    masterGain.connect(audioCtx.destination);
+    musicInitialized = true;
+  } catch (e) {
+    console.warn('Web Audio not available:', e);
+  }
+}
+
+function playNote(freq, startTime, duration, type, gainVal) {
+  if (!audioCtx || freq === 0) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, startTime);
+  // Envelope: attack then decay
+  gain.gain.setValueAtTime(0.001, startTime);
+  gain.gain.linearRampToValueAtTime(gainVal, startTime + 0.02);
+  gain.gain.setValueAtTime(gainVal, startTime + duration * 0.75);
+  gain.gain.linearRampToValueAtTime(0.001, startTime + duration * 0.95);
+  osc.connect(gain);
+  gain.connect(masterGain || audioCtx.destination);
+  osc.start(startTime);
+  osc.stop(startTime + duration);
+}
+
+function scheduleLoop() {
+  if (!musicPlaying || !audioCtx) return;
+  const bpm = 110;
+  const quarterDur = 60 / bpm;
+  const now = audioCtx.currentTime;
+
+  // Schedule melody
+  let t = now + 0.05;
+  for (const note of melody) {
+    const dur = note.dur * quarterDur;
+    if (note.note !== 'REST') {
+      playNote(NOTE_FREQ[note.note], t, dur, 'square', 0.06);
+    }
+    t += dur;
+  }
+
+  // Schedule bass
+  let tb = now + 0.05;
+  for (const note of bassLine) {
+    const dur = note.dur * quarterDur;
+    playNote(NOTE_FREQ[note.note], tb, dur, 'triangle', 0.08);
+    tb += dur;
+  }
+
+  // Total loop duration in beats: melody has 32 quarter beats = 32 * quarterDur
+  const totalBeats = 32;
+  const loopDurationMs = totalBeats * quarterDur * 1000;
+
+  musicScheduleTimer = setTimeout(scheduleLoop, loopDurationMs - 200);
+}
+
+function startMusic() {
+  if (!musicInitialized) initAudio();
+  if (!audioCtx) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  if (masterGain) masterGain.gain.setValueAtTime(1.0, audioCtx.currentTime);
+  musicPlaying = true;
+  scheduleLoop();
+  updateMusicIndicator();
+}
+
+function stopMusic() {
+  musicPlaying = false;
+  if (musicScheduleTimer) {
+    clearTimeout(musicScheduleTimer);
+    musicScheduleTimer = null;
+  }
+  if (masterGain) masterGain.gain.setValueAtTime(0, audioCtx.currentTime);
+  updateMusicIndicator();
+}
+
+function toggleMusic() {
+  if (!musicInitialized) initAudio();
+  if (musicPlaying) {
+    stopMusic();
+  } else {
+    startMusic();
+  }
+  renderStatusBar();
+}
+
+function updateMusicIndicator() {
+  const el = document.getElementById('music-indicator');
+  if (!el) return;
+  el.textContent = musicPlaying ? 'M: Music ON' : 'M: Music OFF';
+  el.style.color = musicPlaying ? '#55FF55' : '#555555';
+}
+
+// =====================================================================
+// SYNTAX HIGHLIGHTING (EGA Colors — Python)
+// =====================================================================
+const PY_KEYWORDS = new Set([
+  'import', 'from', 'def', 'class', 'return', 'if', 'elif', 'else',
+  'for', 'while', 'with', 'as', 'try', 'except', 'finally', 'raise',
+  'yield', 'lambda', 'pass', 'break', 'continue', 'and', 'or', 'not',
+  'in', 'is', 'True', 'False', 'None', 'async', 'await', 'del',
+  'global', 'nonlocal', 'assert'
+]);
+
+function escHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function highlightCode(code) {
+  return code.split('\n').map(function(line) {
+    // Full-line comment
+    if (line.trim().startsWith('#')) {
+      return '<span style="color:#75715e">' + escHtml(line) + '</span>';
+    }
+    // Django template tags
+    if (line.indexOf('{%') !== -1 || line.indexOf('{{') !== -1) {
+      var result = '';
+      var i = 0;
+      while (i < line.length) {
+        // Template tag {% ... %}
+        if (line[i] === '{' && i + 1 < line.length && line[i + 1] === '%') {
+          var end = line.indexOf('%}', i + 2);
+          if (end === -1) end = line.length - 2;
+          end += 2;
+          result += '<span style="color:#f92672">' + escHtml(line.substring(i, end)) + '</span>';
+          i = end;
+          continue;
+        }
+        // Template variable {{ ... }}
+        if (line[i] === '{' && i + 1 < line.length && line[i + 1] === '{') {
+          var end = line.indexOf('}}', i + 2);
+          if (end === -1) end = line.length - 2;
+          end += 2;
+          result += '<span style="color:#66d9ef">' + escHtml(line.substring(i, end)) + '</span>';
+          i = end;
+          continue;
+        }
+        // HTML tag
+        if (line[i] === '<') {
+          var end = line.indexOf('>', i);
+          if (end === -1) end = line.length - 1;
+          end += 1;
+          result += '<span style="color:#f92672">' + escHtml(line.substring(i, end)) + '</span>';
+          i = end;
+          continue;
+        }
+        result += '<span style="color:#f8f8f2">' + escHtml(line[i]) + '</span>';
+        i++;
+      }
+      return result;
+    }
+    var result = '';
+    var i = 0;
+    while (i < line.length) {
+      // Decorator
+      if (line[i] === '@' && (i === 0 || /\s/.test(line[i - 1]))) {
+        var end = i + 1;
+        while (end < line.length && /[\w.]/.test(line[end])) end++;
+        result += '<span style="color:#a6e22e">' + escHtml(line.substring(i, end)) + '</span>';
+        i = end;
+        continue;
+      }
+      // String literal (single, double, or triple-quoted; with optional f-prefix)
+      if ((line[i] === "'" || line[i] === '"') ||
+          (line[i] === 'f' && i + 1 < line.length && (line[i + 1] === "'" || line[i + 1] === '"'))) {
+        var fStr = false;
+        var si = i;
+        if (line[i] === 'f') { fStr = true; si = i + 1; }
+        var quote = line[si];
+        var triple = (si + 2 < line.length && line[si + 1] === quote && line[si + 2] === quote);
+        var end = si + (triple ? 3 : 1);
+        while (end < line.length) {
+          if (line[end] === '\\') { end += 2; continue; }
+          if (triple) {
+            if (end + 2 < line.length && line[end] === quote && line[end + 1] === quote && line[end + 2] === quote) {
+              end += 3; break;
+            }
+          } else {
+            if (line[end] === quote) { end++; break; }
+          }
+          end++;
+        }
+        end = Math.min(end, line.length);
+        result += '<span style="color:#e6db74">' + escHtml(line.substring(i, end)) + '</span>';
+        i = end;
+        continue;
+      }
+      // Comment
+      if (line[i] === '#') {
+        result += '<span style="color:#75715e">' + escHtml(line.substring(i)) + '</span>';
+        break;
+      }
+      // Number
+      if (/\d/.test(line[i]) && (i === 0 || !/\w/.test(line[i - 1]))) {
+        var end2 = i;
+        while (end2 < line.length && /[\d._]/.test(line[end2])) end2++;
+        result += '<span style="color:#ae81ff">' + escHtml(line.substring(i, end2)) + '</span>';
+        i = end2;
+        continue;
+      }
+      // Identifier or keyword
+      if (/[a-zA-Z_]/.test(line[i])) {
+        var end3 = i;
+        while (end3 < line.length && /[\w]/.test(line[end3])) end3++;
+        var word = line.substring(i, end3);
+        if (PY_KEYWORDS.has(word)) {
+          result += '<span style="color:#f92672">' + escHtml(word) + '</span>';
+        } else if (end3 < line.length && line[end3] === '(') {
+          result += '<span style="color:#a6e22e">' + escHtml(word) + '</span>';
+        } else {
+          result += '<span style="color:#f8f8f2">' + escHtml(word) + '</span>';
+        }
+        i = end3;
+        continue;
+      }
+      // Punctuation / operators
+      result += '<span style="color:#f8f8f2">' + escHtml(line[i]) + '</span>';
+      i++;
+    }
+    return result;
+  }).join('\n');
+}
+
+// =====================================================================
+// TEXT PANEL RENDERING
+// =====================================================================
+var textPanel = document.getElementById('text-panel');
+var statusBar = document.getElementById('status-bar');
+
+function setTextPanel(html) {
+  textPanel.innerHTML = html;
+  textPanel.scrollTop = 0;
+}
+
+function renderTitleScreen() {
+  setTextPanel(
+    '<div style="text-align:center; padding-top:20px;">' +
+    '<div style="color:#FFFF55; font-size:16px; letter-spacing:2px;">THE CODEREGON TRAIL</div>' +
+    '<div style="color:#AAAAAA; margin-top:8px;">The WSGI Wagon Trail - Django Edition</div>' +
+    '<div style="margin-top:30px;" class="blink">Press SPACE BAR to begin</div>' +
+    '</div>'
+  );
+}
+
+function renderSetupScreen() {
+  var profsHtml = '';
+  for (var i = 0; i < PROFESSIONS.length; i++) {
+    var p = PROFESSIONS[i];
+    var sel = (i === selectedDifficulty);
+    var color = sel ? '#FFFF55' : '#AAAAAA';
+    var marker = sel ? '>' : ' ';
+    var perks = 'HP:' + p.health + '  Hints:' + p.supplies;
+    if (p.hintFree) perks += '  (free hints!)';
+    profsHtml += '<div style="color:' + color + '; cursor:pointer;" onclick="selectDifficulty(' + i + ')">' +
+             marker + ' [' + (i + 1) + '] ' + p.name + '</div>';
+    profsHtml += '<div style="color:' + (sel ? '#AAAAAA' : '#555555') + '; margin-left:28px; font-size:12px;">' + p.desc + '  ' + perks + '</div>';
+  }
+
+  var hearts = '\u2665\u2665\u2665';
+  setTextPanel(
+    '<div style="padding:8px 20px;">' +
+    '<div style="color:#55FFFF; margin-bottom:10px;">Your party of key concepts:</div>' +
+    '<div style="margin-left:16px;">' +
+    '<div style="color:#55FF55;">1. Middleware Pipeline       <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">2. URL Routing              <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">3. ORM QuerySets            <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">4. Template Engine          <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '</div>' +
+    '<div style="color:#55FFFF; margin-top:14px; margin-bottom:6px;">What is your profession?</div>' +
+    '<div style="margin-left:16px;">' + profsHtml + '</div>' +
+    '<div style="margin-top:18px; text-align:center;" class="blink">Press ENTER to hit the trail!</div>' +
+    '</div>'
+  );
+}
+
+function renderTravelScreen() {
+  var flavor = travelFlavors[travelFlavorIndex % travelFlavors.length];
+  setTextPanel(
+    '<div style="text-align:center; padding-top:30px;">' +
+    '<div style="color:#FFFF55;">Day ' + day + '...</div>' +
+    '<div style="color:#AAAAAA; margin-top:12px;">' + escHtml(flavor) + '</div>' +
+    '<div style="margin-top:24px; color:#555555;" class="blink">Press SPACE BAR to continue</div>' +
+    '</div>'
+  );
+}
+
+function renderStopScreen() {
+  var stop = TRAIL_DATA.stops[currentStop];
+  if (!stop) return;
+
+  var codeHtml = highlightCode(stop.code.content);
+  setTextPanel(
+    '<div style="padding:4px 12px;">' +
+    '<div style="color:#FFFF55; text-align:center; font-size:14px;">\u2550\u2550 ' + escHtml(stop.name) + ' \u2014 ' + escHtml(stop.subtitle) + ' \u2550\u2550</div>' +
+    '<div style="color:#555555; text-align:center; font-size:11px; margin-bottom:4px;">[' + escHtml(stop.concept) + ']</div>' +
+    '<div style="border:1px solid #3e3d32; padding:2px 4px; margin:4px 0 2px 0; font-size:11px; color:#75715e;">\u250C\u2500 ' + escHtml(stop.code.file) + ' \u2500\u2500\u2500</div>' +
+    '<div class="code-box">' + codeHtml + '</div>' +
+    '<div style="color:#AAAAAA; margin:6px 0; line-height:1.4; font-size:13px;">' + escHtml(stop.narration) + '</div>' +
+    '<div style="margin-top:8px;" id="stop-choices">' +
+    '<span class="stop-opt' + (selectedStopChoice === 0 ? ' choice-selected' : '') + '" onclick="handleStopChoice(1)">[1] Continue</span>' +
+    '<span class="stop-opt' + (selectedStopChoice === 1 ? ' choice-selected' : '') + '" style="margin-left:20px;" onclick="handleStopChoice(2)">[2] Examine code</span>' +
+    '</div>' +
+    '</div>'
+  );
+}
+
+function renderEventScreen(event) {
+  var isRiver = event.type === 'river';
+  var isFortune = event.type === 'fortune';
+  var typeLabel, headerColor;
+
+  if (isRiver) {
+    typeLabel = '\uD83C\uDF0A RIVER CROSSING';
+    headerColor = '#5555FF';
+  } else if (event.type === 'weather') {
+    typeLabel = '\u26A1 WEATHER';
+    headerColor = '#FFFF55';
+  } else if (event.type === 'encounter') {
+    typeLabel = '\uD83D\uDC64 ENCOUNTER';
+    headerColor = '#FFFF55';
+  } else if (event.type === 'misfortune') {
+    typeLabel = '\u2620 MISFORTUNE';
+    headerColor = '#FF5555';
+  } else {
+    typeLabel = '\u2728 FORTUNE';
+    headerColor = '#55FF55';
+  }
+
+  var diffBadge = '';
+  if (event.difficulty) {
+    var diffColors = { easy: '#55FF55', medium: '#FFFF55', hard: '#FF5555' };
+    var diffColor = diffColors[event.difficulty] || '#AAAAAA';
+    diffBadge = ' <span style="display:inline-block;padding:1px 6px;border:1px solid ' + diffColor + ';color:' + diffColor + ';font-size:10px;margin-left:8px;border-radius:2px;">' + event.difficulty.toUpperCase() + '</span>';
+  }
+
+  var choicesHtml = '';
+  if (event.choices.length > 0 && !eventAnswered) {
+    var labels = ['A', 'B', 'C', 'D'];
+    for (var i = 0; i < shuffledIndices.length; i++) {
+      var origIdx = shuffledIndices[i];
+      var dimmedClass = (eventHinted && dimmedChoice === i) ? ' choice-dimmed' : '';
+      var selClass = (selectedEventChoice === i) ? ' choice-selected' : '';
+      choicesHtml += '<div class="choice-item' + dimmedClass + selClass + '" onclick="handleEventChoice(' + i + ')" style="margin:4px 0;">  ' + labels[i] + '. ' + escHtml(event.choices[origIdx].text) + '</div>';
+    }
+    var hintAvail = (PROFESSIONS[difficulty] && PROFESSIONS[difficulty].hintFree) || supplies > 0;
+    var hintLabel = (PROFESSIONS[difficulty] && PROFESSIONS[difficulty].hintFree) ? 'H = Free Hint' : 'H = Hint (-1 supply)';
+    choicesHtml += '<div style="margin-top:10px; color:#555555;">Arrow keys + Enter to choose' + (hintAvail ? '  |  ' + hintLabel : '') + '</div>';
+  } else if (isFortune) {
+    choicesHtml = '<div style="color:#55FF55; margin-top:8px;">+20 Health restored!</div>' +
+                  '<div style="margin-top:10px;" class="blink">Press SPACE BAR to continue</div>';
+  }
+
+  setTextPanel(
+    '<div style="padding:4px 12px;">' +
+    '<div style="color:' + headerColor + '; font-size:14px; text-align:center;">' + typeLabel + ' \u2014 ' + escHtml(event.title) + diffBadge + '</div>' +
+    '<div style="color:#FFFFFF; margin:8px 0; line-height:1.4;">' + escHtml(event.text) + '</div>' +
+    '<div id="event-choices">' + choicesHtml + '</div>' +
+    '<div id="event-result"></div>' +
+    '</div>'
+  );
+}
+
+function showEventResult(event, displayIdx) {
+  var origIdx = shuffledIndices[displayIdx];
+  var choice = event.choices[origIdx];
+  var correct = choice.correct;
+  var isRiver = event.type === 'river';
+
+  var resultHtml = '';
+  if (correct) {
+    var bonus = streak >= 3 ? ' (+5 streak bonus!)' : '';
+    resultHtml = '<div style="color:#55FF55; margin-top:8px; font-size:14px;">CORRECT! +10 Health' + bonus + '</div>';
+  } else {
+    var dmg = isRiver ? 20 : 15;
+    resultHtml = '<div style="color:#FF5555; margin-top:8px; font-size:14px;">WRONG! -' + dmg + ' Health</div>';
+    document.getElementById('game-container').classList.add('shake');
+    setTimeout(function() { document.getElementById('game-container').classList.remove('shake'); }, 500);
+  }
+  resultHtml += '<div style="color:#AAAAAA; margin-top:6px; line-height:1.4;">' + escHtml(choice.explanation) + '</div>';
+  resultHtml += '<div style="margin-top:10px;" class="blink">Press SPACE BAR to continue</div>';
+
+  // Update choices display in shuffled order
+  var labels = ['A', 'B', 'C', 'D'];
+  var choicesHtml = '';
+  for (var i = 0; i < shuffledIndices.length; i++) {
+    var oi = shuffledIndices[i];
+    var c = event.choices[oi];
+    var cls = c.correct ? 'choice-correct' : (i === displayIdx ? 'choice-wrong' : 'text-gray');
+    var marker = c.correct ? '\u2713' : (i === displayIdx ? '\u2717' : ' ');
+    choicesHtml += '<div class="' + cls + '" style="margin:4px 0;">' + marker + ' ' + labels[i] + '. ' + escHtml(c.text) + '</div>';
+  }
+
+  var choicesEl = document.getElementById('event-choices');
+  if (choicesEl) choicesEl.innerHTML = choicesHtml;
+  var resultEl = document.getElementById('event-result');
+  if (resultEl) resultEl.innerHTML = resultHtml;
+}
+
+function renderDeathScreen() {
+  var deathMsg;
+  if (techDebtDeath) {
+    var techDebtMsgs = [
+      'You have died of tech debt dysentery.',
+    ];
+    deathMsg = techDebtMsgs[Math.floor(Math.random() * techDebtMsgs.length)];
+    techDebtDeath = false;
+  } else {
+    deathMsg = TRAIL_DATA.deathMessages[Math.floor(Math.random() * TRAIL_DATA.deathMessages.length)];
+  }
+
+  setTextPanel(
+    '<div style="text-align:center; padding-top:16px;">' +
+    '<div style="display:inline-block; border:2px solid #33FF33; padding:10px 24px; min-width:280px;">' +
+    '<span id="death-text" style="color:#33FF33; font-size:16px;"></span>' +
+    '</div>' +
+    '<div style="color:#1a8a1a; margin-top:14px; font-size:13px;">Stops: ' + currentStop + '/' + TRAIL_DATA.stops.length + '  Score: ' + score + '/' + totalQuestions + '  Streak: ' + bestStreak + '</div>' +
+    '<div style="color:#33FF33; margin-top:14px;" class="blink">Press SPACE BAR to try again</div>' +
+    '</div>'
+  );
+
+  // Typewriter animation
+  typewriterText = deathMsg;
+  typewriterIndex = 0;
+  if (typewriterTimer) clearInterval(typewriterTimer);
+  typewriterTimer = setInterval(function() {
+    var el = document.getElementById('death-text');
+    if (!el) { clearInterval(typewriterTimer); return; }
+    typewriterIndex++;
+    el.textContent = typewriterText.substring(0, typewriterIndex);
+    if (typewriterIndex >= typewriterText.length) clearInterval(typewriterTimer);
+  }, 50);
+}
+
+function renderWinScreen() {
+  var survivors = partyHealth.filter(function(h) { return h > 0; }).length;
+  var pctScore = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 100;
+
+  var conceptNames = ['Middleware Pipeline', 'URL Routing', 'ORM QuerySets', 'Template Engine'];
+
+  var masteryHtml = '';
+  var weakestName = '';
+  var weakestHp = 999;
+  for (var i = 0; i < conceptNames.length; i++) {
+    var hp = partyHealth[i];
+    var maxHp = TRAIL_DATA.partyMembers[i].maxHealth;
+    var stars, color;
+    if (hp <= 0) {
+      stars = '<span style="color:#555555">\u2606\u2606\u2606 (died)</span>';
+      color = '#555555';
+    } else {
+      stars = '';
+      for (var s = 0; s < hp; s++) stars += '\u2605';
+      for (var s2 = 0; s2 < maxHp - hp; s2++) stars += '\u2606';
+      color = '#FFFF55';
+    }
+    if (hp < weakestHp) { weakestHp = hp; weakestName = conceptNames[i]; }
+    masteryHtml += '<div style="color:' + color + ';">    ' + conceptNames[i] + '  ' + stars + '</div>';
+  }
+
+  var tip = weakestHp < TRAIL_DATA.partyMembers[0].maxHealth ? '"Study up on ' + weakestName + '!"' : '"Perfect understanding!"';
+
+  setTextPanel(
+    '<div style="padding:8px 16px;">' +
+    '<div style="color:#FFFF55; text-align:center; font-size:16px;">\u2605 YOU MADE IT TO RESPONSE FRONTIER! \u2605</div>' +
+    '<div style="margin-top:10px; color:#AAAAAA;">' +
+    '<div>  Framework:    <span style="color:#55FFFF;">Django (The WSGI Wagon Trail)</span></div>' +
+    '<div>  Survivors:    <span style="color:#55FF55;">' + survivors + '/' + partyHealth.length + '</span></div>' +
+    '<div>  Quiz Score:   <span style="color:#FFFF55;">' + score + '/' + totalQuestions + ' (' + pctScore + '%)</span></div>' +
+    '<div>  Best Streak:  <span style="color:#FF55FF;">' + bestStreak + '</span></div>' +
+    '<div>  Hints Used:   <span style="color:#AAAAAA;">' + hintsUsed + '</span></div>' +
+    '</div>' +
+    '<div style="margin-top:10px; color:#FFFF55;">  Concept Mastery:</div>' +
+    '<div>' + masteryHtml + '</div>' +
+    '<div style="margin-top:10px; color:#55FF55; text-align:center;">' + tip + '</div>' +
+    '<div style="margin-top:14px; text-align:center;" class="blink">Press SPACE BAR to play again</div>' +
+    '</div>'
+  );
+}
+
+// =====================================================================
+// STATUS BAR
+// =====================================================================
+function renderStatusBar() {
+  if (gameState === STATES.TITLE) {
+    var titleMusic = musicPlaying
+      ? 'Music: <span style="color:#55FF55;">On</span> <span style="color:#555555;">(M to toggle off)</span>'
+      : 'Music: <span style="color:#FF5555;">Off</span> <span style="color:#555555;">(M to toggle on)</span>';
+    statusBar.innerHTML = '<span style="color:#555555;">The Coderegon Trail v1.0</span>  |  ' + titleMusic;
+    return;
+  }
+
+  var maxH = maxHealthForGame;
+  var healthPct = Math.max(0, health / maxH);
+  var barLen = 10;
+  var filled = Math.round(healthPct * barLen);
+  var healthColor = health > maxH * 0.6 ? '#00AA00' : (health > maxH * 0.3 ? '#FFFF55' : '#FF5555');
+  var healthBar = '<span style="color:' + healthColor + ';">';
+  for (var i = 0; i < filled; i++) healthBar += '\u2588';
+  healthBar += '</span><span style="color:#555555;">';
+  for (var i2 = 0; i2 < barLen - filled; i2++) healthBar += '\u2591';
+  healthBar += '</span>';
+
+  var streakStars = '<span style="color:#FFFF55;">';
+  for (var s = 0; s < Math.min(streak, 5); s++) streakStars += '\u2605';
+  streakStars += '</span>';
+
+  var musicHint = musicPlaying
+    ? 'Music: <span style="color:#55FF55;">On</span> <span style="color:#555555;">(M to toggle off)</span>'
+    : 'Music: <span style="color:#FF5555;">Off</span> <span style="color:#555555;">(M to toggle on)</span>';
+
+  statusBar.innerHTML = 'HP: ' + healthBar + ' ' + Math.max(0, health) +
+    '  Hints: ' + supplies + '  ' + streakStars +
+    '  |  Stop ' + (currentStop + 1) + '/' + TRAIL_DATA.stops.length +
+    '  |  ' + musicHint;
+}
+
+// =====================================================================
+// GAME LOGIC
+// =====================================================================
+function resetGame() {
+  gameState = STATES.TITLE;
+  difficulty = 1;
+  selectedDifficulty = 1;
+  health = 100;
+  maxHealthForGame = 100;
+  supplies = 5;
+  currentStop = 0;
+  day = 1;
+  score = 0;
+  totalQuestions = 0;
+  streak = 0;
+  bestStreak = 0;
+  hintsUsed = 0;
+  scrollX = 0;
+  showRiver = false;
+  wagonWheelAngle = 0;
+  travelFlavorIndex = 0;
+  deathPending = false;
+  partyHealth = TRAIL_DATA.partyMembers.map(function(p) { return p.maxHealth; });
+  pendingEvents = [];
+  currentEventIndex = 0;
+  eventAnswered = false;
+  eventHinted = false;
+  dimmedChoice = -1;
+  selectedEventChoice = 0;
+  selectedStopChoice = 0;
+  shuffledIndices = [];
+  currentEventType = '';
+  currentEventTitle = '';
+  drainAccumulator = 0;
+  techDebtDeath = false;
+  if (travelTimer) { clearTimeout(travelTimer); travelTimer = null; }
+  if (typewriterTimer) { clearInterval(typewriterTimer); typewriterTimer = null; }
+}
+
+function selectDifficulty(idx) {
+  selectedDifficulty = Math.max(0, Math.min(PROFESSIONS.length - 1, idx));
+  renderSetupScreen();
+}
+
+function startGame() {
+  difficulty = selectedDifficulty;
+  var prof = PROFESSIONS[difficulty];
+  health = prof.health;
+  maxHealthForGame = prof.health;
+  supplies = prof.supplies;
+  partyHealth = TRAIL_DATA.partyMembers.map(function(p) { return p.maxHealth; });
+  currentStop = 0;
+  day = 1;
+  score = 0;
+  totalQuestions = 0;
+  streak = 0;
+  bestStreak = 0;
+  hintsUsed = 0;
+  scrollX = 0;
+  deathPending = false;
+  enterTravel();
+}
+
+function enterTravel() {
+  gameState = STATES.TRAVEL;
+  showRiver = false;
+  currentEventType = '';
+  currentEventTitle = '';
+  day += Math.floor(Math.random() * 7) + 1;
+  travelFlavorIndex = Math.floor(Math.random() * travelFlavors.length);
+  renderTravelScreen();
+  renderStatusBar();
+
+  if (travelTimer) clearTimeout(travelTimer);
+  travelTimer = setTimeout(function() {
+    if (gameState === STATES.TRAVEL) advanceFromTravel();
+  }, 2500);
+}
+
+function advanceFromTravel() {
+  if (travelTimer) { clearTimeout(travelTimer); travelTimer = null; }
+
+  // Collect events for the current stop (triggerStop is 1-indexed relative to stop we just visited)
+  // Events trigger BEFORE showing the stop
+  var DIFFICULTY_TIERS = [['easy'],['easy','medium'],['medium','hard'],['hard']];
+  var allowedTiers = DIFFICULTY_TIERS[difficulty] || ['easy','medium','hard'];
+  var allStopEvents = TRAIL_DATA.events.filter(function(e) { return e.triggerStop === currentStop; });
+  pendingEvents = allStopEvents.filter(function(e) { return e.type === 'fortune' || !e.difficulty || allowedTiers.indexOf(e.difficulty) !== -1; });
+  currentEventIndex = 0;
+
+  if (pendingEvents.length > 0) {
+    showNextEvent();
+  } else {
+    enterStop();
+  }
+}
+
+function showNextEvent() {
+  if (currentEventIndex >= pendingEvents.length) {
+    // After all events, check if we should die
+    if (checkDeath()) return;
+    enterStop();
+    return;
+  }
+
+  var event = pendingEvents[currentEventIndex];
+  eventAnswered = false;
+  eventHinted = false;
+  dimmedChoice = -1;
+  selectedEventChoice = 0;
+  currentEventType = event.type;
+  currentEventTitle = event.title;
+
+  // Shuffle choice order so correct answer isn't always first
+  shuffledIndices = [];
+  for (var si = 0; si < event.choices.length; si++) shuffledIndices.push(si);
+  for (var si = shuffledIndices.length - 1; si > 0; si--) {
+    var sj = Math.floor(Math.random() * (si + 1));
+    var tmp = shuffledIndices[si]; shuffledIndices[si] = shuffledIndices[sj]; shuffledIndices[sj] = tmp;
+  }
+
+  if (event.type === 'river') {
+    gameState = STATES.RIVER;
+    showRiver = true;
+  } else {
+    gameState = STATES.EVENT;
+    showRiver = false;
+  }
+
+  // Fortune events auto-apply health
+  if (event.type === 'fortune') {
+    health = Math.min(health + 20, maxHealthForGame);
+    eventAnswered = true;
+  }
+
+  renderEventScreen(event);
+  renderStatusBar();
+}
+
+function handleEventChoice(displayIdx) {
+  if (eventAnswered) return;
+  var event = pendingEvents[currentEventIndex];
+  if (!event || event.choices.length === 0) return;
+  if (displayIdx < 0 || displayIdx >= shuffledIndices.length) return;
+  if (eventHinted && dimmedChoice === displayIdx) return;
+
+  var prof = PROFESSIONS[difficulty];
+  var forgiving = prof && prof.forgiving;
+  var origIdx = shuffledIndices[displayIdx];
+  var choice = event.choices[origIdx];
+  var isRiver = event.type === 'river';
+
+  if (forgiving && !choice.correct) {
+    // Ralph Wiggum mode: dim the wrong answer, let them try again
+    var items = document.querySelectorAll('.choice-item');
+    if (items[displayIdx]) {
+      items[displayIdx].classList.add('choice-dimmed');
+      items[displayIdx].style.pointerEvents = 'none';
+    }
+    // Move selection to next available choice
+    for (var ni = 0; ni < shuffledIndices.length; ni++) {
+      var nextIdx = (displayIdx + 1 + ni) % shuffledIndices.length;
+      if (!(eventHinted && dimmedChoice === nextIdx) && !items[nextIdx].classList.contains('choice-dimmed')) {
+        selectedEventChoice = nextIdx;
+        updateChoiceHighlight();
+        break;
+      }
+    }
+    return;
+  }
+
+  eventAnswered = true;
+
+  totalQuestions++;
+
+  if (choice.correct) {
+    var bonus = streak >= 3 ? 5 : 0;
+    health = Math.min(health + 10 + bonus, maxHealthForGame);
+    score++;
+    streak++;
+    if (streak > bestStreak) bestStreak = streak;
+  } else {
+    var dmg = isRiver ? 20 : 15;
+    health -= dmg;
+    streak = 0;
+    // Damage related party member
+    var concept = event.concept;
+    var memberIdx = -1;
+    for (var mi = 0; mi < TRAIL_DATA.partyMembers.length; mi++) {
+      if (TRAIL_DATA.partyMembers[mi].name === concept) { memberIdx = mi; break; }
+    }
+    if (memberIdx >= 0 && partyHealth[memberIdx] > 0) {
+      partyHealth[memberIdx]--;
+    }
+  }
+
+  showEventResult(event, displayIdx);
+  renderStatusBar();
+}
+
+function handleEventHint() {
+  var prof = PROFESSIONS[difficulty];
+  var hintFree = prof && prof.hintFree;
+  if (eventAnswered || eventHinted) return;
+  if (!hintFree && supplies <= 0) return;
+  var event = pendingEvents[currentEventIndex];
+  if (!event || event.choices.length === 0) return;
+
+  if (!hintFree) supplies--;
+  hintsUsed++;
+  eventHinted = true;
+
+  // Find a wrong answer in display order (dimmedChoice is a display index)
+  var wrongDisplayIndices = [];
+  for (var i = 0; i < shuffledIndices.length; i++) {
+    if (!event.choices[shuffledIndices[i]].correct) wrongDisplayIndices.push(i);
+  }
+  dimmedChoice = wrongDisplayIndices[Math.floor(Math.random() * wrongDisplayIndices.length)];
+
+  renderEventScreen(event);
+  renderStatusBar();
+}
+
+function updateChoiceHighlight() {
+  var items = document.querySelectorAll('.choice-item');
+  for (var i = 0; i < items.length; i++) {
+    items[i].classList.toggle('choice-selected', i === selectedEventChoice);
+  }
+}
+
+function updateStopHighlight() {
+  var items = document.querySelectorAll('.stop-opt');
+  for (var i = 0; i < items.length; i++) {
+    items[i].classList.toggle('choice-selected', i === selectedStopChoice);
+  }
+}
+
+function checkDeath() {
+  if (health <= 0) {
+    enterDeath();
+    return true;
+  }
+  var allDead = true;
+  for (var i = 0; i < partyHealth.length; i++) {
+    if (partyHealth[i] > 0) { allDead = false; break; }
+  }
+  if (allDead) {
+    enterDeath();
+    return true;
+  }
+  return false;
+}
+
+function advanceFromEvent() {
+  currentEventIndex++;
+  if (currentEventIndex < pendingEvents.length) {
+    if (checkDeath()) return;
+    showNextEvent();
+  } else {
+    if (checkDeath()) return;
+    enterStop();
+  }
+}
+
+function enterStop() {
+  gameState = STATES.STOP;
+  showRiver = false;
+  selectedStopChoice = 0;
+
+  var stop = TRAIL_DATA.stops[currentStop];
+  if (stop && stop.landmarkType === 'river') {
+    showRiver = true;
+  }
+
+  renderStopScreen();
+  renderStatusBar();
+}
+
+function handleStopChoice(choice) {
+  if (choice === 2) {
+    var codeBox = textPanel.querySelector('.code-box');
+    if (codeBox) {
+      codeBox.style.maxHeight = '280px';
+      codeBox.scrollIntoView({ behavior: 'smooth' });
+    }
+    return;
+  }
+
+  currentStop++;
+  if (currentStop >= TRAIL_DATA.stops.length) {
+    enterWin();
+  } else {
+    enterTravel();
+  }
+}
+
+function enterDeath() {
+  gameState = STATES.DEATH;
+  showRiver = false;
+  renderDeathScreen();
+  renderStatusBar();
+}
+
+function enterWin() {
+  gameState = STATES.WIN;
+  showRiver = false;
+  renderWinScreen();
+  renderStatusBar();
+}
+
+// =====================================================================
+// INPUT HANDLING
+// =====================================================================
+function ensureAudio() {
+  if (!musicInitialized) {
+    initAudio();
+    startMusic();
+  }
+}
+
+document.addEventListener('keydown', function(e) {
+  var key = e.key;
+
+  // Music toggle always works
+  if (key === 'm' || key === 'M') {
+    if (!musicInitialized) initAudio();
+    toggleMusic();
+    return;
+  }
+
+  // Start audio on first interaction
+  if (!musicInitialized) ensureAudio();
+
+  switch (gameState) {
+    case STATES.TITLE:
+      if (key === ' ' || key === 'Enter') {
+        e.preventDefault();
+        gameState = STATES.SETUP;
+        renderSetupScreen();
+        renderStatusBar();
+      }
+      break;
+
+    case STATES.SETUP:
+      if (key === 'ArrowDown' || key === 'ArrowRight') {
+        e.preventDefault();
+        selectDifficulty((selectedDifficulty + 1) % PROFESSIONS.length);
+      } else if (key === 'ArrowUp' || key === 'ArrowLeft') {
+        e.preventDefault();
+        selectDifficulty((selectedDifficulty - 1 + PROFESSIONS.length) % PROFESSIONS.length);
+      } else if (key === '1') selectDifficulty(0);
+      else if (key === '2') selectDifficulty(1);
+      else if (key === '3') selectDifficulty(2);
+      else if (key === '4') selectDifficulty(3);
+      else if (key === 'Enter' || key === ' ') {
+        e.preventDefault();
+        startGame();
+      }
+      break;
+
+    case STATES.TRAVEL:
+      if (key === ' ' || key === 'Enter') {
+        e.preventDefault();
+        advanceFromTravel();
+      }
+      break;
+
+    case STATES.STOP:
+      if (key === 'ArrowLeft' || key === 'ArrowRight') {
+        e.preventDefault();
+        selectedStopChoice = (key === 'ArrowLeft') ? 0 : 1;
+        updateStopHighlight();
+      } else if (key === 'ArrowUp' || key === 'ArrowDown') {
+        e.preventDefault();
+        selectedStopChoice = selectedStopChoice === 0 ? 1 : 0;
+        updateStopHighlight();
+      } else if (key === 'Enter' || key === ' ') {
+        e.preventDefault();
+        handleStopChoice(selectedStopChoice + 1);
+      } else if (key === '1') {
+        handleStopChoice(1);
+      } else if (key === '2') {
+        handleStopChoice(2);
+      }
+      break;
+
+    case STATES.EVENT:
+    case STATES.RIVER:
+      if (!eventAnswered) {
+        var ev = pendingEvents[currentEventIndex];
+        if (ev && ev.choices.length > 0) {
+          var numChoices = ev.choices.length;
+          if (key === 'ArrowDown' || key === 'ArrowRight') {
+            e.preventDefault();
+            selectedEventChoice = (selectedEventChoice + 1) % numChoices;
+            // Skip dimmed choice
+            if (eventHinted && dimmedChoice === selectedEventChoice) selectedEventChoice = (selectedEventChoice + 1) % numChoices;
+            updateChoiceHighlight();
+          } else if (key === 'ArrowUp' || key === 'ArrowLeft') {
+            e.preventDefault();
+            selectedEventChoice = (selectedEventChoice - 1 + numChoices) % numChoices;
+            if (eventHinted && dimmedChoice === selectedEventChoice) selectedEventChoice = (selectedEventChoice - 1 + numChoices) % numChoices;
+            updateChoiceHighlight();
+          } else if (key === 'Enter' || key === ' ') {
+            e.preventDefault();
+            if (!(eventHinted && dimmedChoice === selectedEventChoice)) {
+              handleEventChoice(selectedEventChoice);
+            }
+          } else if (key === '1' || key === 'a' || key === 'A') handleEventChoice(0);
+          else if (key === '2' || key === 'b' || key === 'B') handleEventChoice(1);
+          else if (key === '3' || key === 'c' || key === 'C') handleEventChoice(2);
+          else if (key === 'h' || key === 'H') handleEventHint();
+        }
+        // Fortune: space/enter to continue
+        if (ev && ev.type === 'fortune' && (key === ' ' || key === 'Enter')) {
+          e.preventDefault();
+          advanceFromEvent();
+        }
+      } else {
+        if (key === ' ' || key === 'Enter') {
+          e.preventDefault();
+          if (checkDeath()) return;
+          advanceFromEvent();
+        }
+      }
+      break;
+
+    case STATES.DEATH:
+      if (key === ' ' || key === 'Enter') {
+        e.preventDefault();
+        resetGame();
+        renderTitleScreen();
+        renderStatusBar();
+      }
+      break;
+
+    case STATES.WIN:
+      if (key === ' ' || key === 'Enter') {
+        e.preventDefault();
+        resetGame();
+        renderTitleScreen();
+        renderStatusBar();
+      }
+      break;
+  }
+});
+
+// =====================================================================
+// ANIMATION LOOP + TECH DEBT DRAIN
+// =====================================================================
+var lastTime = 0;
+var drainAccumulator = 0;
+var DRAIN_INTERVAL = 3000; // drain 1 HP every 3 seconds
+var techDebtDeath = false;
+
+function gameLoop(timestamp) {
+  var dt = timestamp - lastTime;
+  lastTime = timestamp;
+
+  // Clamp dt to avoid huge jumps
+  if (dt > 100) dt = 16;
+
+  if (gameState === STATES.TRAVEL) {
+    scrollX += dt * 0.03;
+    wagonWheelAngle += dt * 0.004;
+  } else if (gameState === STATES.TITLE) {
+    scrollX += dt * 0.01;
+  } else {
+    // Gentle idle scroll
+    scrollX += dt * 0.002;
+  }
+
+  // Tech debt drain: HP ticks down during active gameplay (disabled for Ralph Wiggum)
+  var isForgiving = PROFESSIONS[difficulty] && PROFESSIONS[difficulty].forgiving;
+  var isActive = gameState === STATES.STOP || gameState === STATES.EVENT || gameState === STATES.RIVER;
+  if (isActive && !deathPending && !isForgiving) {
+    drainAccumulator += dt;
+    while (drainAccumulator >= DRAIN_INTERVAL) {
+      drainAccumulator -= DRAIN_INTERVAL;
+      health--;
+      renderStatusBar();
+      if (health <= 0) {
+        techDebtDeath = true;
+        enterDeath();
+        break;
+      }
+    }
+  }
+
+  renderCanvas(timestamp);
+  animFrame = requestAnimationFrame(gameLoop);
+}
+
+// =====================================================================
+// INITIALIZATION
+// =====================================================================
+resetGame();
+renderTitleScreen();
+renderStatusBar();
+updateMusicIndicator();
+animFrame = requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>

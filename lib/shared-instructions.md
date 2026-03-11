@@ -54,6 +54,13 @@ After displaying each section, present these commands and wait for user input:
 | `jump <N>` | Jump to section number N |
 | `list` | Show overview table of all sections with viewed/current status |
 | `done` | End the session with a summary |
+| `fly` | Enter fly-through for current section (auto-advancing code snippets with TTS) |
+| `pause` | Pause fly-through auto-advance |
+| `resume` | Resume fly-through auto-advance |
+| `stop` | Exit fly-through, return to section navigation |
+| `skip` | Skip the current quiz question |
+| `hint` | Get a hint for the current quiz question |
+| `score` | Show quiz score summary |
 
 ### How to detect user commands
 The user's next message will be one of the above commands (possibly with extra text). Parse it:
@@ -65,6 +72,13 @@ The user's next message will be one of the above commands (possibly with extra t
 - Starts with "jump" → extract number, go to that section
 - Starts with "list" → show overview
 - Starts with "done" → summarize and end
+- Starts with "fly" → enter fly-through mode for current section
+- Starts with "pause" → pause fly-through auto-advance
+- Starts with "resume" → resume fly-through auto-advance
+- Starts with "stop" → exit fly-through mode
+- Starts with "skip" → skip current quiz question
+- Starts with "hint" → show hint for current quiz question
+- Starts with "score" → show quiz score summary
 - Anything else → treat as a question about the current section
 
 ## Terminal Display Formatting
@@ -96,7 +110,7 @@ Show diffs with:
 ### Navigation Prompt
 Always end each section with:
 ```
-Commands: next | prev | detail | related | question | list | done
+Commands: next | fly | detail | related | question | list | done
 ```
 
 ## State Tracking
@@ -108,3 +122,81 @@ Track the walkthrough state mentally across turns:
 - The full list of sections with their content
 
 There is no external state file — Claude maintains state through conversation context.
+
+## Fly-Through Display
+
+When in fly-through mode, display each step using this template:
+
+### Step Display
+```
+────────────────────────────────────────────────
+  Step N of M — file/path.ts:15-38
+────────────────────────────────────────────────
+[code snippet displayed via Read tool]
+
+> 💬 [narration text]
+
+  ▶ Auto-advancing in Ns... (pause | stop)
+────────────────────────────────────────────────
+```
+
+The `file:line` format is clickable in VS Code terminals.
+
+### Fly-Through Flow
+1. Request snippet plan from narrator agent for current section
+2. For each snippet in the plan:
+   a. Display the step header with file:line range
+   b. Read and display the code using the Read tool
+   c. Display narration in a quote block
+   d. Trigger TTS with the narration text
+   e. Pause for estimated TTS duration + buffer (via `scripts/fly-pause.sh`)
+   f. Auto-advance to next snippet
+3. On `pause`: stop advancing, show "Paused at step N. Type resume or stop."
+4. On `resume`: continue from current step
+5. On `stop` or after last snippet: return to section navigation with "Fly-through complete. N snippets reviewed."
+
+### Fly-Through State
+Track within fly-through mode:
+- Current snippet index within the fly-through
+- Whether auto-advance is paused
+- The full snippet plan for the current section
+
+## Comprehension Quiz
+
+### Quiz Flow
+After every 2-3 sections (configurable), automatically trigger a quiz:
+
+1. Call quiz-generator agent with content from the recently covered sections
+2. Present each question one at a time:
+   ```
+   ════════════════════════════════════════════════
+     📝 COMPREHENSION CHECK (Question N of M)
+   ════════════════════════════════════════════════
+
+   [Question text]
+
+   (Type your answer, or: skip | hint)
+   ════════════════════════════════════════════════
+   ```
+3. Evaluate the user's answer (generously — partial credit for showing understanding)
+4. Provide feedback referencing specific code:
+   - Correct: "✓ That's right. [elaboration with file:line reference]"
+   - Partial: "~ On the right track. [what they got right + what they missed]"
+   - Incorrect: "✗ Not quite. [correct answer with file:line reference]"
+5. After all questions, show score summary
+6. Continue to next section
+
+### Quiz Score Display
+```
+────────────────────────────────────────────
+  Quiz Results: N/M correct
+  Running total: X/Y across all quizzes
+────────────────────────────────────────────
+```
+
+### Quiz State
+Track across the session:
+- Questions asked (total)
+- Questions answered correctly / partially / incorrectly
+- Which sections have been quizzed
+- Running score for the final summary

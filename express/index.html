@@ -1,0 +1,1971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Coderegon Trail - Express Edition</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100vh;
+  overflow: hidden;
+  background: #000;
+  font-family: 'Courier New', monospace;
+  color: #AAAAAA;
+}
+#game-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+#canvas-area {
+  height: 52vh;
+  min-height: 0;
+  position: relative;
+  background: #000;
+}
+#game-canvas {
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  display: block;
+}
+#text-panel {
+  flex: 1;
+  min-height: 0;
+  background: #000;
+  border-top: 2px solid #555555;
+  overflow-y: auto;
+  padding: 8px 16px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #FFFFFF;
+}
+#text-panel::-webkit-scrollbar { width: 8px; }
+#text-panel::-webkit-scrollbar-track { background: #000; }
+#text-panel::-webkit-scrollbar-thumb { background: #555555; }
+#status-bar {
+  height: 60px;
+  min-height: 60px;
+  background: #000;
+  border-top: 2px solid #555555;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  font-size: 15px;
+  color: #AAAAAA;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.blink {
+  animation: blink-anim 1s step-end infinite;
+}
+@keyframes blink-anim {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+.shake { animation: shake 0.5s ease-in-out; }
+.code-box {
+  background: #272822;
+  border: 1px solid #555555;
+  padding: 6px 8px;
+  margin: 6px 0;
+  max-height: 130px;
+  overflow-y: auto;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.3;
+  white-space: pre;
+  color: #f8f8f2;
+}
+.code-box::-webkit-scrollbar { width: 6px; height: 6px; }
+.code-box::-webkit-scrollbar-track { background: #272822; }
+.code-box::-webkit-scrollbar-thumb { background: #555555; }
+.choice-item { cursor: pointer; padding: 2px 4px; }
+.choice-item:hover { color: #FFFF55; }
+.choice-selected { color: #FFFF55; background: #333300; }
+.stop-opt { color: #55FFFF; cursor: pointer; padding: 2px 4px; }
+.stop-opt:hover { color: #FFFF55; }
+.choice-correct { color: #55FF55; }
+.choice-wrong { color: #FF5555; }
+.choice-dimmed { color: #555555; }
+.health-green { color: #00AA00; }
+.health-yellow { color: #FFFF55; }
+.health-red { color: #FF5555; }
+.health-dead { color: #555555; text-decoration: line-through; }
+.text-cyan { color: #55FFFF; }
+.text-yellow { color: #FFFF55; }
+.text-green { color: #55FF55; }
+.text-red { color: #FF5555; }
+.text-magenta { color: #FF55FF; }
+.text-gray { color: #555555; }
+.text-white { color: #FFFFFF; }
+.text-bright { color: #FFFFFF; font-weight: bold; }
+#music-indicator {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  font-size: 11px;
+  color: #555555;
+  z-index: 10;
+  pointer-events: none;
+}
+</style>
+</head>
+<body>
+<div id="game-container">
+  <div id="canvas-area">
+    <canvas id="game-canvas" width="320" height="200"></canvas>
+    <div id="music-indicator">M: Music</div>
+  </div>
+  <div id="text-panel"></div>
+  <div id="status-bar"></div>
+</div>
+
+<script>
+// =====================================================================
+// TRAIL DATA
+// =====================================================================
+const TRAIL_DATA={"framework": "express", "trailName": "The Middleware Prairie", "stops": [{"name": "Server Startup Camp", "subtitle": "The Entry Point", "concept": "Server initialization", "landmarkType": "town", "code": {"file": "app.js", "content": "// app.js:1-25\nconst express = require('express')\nconst morgan = require('morgan')\nconst helmet = require('helmet')\nconst { connectDB } = require('./config/db')\n\nconst app = express()\nconst PORT = process.env.PORT || 3000\n\n// Security headers first — always\napp.use(helmet())\n\n// Request logging\napp.use(morgan('dev'))\n\n// Connect to database, then start listening\nconnectDB().then(() => {\n  app.listen(PORT, () => {\n    console.log(`Server running on port ${PORT}`)\n  })\n})\n\n// Unhandled rejection safety net\nprocess.on('unhandledRejection', (err) => {\n  console.error('Unhandled rejection:', err)\n  process.exit(1)\n})\n\nmodule.exports = app", "language": "javascript"}, "narration": "Every Express journey starts right here — calling express to create your app. This single function call returns the object that everything else attaches to. Notice the order: helmet goes on first for security headers, then morgan for logging. Order matters in Express because middleware runs top to bottom. The server waits for the database before listening. That unhandled rejection handler at the bottom is your safety net for async errors that slip through."}, {"name": "Body Parser Bridge", "subtitle": "Parsing Request Bodies", "concept": "Request body parsing", "landmarkType": "mountain", "code": {"file": "middleware/parsers.js", "content": "// middleware/parsers.js:1-22\nconst express = require('express')\n\nmodule.exports = function configureParsers(app) {\n  // Parse JSON bodies (Content-Type: application/json)\n  app.use(express.json({\n    limit: '10mb',\n    strict: true,\n  }))\n\n  // Parse URL-encoded bodies (HTML form submissions)\n  app.use(express.urlencoded({\n    extended: true,\n    limit: '10mb',\n  }))\n\n  // Custom raw body parser for webhooks that need signature verification\n  app.use('/api/webhooks', express.raw({\n    type: 'application/json',\n    limit: '5mb',\n  }))\n}", "language": "javascript"}, "narration": "Welcome to Body Parser Bridge. Raw HTTP requests arrive as streams of bytes. Express dot json reads that stream, parses the JSON, and puts the result on req dot body. Without this middleware, req dot body is undefined. The limit option prevents someone from sending a giant payload and crashing your server. Notice the webhook route gets a separate raw parser. Stripe and GitHub webhooks need the raw bytes to verify signatures. Parsed JSON would break the hash check."}, {"name": "CORS Crossing", "subtitle": "Cross-Origin Configuration", "concept": "CORS middleware", "landmarkType": "desert", "code": {"file": "middleware/cors.js", "content": "// middleware/cors.js:1-24\nconst cors = require('cors')\n\nconst allowedOrigins = [\n  'https://myapp.com',\n  'https://staging.myapp.com',\n  process.env.NODE_ENV === 'development' && 'http://localhost:5173',\n].filter(Boolean)\n\nconst corsOptions = {\n  origin: function (origin, callback) {\n    // Allow requests with no origin (mobile apps, curl, Postman)\n    if (!origin) return callback(null, true)\n\n    if (allowedOrigins.includes(origin)) {\n      callback(null, true)\n    } else {\n      callback(new Error('Not allowed by CORS'))\n    }\n  },\n  credentials: true,\n  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],\n  allowedHeaders: ['Content-Type', 'Authorization'],\n}\n\nmodule.exports = cors(corsOptions)", "language": "javascript"}, "narration": "CORS Crossing is where many developers get stuck. Browsers block cross-origin requests by default. This middleware sends the right headers to allow your frontend to talk to your API. The origin function checks each request against a whitelist. Notice the filter for no-origin requests — tools like curl and mobile apps do not send an origin header. Setting credentials to true lets the browser send cookies cross-origin. Get this wrong and your frontend shows a mysterious CORS error with zero helpful details."}, {"name": "Auth Checkpoint", "subtitle": "Authentication Middleware", "concept": "JWT authentication", "landmarkType": "camp", "code": {"file": "middleware/auth.js", "content": "// middleware/auth.js:1-25\nconst jwt = require('jsonwebtoken')\nconst { findUserById } = require('../services/userService')\n\nasync function authenticate(req, res, next) {\n  const header = req.headers.authorization\n  if (!header || !header.startsWith('Bearer ')) {\n    return res.status(401).json({ error: 'No token provided' })\n  }\n\n  try {\n    const token = header.split(' ')[1]\n    const decoded = jwt.verify(token, process.env.JWT_SECRET)\n\n    const user = await findUserById(decoded.sub)\n    if (!user) {\n      return res.status(401).json({ error: 'User not found' })\n    }\n\n    req.user = user\n    next()\n  } catch (err) {\n    if (err.name === 'TokenExpiredError') {\n      return res.status(401).json({ error: 'Token expired' })\n    }\n    return res.status(401).json({ error: 'Invalid token' })\n  }\n}\n\nmodule.exports = { authenticate }", "language": "javascript"}, "narration": "The Auth Checkpoint guards everything behind it. This middleware extracts the JWT from the Authorization header, verifies the signature, and looks up the user. The key pattern here is attaching the user to the request object. Every middleware and handler downstream can now access req dot user. Notice it calls next only on success. If the token is missing, expired, or invalid, it short-circuits with a four oh one. This is Express at its best — one middleware protects every route that uses it."}, {"name": "Route Matching Mesa", "subtitle": "The Router System", "concept": "Express Router", "landmarkType": "mountain", "code": {"file": "routes/users.js", "content": "// routes/users.js:1-24\nconst { Router } = require('express')\nconst { authenticate } = require('../middleware/auth')\nconst { authorize } = require('../middleware/authorize')\nconst userController = require('../controllers/userController')\n\nconst router = Router()\n\n// Public routes\nrouter.post('/register', userController.register)\nrouter.post('/login', userController.login)\n\n// Protected routes — authenticate applies to everything below\nrouter.use(authenticate)\n\nrouter.get('/me', userController.getProfile)\nrouter.put('/me', userController.updateProfile)\n\n// Admin-only routes — stacked middleware\nrouter.get('/', authorize('admin'), userController.listUsers)\nrouter.delete('/:id', authorize('admin'), userController.deleteUser)\n\n// Param middleware — runs whenever :id is in the route\nrouter.param('id', userController.loadUserById)\n\nmodule.exports = router", "language": "javascript"}, "narration": "Route Matching Mesa is where URLs map to code. Express dot Router creates a mini-application with its own middleware and routes. Notice the pattern: public routes at the top, then router dot use adds authentication as a gate for everything below. Stacked middleware like authorize admin adds a second check for specific routes. The param middleware is clever — it fires automatically whenever a route contains colon id, preloading the user before the handler runs. Mount this router on slash api slash users and the whole tree activates."}, {"name": "Controller Gulch", "subtitle": "Request Handlers", "concept": "Controller patterns", "landmarkType": "forest", "code": {"file": "controllers/userController.js", "content": "// controllers/userController.js:1-25\nconst userService = require('../services/userService')\nconst { AppError } = require('../utils/errors')\n\nexports.getProfile = async (req, res, next) => {\n  try {\n    const user = await userService.getUserWithStats(req.user.id)\n    res.json({ data: user })\n  } catch (err) {\n    next(err)\n  }\n}\n\nexports.updateProfile = async (req, res, next) => {\n  try {\n    const { name, email } = req.body\n\n    if (!name && !email) {\n      throw new AppError('Nothing to update', 400)\n    }\n\n    const updated = await userService.updateUser(req.user.id, { name, email })\n    res.json({ data: updated })\n  } catch (err) {\n    next(err)\n  }\n}", "language": "javascript"}, "narration": "Welcome to Controller Gulch where requests become responses. Controllers are thin — they extract data from the request, call a service, and send the result. Notice the try-catch pattern wrapping every handler. When something goes wrong, next with an error skips all remaining middleware and jumps straight to your error handler. The controller does not contain business logic. It validates input, delegates to the service layer, and formats the output. Keeping controllers thin makes your code testable and reusable."}, {"name": "Service Springs", "subtitle": "Business Logic Layer", "concept": "Service layer and async patterns", "landmarkType": "river", "code": {"file": "services/userService.js", "content": "// services/userService.js:1-25\nconst db = require('../config/db')\nconst bcrypt = require('bcrypt')\nconst { AppError } = require('../utils/errors')\n\nasync function getUserWithStats(userId) {\n  const [user, stats] = await Promise.all([\n    db('users').where({ id: userId }).first(),\n    db('user_stats').where({ user_id: userId }).first(),\n  ])\n\n  if (!user) throw new AppError('User not found', 404)\n\n  return { ...user, stats }\n}\n\nasync function updateUser(userId, updates) {\n  const [updated] = await db('users')\n    .where({ id: userId })\n    .update({\n      ...updates,\n      updated_at: db.fn.now(),\n    })\n    .returning('*')\n\n  if (!updated) throw new AppError('Update failed', 500)\n\n  return updated\n}\n\nmodule.exports = { getUserWithStats, updateUser }", "language": "javascript"}, "narration": "Service Springs is where the real work happens. This layer owns your business logic and database access. Notice Promise dot all fetching the user and their stats in parallel — that is twice as fast as awaiting them sequentially. The service throws typed errors with status codes. It does not know about req or res. That separation is the whole point. You can call these same functions from a controller, a background job, a CLI script, or a test. The service does not care who is asking."}, {"name": "JSON Response Frontier", "subtitle": "Error Handling and Response", "concept": "Error handling and response formatting", "landmarkType": "town", "code": {"file": "middleware/errorHandler.js", "content": "// middleware/errorHandler.js:1-28\nconst { AppError } = require('../utils/errors')\n\nfunction errorHandler(err, req, res, next) {\n  // Log the full error for debugging\n  console.error(`[${req.method}] ${req.path}:`, err.message)\n\n  if (err instanceof AppError) {\n    return res.status(err.statusCode).json({\n      status: 'error',\n      message: err.message,\n    })\n  }\n\n  // Mongoose/Sequelize validation errors\n  if (err.name === 'ValidationError') {\n    return res.status(400).json({\n      status: 'error',\n      message: 'Validation failed',\n      errors: Object.values(err.errors).map(e => e.message),\n    })\n  }\n\n  // Unexpected errors — don't leak internals\n  res.status(500).json({\n    status: 'error',\n    message: process.env.NODE_ENV === 'production'\n      ? 'Internal server error'\n      : err.message,\n  })\n}\n\nmodule.exports = errorHandler", "language": "javascript"}, "narration": "You made it to JSON Response Frontier — the final stop where everything comes together. This error handler has four parameters instead of three. That extra err parameter is how Express knows this is an error handler, not regular middleware. It catches every error passed through next. Known errors like AppError return clean messages with proper status codes. Validation errors get formatted nicely. Unknown errors hide their details in production to avoid leaking internals. This single middleware is your safety net for the entire application. Your wagon has arrived."}], "events": [{"type": "weather", "trigger": "after_stop", "triggerStop": 1, "title": "Payload Storm!", "text": "A massive storm of requests is hitting your API. Someone is sending 500 megabyte JSON payloads, and your server is running out of memory. Requests are piling up and the event loop is frozen.", "choices": [{"text": "Set a size limit on express.json() using the limit option", "correct": true, "explanation": "The limit option on express dot json caps how large a request body can be. Setting it to something reasonable like 10 megabytes rejects oversized payloads before they consume memory. Express returns a 413 Payload Too Large status automatically."}, {"text": "Increase the server's RAM to handle larger payloads", "correct": false, "explanation": "Throwing hardware at the problem does not fix the vulnerability. An attacker can always send a bigger payload. You need to reject oversized requests at the middleware level before they consume resources."}, {"text": "Parse the body manually inside each route handler instead", "correct": false, "explanation": "That duplicates parsing logic across every route and makes it easy to forget the size check. Centralized middleware with a limit applies the protection uniformly to every request."}], "concept": "Middleware Chain", "difficulty": "easy"}, {"type": "encounter", "trigger": "after_stop", "triggerStop": 2, "title": "A Frontend Developer Appears", "text": "A fellow traveler is frustrated. 'My React app on localhost colon 5173 keeps getting CORS errors when calling my Express API on localhost colon 3000. I set Access-Control-Allow-Origin to star but cookies are not being sent.' What is wrong?", "choices": [{"text": "Wildcard origin does not allow credentials — you must specify the exact origin and set credentials to true", "correct": true, "explanation": "The CORS spec forbids combining Access-Control-Allow-Origin star with Access-Control-Allow-Credentials true. You need to explicitly list the origin and enable credentials. This is a security feature preventing any site from sending authenticated requests to your API."}, {"text": "Cookies do not work cross-origin at all — use Authorization headers instead", "correct": false, "explanation": "Cookies absolutely work cross-origin when CORS is configured correctly. You need the exact origin, credentials set to true, and the cookie must have SameSite set to None with Secure. Many auth flows depend on cross-origin cookies."}, {"text": "Add Access-Control-Allow-Credentials as a custom header in the request", "correct": false, "explanation": "Allow-Credentials is a response header set by the server, not a request header set by the client. The browser reads this header from the server's response to decide whether to expose the response to JavaScript."}], "concept": "Middleware Chain", "difficulty": "medium"}, {"type": "river", "trigger": "after_stop", "triggerStop": 3, "title": "The Auth River", "text": "You have reached the deepest river on the trail — the boundary between public and protected routes. Your API has both public endpoints like slash register and protected endpoints like slash me. How do you structure the middleware so authentication only applies where needed?", "choices": [{"text": "Mount auth middleware on the router after public routes, so only routes defined below it are protected", "correct": true, "explanation": "Express processes middleware in registration order. By placing router dot use authenticate after your public routes, those public routes never hit the auth check. Everything registered after the use call requires a valid token. Order is the mechanism."}, {"text": "Add an if statement in the auth middleware to skip certain paths", "correct": false, "explanation": "Hardcoding path exceptions inside the auth middleware creates tight coupling. Every new public route means editing the auth code. Using middleware ordering is cleaner and follows the Express convention."}, {"text": "Apply app dot use authenticate at the top of the file and mark public routes with a skip flag", "correct": false, "explanation": "Express does not have a built-in skip flag for middleware. You would need a custom wrapper, which adds complexity. The idiomatic solution is to control which routes the middleware applies to through registration order or selective route-level attachment."}], "concept": "Route Handlers", "difficulty": "medium"}, {"type": "misfortune", "trigger": "after_stop", "triggerStop": 4, "title": "Unhandled Promise Rejection!", "text": "Disaster! An async route handler throws an error, but Express does not catch it. The request hangs forever, the client times out, and your error handler never fires. The server keeps running but that route is broken.", "choices": [{"text": "Wrap async handlers in try-catch and pass errors to next, or use an async wrapper utility", "correct": true, "explanation": "Express 4 does not automatically catch errors from rejected promises in async handlers. You must either wrap every handler in try-catch with next err, or use a wrapper function like express-async-errors that patches this behavior. Express 5 fixes this natively."}, {"text": "Add process dot on unhandledRejection to catch it globally", "correct": false, "explanation": "That catches the rejection at the process level, but Express has already moved on. The response is still hanging because Express never knew about the error. You need the error to flow through next so the error handler middleware can send a proper response."}, {"text": "Use synchronous code instead of async await to avoid the problem", "correct": false, "explanation": "Almost all real-world Express handlers need database queries, API calls, or file operations — all of which are asynchronous. Avoiding async is not practical. The solution is proper error propagation, not avoiding the feature."}], "concept": "Error Handling", "difficulty": "hard"}, {"type": "fortune", "trigger": "after_stop", "triggerStop": 5, "title": "Spring of Clean Patterns", "text": "Your party has been making excellent decisions! You found a spring of clean architecture patterns — separating controllers from services, keeping routes thin, and handling errors properly. Your health is restored.", "choices": [], "concept": "Route Handlers", "difficulty": "easy"}, {"type": "weather", "trigger": "after_stop", "triggerStop": 6, "title": "The Callback Fog", "text": "Dense fog rolls in. A legacy part of your codebase uses nested callbacks three levels deep — a database query inside a file read inside an API call. The error handling is scattered and the code is nearly unreadable. How do you clear the fog?", "choices": [{"text": "Refactor callbacks into async await with try-catch for linear, readable error handling", "correct": true, "explanation": "Async await flattens nested callbacks into sequential-looking code. Each await pauses execution until the promise resolves. Errors bubble up to a single try-catch block instead of being scattered across callback error parameters. The logic reads top to bottom like synchronous code."}, {"text": "Use Promise dot then chains to replace the callbacks", "correct": false, "explanation": "Promise chains are better than raw callbacks but still create nesting with dot then dot then dot catch. Async await is syntactic sugar over promises that produces cleaner, more readable code. It is the modern standard."}, {"text": "Keep the callbacks but add more comments to explain the flow", "correct": false, "explanation": "Comments do not fix structural problems. The issue is not understanding — it is that callback nesting makes error handling fragile and the control flow hard to follow. Refactoring to async await solves the root cause."}], "concept": "Async Patterns", "difficulty": "easy"}, {"type": "encounter", "trigger": "after_stop", "triggerStop": 1, "title": "A Fellow Developer Appears", "text": "A traveler shows you their Express setup. 'I serve my CSS and images with app.use(express.static(\"public\")).' They ask: 'Where does Express look for static files, and what happens if a static file and a route have the same path?'", "choices": [{"text": "express.static serves files from the 'public' directory, and middleware order determines priority — if static is first, it serves the file before routes run", "correct": true, "explanation": "express.static looks in the specified directory (here, 'public') for a file matching the URL. If the middleware is registered before your routes, a file at public/about.html would be served for /about.html before any route handler runs. Middleware order controls priority."}, {"text": "Express always checks routes first and only falls back to static files if no route matches", "correct": false, "explanation": "Express processes middleware in registration order. If express.static is registered before routes, it checks for files first. There's no built-in priority — order is everything in Express."}, {"text": "Static files must be in a folder called 'static' and are always served at the /static URL prefix", "correct": false, "explanation": "The directory name and URL prefix are fully configurable. You can use any folder name, and optionally mount it at a prefix with app.use('/assets', express.static('public')). Express imposes no naming conventions."}], "concept": "Middleware Chain", "difficulty": "easy"}, {"type": "weather", "trigger": "after_stop", "triggerStop": 2, "title": "Route Parameter Storm!", "text": "A storm of 404 errors hits your API. You have two routes: app.get('/users/:id', getUser) and app.get('/users/search', searchUsers). Every request to /users/search returns a 404 because getUser is trying to find a user with ID 'search'.", "choices": [{"text": "Move the /users/search route BEFORE /users/:id — Express matches routes in registration order and :id matches any string", "correct": true, "explanation": "The :id parameter matches any string, including 'search'. Express checks routes top to bottom and stops at the first match. Putting the specific /users/search route first ensures it matches before the wildcard :id catches it."}, {"text": "Change the parameter to a number type: /users/:id(\\\\d+) to exclude non-numeric values", "correct": false, "explanation": "While /users/:id(\\\\d+) with regex works in Express 4, it only solves this specific case. Route ordering is the fundamental concept — specific routes before parameterized ones. Understanding top-to-bottom matching prevents this entire class of bugs."}, {"text": "Use a query parameter instead: /users?search=term", "correct": false, "explanation": "Query parameters work but change the API design. The root cause is route ordering, not URL design. Understanding that Express matches top-to-bottom is a fundamental concept for any Express developer."}], "concept": "Route Handlers", "difficulty": "easy"}, {"type": "misfortune", "trigger": "after_stop", "triggerStop": 3, "title": "Silent Error Handler!", "text": "Your Express app has an error handler, but errors are never caught by it. Instead, the default Express error page shows in production. Your error middleware looks like: app.use((err, req, res) => { ... }). What's wrong?", "choices": [{"text": "Error-handling middleware must have exactly four parameters: (err, req, res, next) — Express uses the arity to distinguish it from regular middleware", "correct": true, "explanation": "Express identifies error handlers by their function signature having exactly four parameters. With three parameters, Express treats it as regular middleware and never routes errors to it. Even if you don't use next, you must include it in the signature."}, {"text": "The error handler must be registered before all routes, not after", "correct": false, "explanation": "Error handlers must be registered AFTER routes — they catch errors thrown by the middleware and routes above them. If registered first, there are no routes above to catch errors from."}, {"text": "You need to use app.error() instead of app.use() for error handlers", "correct": false, "explanation": "There is no app.error() method in Express. Error handlers are registered with app.use() just like regular middleware — the four-parameter signature is what makes Express treat them as error handlers."}], "concept": "Error Handling", "difficulty": "medium"}, {"type": "encounter", "trigger": "after_stop", "triggerStop": 4, "title": "A Router Expert Appears", "text": "A seasoned traveler shows you their project. Instead of putting all 50 routes in app.js, they use express.Router() to create mini-applications: one for /api/users, one for /api/posts, one for /api/comments. 'Each router has its own middleware,' they explain. What's the key benefit?", "choices": [{"text": "Routers let you organize routes into modules with their own middleware, keeping each file focused on one resource", "correct": true, "explanation": "express.Router() creates a self-contained routing module. Each router can have its own middleware stack — for example, the admin router can require authentication while the public router doesn't. It's the Express way of organizing large applications."}, {"text": "Using Router makes routes faster because Express can skip middleware for unmatched prefixes", "correct": false, "explanation": "Express doesn't have route-prefix optimization built in. Routers are about code organization and middleware scoping, not performance. The request still flows through the middleware stack in order."}, {"text": "Router automatically handles versioning, so /v1/ and /v2/ routes are generated for you", "correct": false, "explanation": "Express Router doesn't auto-generate versioned routes. You'd mount routers at different prefixes manually: app.use('/v1', v1Router). Routers are a structural tool, not a versioning system."}], "concept": "Route Handlers", "difficulty": "medium"}, {"type": "river", "trigger": "after_stop", "triggerStop": 5, "title": "The Event Loop River", "text": "Your Express API has a CPU-intensive route that computes statistics from a large dataset. While that request processes, all other requests hang — even simple health checks time out. The event loop is blocked.", "choices": [{"text": "Offload CPU-intensive work to a worker thread or child process so the event loop stays free for I/O", "correct": true, "explanation": "Node.js is single-threaded for JavaScript execution. CPU-heavy synchronous code blocks the event loop, starving all other requests. Worker threads run code in parallel threads, and child processes spin up separate Node instances. Either keeps the main event loop responsive."}, {"text": "Add more async/await keywords to make the computation non-blocking", "correct": false, "explanation": "async/await only helps with I/O operations (network, disk) that already have asynchronous APIs. CPU-bound computation is synchronous by nature — wrapping it in a promise doesn't move it off the main thread. You need actual parallelism."}, {"text": "Increase the server's timeout to give the computation more time to complete", "correct": false, "explanation": "Longer timeouts don't unblock the event loop. While the computation runs, the event loop can't process ANY other callbacks — including incoming connections, timeouts, and health checks. The issue is blocking, not time limits."}], "concept": "Async Patterns", "difficulty": "hard"}, {"type": "misfortune", "trigger": "after_stop", "triggerStop": 5, "title": "Stream Backpressure Flood!", "text": "Your Express endpoint streams a large file to the client, but slow clients cause memory to spike to gigabytes. You're reading from a fast disk and piping directly to res, but the client connection is slow. The read stream produces data faster than the write stream can consume it.", "choices": [{"text": "Use pipe() or pipeline() instead of manually reading and writing — they handle backpressure automatically by pausing the read stream when the write stream is full", "correct": true, "explanation": "Backpressure is the flow control mechanism in Node streams. pipe() automatically pauses the readable stream when the writable stream's buffer is full, then resumes when it drains. Without it, data accumulates in memory. pipeline() adds error handling on top."}, {"text": "Read the entire file into memory first, then send it all at once to avoid the streaming issue", "correct": false, "explanation": "Loading the entire file into memory is worse — a 2GB file would consume 2GB of RAM per request. Streaming with backpressure is the solution: it limits memory to the buffer size regardless of file size."}, {"text": "Set a maximum response size to reject files that are too large", "correct": false, "explanation": "Size limits don't fix the backpressure problem — even a 100MB file can exhaust memory if clients are slow enough. The issue is the rate mismatch between reading and writing, which pipe/pipeline solves."}], "concept": "Async Patterns", "difficulty": "hard"}, {"type": "encounter", "trigger": "after_stop", "triggerStop": 2, "title": "A Middleware Teacher Appears", "text": "A teacher draws a diagram on the ground. 'In Express, calling next() passes control to the next middleware. But there's also next(err) and next(\"route\"). Each does something different.' What happens when you call next(err) with an error argument?", "choices": [{"text": "It skips all remaining regular middleware and jumps to the next error-handling middleware (the one with four parameters)", "correct": true, "explanation": "Calling next with any argument (except 'route') tells Express to skip all normal middleware and find the next error handler — a middleware with the (err, req, res, next) signature. This is how errors propagate through the Express middleware chain."}, {"text": "It logs the error to the console and continues to the next middleware normally", "correct": false, "explanation": "next(err) doesn't log anything automatically. It changes the flow entirely — Express switches from the normal middleware chain to the error-handling chain. Understanding this flow switch is fundamental to Express error handling."}, {"text": "It sends a 500 error response to the client immediately", "correct": false, "explanation": "next(err) doesn't send any response. It hands the error to the next error-handling middleware, which decides what response to send. You might want different responses for different errors — 400 for validation, 404 for not found, 500 for server errors."}], "concept": "Middleware Chain", "difficulty": "medium"}, {"triggerStop": 3, "type": "misfortune", "title": "Async Context Leak!", "text": "Your Express app tracks request IDs for logging using a module-level variable. Under concurrent load, log entries show the wrong request IDs — one request’s logs are tagged with another request’s ID.", "choices": [{"text": "Module-level variables are shared across all requests — use AsyncLocalStorage for per-request context across async boundaries", "correct": true, "explanation": "Node.js uses a single thread, so module variables are shared. When two async requests interleave, they overwrite each other’s ID. AsyncLocalStorage maintains context that flows through async operations — each request gets its own isolated storage."}, {"text": "Add a mutex to prevent concurrent access to the request ID variable", "correct": false, "explanation": "JavaScript is single-threaded — there are no data races in the traditional sense. The problem is async interleaving. A mutex would serialize all requests, destroying performance."}, {"text": "Generate the request ID in each middleware and pass it as a response header instead", "correct": false, "explanation": "The request ID needs to be available deep in the call stack for logging. Passing it via response headers only makes it available to the HTTP response, not the call chain."}], "concept": "Error Handling", "difficulty": "hard"}, {"triggerStop": 6, "type": "weather", "title": "Memory Leak Storm!", "text": "Your Express server’s memory usage grows steadily over hours until it crashes. Heap snapshots show thousands of accumulated event listener registrations. Every request adds a listener but never removes it.", "choices": [{"text": "Always remove event listeners when no longer needed — use once() for single-use listeners, or call removeListener() in cleanup", "correct": true, "explanation": "Event listeners keep references to their callback closures. Without removal, they accumulate indefinitely. EventEmitter.once() auto-removes after one call. For long-lived listeners, track references and remove them when the context ends."}, {"text": "Increase the maxListeners limit on the EventEmitter to prevent the warning", "correct": false, "explanation": "setMaxListeners() only changes when the warning fires — it doesn’t fix the leak. The warning exists to alert you to exactly this kind of bug. Silencing it makes the leak invisible."}, {"text": "Switch to a different event library that handles cleanup automatically", "correct": false, "explanation": "The problem isn’t the EventEmitter library — it’s the application code failing to clean up. Any event system requires the programmer to manage listener lifecycle."}], "concept": "Async Patterns", "difficulty": "hard"}], "partyMembers": [{"name": "Middleware Chain", "icon": "middleware", "maxHealth": 3}, {"name": "Route Handlers", "icon": "route", "maxHealth": 3}, {"name": "Error Handling", "icon": "error", "maxHealth": 3}, {"name": "Async Patterns", "icon": "async", "maxHealth": 3}], "deathMessages": ["Lost in the middleware — never called next().", "Died of callback hell. No async slash await equipped.", "The unhandled rejection consumed all resources.", "Here lies your API. It died of CORS misconfiguration.", "Buried under an avalanche of unvalidated request bodies.", "Drowned in the Auth River — token verification threw but nobody caught it.", "Your error handler had three parameters. Express thought it was regular middleware.", "Starved waiting for the database connection. The pool was exhausted and nobody released."]};
+
+// =====================================================================
+// GAME STATE
+// =====================================================================
+const STATES = { TITLE: 'TITLE', SETUP: 'SETUP', TRAVEL: 'TRAVEL', STOP: 'STOP', EVENT: 'EVENT', RIVER: 'RIVER', DEATH: 'DEATH', WIN: 'WIN' };
+const PROFESSIONS = [
+  { name: 'Ralph Wiggum', desc: '"I\'m learnding!"', health: 999, supplies: 999, hintFree: true, forgiving: true },
+  { name: 'Vibe Coder', desc: '"It works on my machine"', health: 100, supplies: 5, hintFree: false, forgiving: false },
+  { name: 'Engineer', desc: '"Let me check the docs"', health: 80, supplies: 2, hintFree: false, forgiving: false },
+  { name: 'Staff Architect', desc: '"I designed this system"', health: 50, supplies: 0, hintFree: false, forgiving: false }
+];
+
+let gameState = STATES.TITLE;
+let difficulty = 1;
+let health = 100;
+let maxHealthForGame = 100;
+let supplies = 5;
+let currentStop = 0;
+let day = 1;
+let score = 0;
+let totalQuestions = 0;
+let streak = 0;
+let bestStreak = 0;
+let hintsUsed = 0;
+let scrollX = 0;
+let travelTimer = null;
+let animFrame = null;
+let partyHealth = [];
+let pendingEvents = [];
+let currentEventIndex = 0;
+let eventAnswered = false;
+let eventHinted = false;
+let dimmedChoice = -1;
+let selectedEventChoice = 0;
+let selectedStopChoice = 0;
+let shuffledIndices = []; // maps display position -> original choice index
+let selectedDifficulty = 1;
+let musicPlaying = false;
+let audioCtx = null;
+let musicInitialized = false;
+let typewriterTimer = null;
+let typewriterText = '';
+let typewriterIndex = 0;
+let showRiver = false;
+let wagonWheelAngle = 0;
+let travelFlavorIndex = 0;
+let deathPending = false;
+let currentEventType = '';  // event type for canvas overlay
+let currentEventTitle = ''; // event title for canvas overlay
+
+const travelFlavors = [
+  "The event loop is humming along nicely...",
+  "Requests flow smoothly through the middleware stack...",
+  "Your JSON payloads are well-formed...",
+  "The node_modules folder weighs heavy on the wagon...",
+  "A gentle breeze carries HTTP responses...",
+  "The route matcher hums along quietly...",
+  "req.body is parsing without errors...",
+  "Your Express app handles traffic with grace...",
+  "Your npm dependencies are all up to date...",
+  "The callback queue is calm and responsive...",
+  "A hawk circles overhead, watching your throughput...",
+  "The middleware chain is well-ordered today...",
+  "Your error handling is robust today...",
+  "The JWT tokens are fresh and valid...",
+  "Your package.json looks healthy..."
+];
+
+// =====================================================================
+// CANVAS RENDERING (320x200 internal)
+// =====================================================================
+const canvas = document.getElementById('game-canvas');
+const ctx = canvas.getContext('2d');
+const W = 320, H = 200;
+
+// Seeded PRNG for consistent landscape
+function seededRandom(seed) {
+  let s = seed;
+  return function() {
+    s = (s * 1664525 + 1013904223) & 0xFFFFFFFF;
+    return (s >>> 0) / 0xFFFFFFFF;
+  };
+}
+
+const rng = seededRandom(42);
+const cloudPositions = [];
+for (let i = 0; i < 5; i++) {
+  cloudPositions.push({ x: rng() * 400, y: 10 + rng() * 30, w: 25 + rng() * 30, h: 8 + rng() * 6 });
+}
+const farMountains = [];
+for (let i = 0; i < 6; i++) {
+  farMountains.push({ x: i * 70 - 20 + rng() * 30, h: 40 + rng() * 35, w: 50 + rng() * 40 });
+}
+const nearMountains = [];
+for (let i = 0; i < 8; i++) {
+  nearMountains.push({ x: i * 55 - 30 + rng() * 20, h: 25 + rng() * 25, w: 30 + rng() * 25, snow: rng() > 0.3 });
+}
+const treesData = [];
+for (let i = 0; i < 25; i++) {
+  treesData.push({ x: rng() * 600, h: 12 + rng() * 16 });
+}
+
+function getSkyColors() {
+  const progress = currentStop / Math.max(TRAIL_DATA.stops.length, 1);
+  if (progress < 0.15) {
+    return { top: '#5500AA', bottom: '#FF5555' };
+  } else if (progress < 0.7) {
+    return { top: '#5555FF', bottom: '#55FFFF' };
+  } else {
+    return { top: '#5500AA', bottom: '#FFAA00' };
+  }
+}
+
+function drawPixelCloud(x, y, w, h) {
+  ctx.fillStyle = '#FFFFFF';
+  const ix = Math.floor(x), iy = Math.floor(y), iw = Math.floor(w), ih = Math.floor(h);
+  ctx.fillRect(ix, iy, iw, ih);
+  ctx.fillRect(ix + Math.floor(iw * 0.15), iy - Math.floor(ih * 0.5), Math.floor(iw * 0.3), Math.floor(ih * 0.6));
+  ctx.fillRect(ix + Math.floor(iw * 0.4), iy - Math.floor(ih * 0.7), Math.floor(iw * 0.35), Math.floor(ih * 0.8));
+  ctx.fillRect(ix + Math.floor(iw * 0.65), iy - Math.floor(ih * 0.3), Math.floor(iw * 0.2), Math.floor(ih * 0.4));
+}
+
+function drawMountain(x, h, w, color, snowCap) {
+  const baseY = 110;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(Math.floor(x), baseY);
+  ctx.lineTo(Math.floor(x + w / 2), Math.floor(baseY - h));
+  ctx.lineTo(Math.floor(x + w), baseY);
+  ctx.closePath();
+  ctx.fill();
+  if (snowCap) {
+    ctx.fillStyle = '#FFFFFF';
+    const peakX = x + w / 2;
+    const peakY = baseY - h;
+    ctx.beginPath();
+    ctx.moveTo(Math.floor(peakX - w * 0.1), Math.floor(peakY + h * 0.18));
+    ctx.lineTo(Math.floor(peakX), Math.floor(peakY));
+    ctx.lineTo(Math.floor(peakX + w * 0.1), Math.floor(peakY + h * 0.18));
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+function drawTree(x, baseY, h) {
+  const trunkW = 3, trunkH = Math.floor(h * 0.3);
+  ctx.fillStyle = '#AA5500';
+  ctx.fillRect(Math.floor(x - 1), Math.floor(baseY - trunkH), trunkW, trunkH);
+  for (let i = 0; i < 3; i++) {
+    const layerW = (h * 0.4) * (1 - i * 0.15);
+    const layerY = baseY - trunkH - (i * h * 0.2);
+    ctx.fillStyle = i === 1 ? '#00AA00' : '#005500';
+    ctx.beginPath();
+    ctx.moveTo(Math.floor(x - layerW / 2), Math.floor(layerY));
+    ctx.lineTo(Math.floor(x + 0.5), Math.floor(layerY - h * 0.25));
+    ctx.lineTo(Math.floor(x + layerW / 2), Math.floor(layerY));
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+function drawWagon(wx, wy) {
+  // Oxen (two brown lumps)
+  ctx.fillStyle = '#AA5500';
+  ctx.fillRect(Math.floor(wx - 24), Math.floor(wy - 6), 8, 6);
+  ctx.fillRect(Math.floor(wx - 14), Math.floor(wy - 6), 8, 6);
+  // Oxen legs
+  ctx.fillStyle = '#553300';
+  ctx.fillRect(Math.floor(wx - 22), Math.floor(wy), 2, 4);
+  ctx.fillRect(Math.floor(wx - 18), Math.floor(wy), 2, 4);
+  ctx.fillRect(Math.floor(wx - 12), Math.floor(wy), 2, 4);
+  ctx.fillRect(Math.floor(wx - 8), Math.floor(wy), 2, 4);
+  // Oxen heads
+  ctx.fillStyle = '#885500';
+  ctx.fillRect(Math.floor(wx - 26), Math.floor(wy - 7), 3, 3);
+  ctx.fillRect(Math.floor(wx - 16), Math.floor(wy - 7), 3, 3);
+  // Yoke
+  ctx.fillStyle = '#AA5500';
+  ctx.fillRect(Math.floor(wx - 4), Math.floor(wy - 4), 6, 2);
+  // Wagon body
+  ctx.fillStyle = '#AA5500';
+  ctx.fillRect(Math.floor(wx + 2), Math.floor(wy - 8), 24, 10);
+  // Wagon sides darker
+  ctx.fillStyle = '#885500';
+  ctx.fillRect(Math.floor(wx + 2), Math.floor(wy - 8), 24, 1);
+  ctx.fillRect(Math.floor(wx + 2), Math.floor(wy + 1), 24, 1);
+  // Canvas cover (white curved top)
+  ctx.fillStyle = '#FFFFFF';
+  ctx.beginPath();
+  ctx.moveTo(Math.floor(wx + 3), Math.floor(wy - 8));
+  ctx.quadraticCurveTo(Math.floor(wx + 14), Math.floor(wy - 22), Math.floor(wx + 25), Math.floor(wy - 8));
+  ctx.closePath();
+  ctx.fill();
+  // Canvas cover outline
+  ctx.strokeStyle = '#AAAAAA';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(Math.floor(wx + 3), Math.floor(wy - 8));
+  ctx.quadraticCurveTo(Math.floor(wx + 14), Math.floor(wy - 22), Math.floor(wx + 25), Math.floor(wy - 8));
+  ctx.stroke();
+  // Canvas ribs
+  ctx.strokeStyle = '#AAAAAA';
+  for (let ri = 0; ri < 3; ri++) {
+    const rx = wx + 8 + ri * 5;
+    ctx.beginPath();
+    ctx.moveTo(Math.floor(rx), Math.floor(wy - 8));
+    ctx.lineTo(Math.floor(rx), Math.floor(wy - 14 - ri % 2 * 2));
+    ctx.stroke();
+  }
+  // Wheels
+  const wheelR = 5;
+  for (let wi = 0; wi < 2; wi++) {
+    const wcx = wx + 7 + wi * 14;
+    const wcy = wy + 4;
+    // Outer rim
+    ctx.fillStyle = '#553300';
+    ctx.beginPath();
+    ctx.arc(Math.floor(wcx), Math.floor(wcy), wheelR, 0, Math.PI * 2);
+    ctx.fill();
+    // Inner
+    ctx.fillStyle = '#AA5500';
+    ctx.beginPath();
+    ctx.arc(Math.floor(wcx), Math.floor(wcy), wheelR - 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    // Spokes
+    ctx.strokeStyle = '#553300';
+    ctx.lineWidth = 1;
+    for (let si = 0; si < 6; si++) {
+      const angle = wagonWheelAngle + (si * Math.PI / 3);
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(wcx), Math.floor(wcy));
+      ctx.lineTo(Math.floor(wcx + Math.cos(angle) * (wheelR - 1)), Math.floor(wcy + Math.sin(angle) * (wheelR - 1)));
+      ctx.stroke();
+    }
+    // Hub
+    ctx.fillStyle = '#553300';
+    ctx.fillRect(Math.floor(wcx - 1), Math.floor(wcy - 1), 2, 2);
+  }
+  // Yellow flag (Express yellow)
+  ctx.fillStyle = '#F7DF1E';
+  ctx.fillRect(Math.floor(wx + 14), Math.floor(wy - 22), 1, -7);
+  ctx.fillStyle = '#FFFF55';
+  ctx.fillRect(Math.floor(wx + 15), Math.floor(wy - 29), 6, 4);
+}
+
+function drawLandmark(type, x, baseY) {
+  switch (type) {
+    case 'town':
+      ctx.fillStyle = '#AA5500';
+      ctx.fillRect(Math.floor(x), Math.floor(baseY - 18), 14, 18);
+      ctx.fillRect(Math.floor(x + 18), Math.floor(baseY - 14), 12, 14);
+      // Roofs
+      ctx.fillStyle = '#555555';
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(x - 2), Math.floor(baseY - 18));
+      ctx.lineTo(Math.floor(x + 7), Math.floor(baseY - 25));
+      ctx.lineTo(Math.floor(x + 16), Math.floor(baseY - 18));
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(x + 16), Math.floor(baseY - 14));
+      ctx.lineTo(Math.floor(x + 24), Math.floor(baseY - 20));
+      ctx.lineTo(Math.floor(x + 32), Math.floor(baseY - 14));
+      ctx.closePath();
+      ctx.fill();
+      // Windows
+      ctx.fillStyle = '#FFFF55';
+      ctx.fillRect(Math.floor(x + 3), Math.floor(baseY - 13), 3, 3);
+      ctx.fillRect(Math.floor(x + 9), Math.floor(baseY - 13), 3, 3);
+      ctx.fillRect(Math.floor(x + 21), Math.floor(baseY - 10), 3, 3);
+      // Door
+      ctx.fillStyle = '#553300';
+      ctx.fillRect(Math.floor(x + 5), Math.floor(baseY - 7), 4, 7);
+      break;
+    case 'camp':
+      // Tent
+      ctx.fillStyle = '#AAAAAA';
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(x - 6), Math.floor(baseY));
+      ctx.lineTo(Math.floor(x + 4), Math.floor(baseY - 14));
+      ctx.lineTo(Math.floor(x + 14), Math.floor(baseY));
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#555555';
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(x + 4), Math.floor(baseY));
+      ctx.lineTo(Math.floor(x + 4), Math.floor(baseY - 14));
+      ctx.lineTo(Math.floor(x + 14), Math.floor(baseY));
+      ctx.closePath();
+      ctx.fill();
+      // Campfire
+      ctx.fillStyle = '#FF5555';
+      ctx.fillRect(Math.floor(x + 20), Math.floor(baseY - 5), 4, 3);
+      ctx.fillStyle = '#FFFF55';
+      ctx.fillRect(Math.floor(x + 21), Math.floor(baseY - 8), 2, 3);
+      ctx.fillStyle = '#FFAA00';
+      ctx.fillRect(Math.floor(x + 18), Math.floor(baseY - 2), 8, 2);
+      break;
+    case 'mountain':
+      drawMountain(x - 20, 60, 50, '#F7DF1E', true);
+      drawMountain(x + 10, 45, 40, '#FFFF55', true);
+      break;
+    case 'river':
+      ctx.fillStyle = '#AA5500';
+      ctx.fillRect(Math.floor(x), Math.floor(baseY - 20), 3, 20);
+      ctx.fillRect(Math.floor(x + 24), Math.floor(baseY - 20), 3, 20);
+      ctx.strokeStyle = '#AAAAAA';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(x + 1), Math.floor(baseY - 18));
+      ctx.lineTo(Math.floor(x + 25), Math.floor(baseY - 18));
+      ctx.stroke();
+      // Sign
+      ctx.fillStyle = '#AA5500';
+      ctx.fillRect(Math.floor(x + 8), Math.floor(baseY - 25), 12, 8);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(Math.floor(x + 10), Math.floor(baseY - 23), 2, 1);
+      ctx.fillRect(Math.floor(x + 13), Math.floor(baseY - 23), 2, 1);
+      ctx.fillRect(Math.floor(x + 16), Math.floor(baseY - 23), 2, 1);
+      break;
+    case 'forest':
+      for (let i = 0; i < 6; i++) {
+        drawTree(x + i * 7, baseY, 14 + (i % 3) * 3);
+      }
+      break;
+    case 'desert':
+      // Sand dunes
+      ctx.fillStyle = '#FFAA00';
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(x - 15), Math.floor(baseY));
+      ctx.quadraticCurveTo(Math.floor(x), Math.floor(baseY - 12), Math.floor(x + 15), Math.floor(baseY));
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#F7DF1E';
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(x + 10), Math.floor(baseY));
+      ctx.quadraticCurveTo(Math.floor(x + 25), Math.floor(baseY - 8), Math.floor(x + 40), Math.floor(baseY));
+      ctx.closePath();
+      ctx.fill();
+      // Cactus
+      ctx.fillStyle = '#00AA00';
+      ctx.fillRect(Math.floor(x + 22), Math.floor(baseY - 18), 3, 18);
+      ctx.fillRect(Math.floor(x + 18), Math.floor(baseY - 14), 4, 3);
+      ctx.fillRect(Math.floor(x + 18), Math.floor(baseY - 14), 2, -5);
+      ctx.fillRect(Math.floor(x + 25), Math.floor(baseY - 10), 4, 3);
+      ctx.fillRect(Math.floor(x + 27), Math.floor(baseY - 10), 2, -4);
+      // Sun-bleached sign
+      ctx.fillStyle = '#AA5500';
+      ctx.fillRect(Math.floor(x - 5), Math.floor(baseY - 15), 2, 15);
+      ctx.fillStyle = '#AAAAAA';
+      ctx.fillRect(Math.floor(x - 8), Math.floor(baseY - 17), 8, 5);
+      break;
+  }
+}
+
+function drawRiver(time) {
+  const riverY = 155;
+  const riverH = 18;
+  ctx.fillStyle = '#0000AA';
+  ctx.fillRect(0, riverY, W, riverH);
+  ctx.fillStyle = '#00AAAA';
+  for (let wx = 0; wx < W; wx += 3) {
+    const waveY = riverY + 3 + Math.sin((wx + time * 0.05) * 0.08) * 3;
+    ctx.fillRect(wx, Math.floor(waveY), 2, 1);
+    const waveY2 = riverY + 10 + Math.sin((wx + time * 0.03 + 50) * 0.1) * 2;
+    ctx.fillRect(wx, Math.floor(waveY2), 2, 1);
+  }
+  // White foam
+  ctx.fillStyle = '#55FFFF';
+  for (let wx = 0; wx < W; wx += 12) {
+    const foamY = riverY + 1 + Math.sin((wx + time * 0.04) * 0.06) * 1;
+    ctx.fillRect(wx + 2, Math.floor(foamY), 3, 1);
+  }
+}
+
+// =====================================================================
+// EVENT CANVAS OVERLAYS — unique visuals per quiz event
+// =====================================================================
+function drawEventOverlay(time) {
+  if (!currentEventType && !currentEventTitle) return;
+
+  var t = (time || 0) * 0.001; // seconds
+
+  // --- PAYLOAD STORM: dark sky, lightning, rain ---
+  if (currentEventTitle.indexOf('Payload Storm') !== -1) {
+    // Darken sky
+    ctx.fillStyle = 'rgba(0,0,50,0.45)';
+    ctx.fillRect(0, 0, W, 110);
+    // Lightning flash (periodic)
+    var flashPhase = Math.sin(t * 1.7) + Math.sin(t * 3.1);
+    if (flashPhase > 1.6) {
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.fillRect(0, 0, W, H);
+      // Lightning bolt
+      ctx.strokeStyle = '#FFFF55';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      var lx = 80 + Math.sin(t * 2.3) * 60;
+      ctx.moveTo(lx, 10);
+      ctx.lineTo(lx - 5, 35);
+      ctx.lineTo(lx + 8, 35);
+      ctx.lineTo(lx - 3, 65);
+      ctx.lineTo(lx + 10, 65);
+      ctx.lineTo(lx + 2, 95);
+      ctx.stroke();
+    }
+    // Rain
+    ctx.strokeStyle = '#5555FF';
+    ctx.lineWidth = 1;
+    for (var i = 0; i < 40; i++) {
+      var rx = (i * 8.3 + t * 80) % W;
+      var ry = (i * 13.7 + t * 120) % 110;
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(rx), Math.floor(ry));
+      ctx.lineTo(Math.floor(rx - 1), Math.floor(ry + 5));
+      ctx.stroke();
+    }
+    return;
+  }
+
+  // --- FRONTEND DEVELOPER: person standing with laptop ---
+  if (currentEventTitle.indexOf('Frontend Developer') !== -1) {
+    var px = 200, py = 142;
+    // Person body
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(px, py - 12, 4, 8); // torso
+    ctx.fillStyle = '#FFAA00';
+    ctx.fillRect(px, py - 15, 4, 3); // head
+    ctx.fillRect(px - 1, py - 4, 2, 5); // left leg
+    ctx.fillRect(px + 3, py - 4, 2, 5); // right leg
+    // Hat (React blue beanie)
+    ctx.fillStyle = '#55FFFF';
+    ctx.fillRect(px - 1, py - 17, 6, 2);
+    ctx.fillRect(px, py - 19, 4, 2);
+    // Laptop
+    ctx.fillStyle = '#555555';
+    ctx.fillRect(px + 8, py - 8, 8, 5);
+    ctx.fillStyle = '#55FFFF';
+    ctx.fillRect(px + 9, py - 7, 6, 3);
+    // Campfire
+    var fx = 212, fy = 148;
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(fx - 3, fy, 2, 3);
+    ctx.fillRect(fx + 3, fy, 2, 3);
+    ctx.fillStyle = '#FF5555';
+    var flicker = Math.sin(t * 8) * 2;
+    ctx.fillRect(fx - 1, fy - 3 + Math.floor(flicker * 0.3), 4, 3);
+    ctx.fillStyle = '#FFFF55';
+    ctx.fillRect(fx, fy - 5 + Math.floor(flicker * 0.5), 2, 2);
+    ctx.fillStyle = '#FFAA00';
+    ctx.fillRect(fx - 1, fy - 2, 4, 2);
+    // Firelight glow (subtle)
+    ctx.fillStyle = 'rgba(255,170,0,0.08)';
+    ctx.beginPath();
+    ctx.arc(fx + 1, fy - 2, 15, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+
+  // --- AUTH RIVER: rough rapids with white water ---
+  if (currentEventTitle.indexOf('Auth River') !== -1) {
+    // Extra turbulence on the river
+    ctx.fillStyle = '#55FFFF';
+    for (var i = 0; i < 20; i++) {
+      var sx = (i * 17 + t * 40) % W;
+      var sy = 157 + Math.sin((i * 3 + t * 5)) * 3;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), 4, 2);
+    }
+    // Floating logs / debris
+    ctx.fillStyle = '#AA5500';
+    for (var i = 0; i < 3; i++) {
+      var logX = (i * 110 + t * 25) % W;
+      var logY = 159 + Math.sin(t * 2 + i) * 2;
+      ctx.fillRect(Math.floor(logX), Math.floor(logY), 8, 2);
+    }
+    return;
+  }
+
+  // --- UNHANDLED PROMISE REJECTION: red sky, smoke, warning ---
+  if (currentEventTitle.indexOf('Unhandled Promise') !== -1) {
+    // Red danger tint
+    ctx.fillStyle = 'rgba(170,0,0,0.25)';
+    ctx.fillRect(0, 0, W, H);
+    // Smoke particles rising
+    ctx.fillStyle = '#555555';
+    for (var i = 0; i < 15; i++) {
+      var sx = 140 + Math.sin(i * 2.7 + t) * 30;
+      var sy = 130 - ((t * 20 + i * 15) % 90);
+      var size = 2 + (i % 3);
+      ctx.globalAlpha = 0.3 + Math.sin(t + i) * 0.15;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), size, size);
+    }
+    ctx.globalAlpha = 1.0;
+    // Fire at base
+    ctx.fillStyle = '#FF5555';
+    for (var i = 0; i < 8; i++) {
+      var fx = 130 + i * 5;
+      var fh = 4 + Math.sin(t * 6 + i * 1.5) * 3;
+      ctx.fillRect(fx, Math.floor(140 - fh), 3, Math.floor(fh));
+    }
+    ctx.fillStyle = '#FFFF55';
+    for (var i = 0; i < 5; i++) {
+      var fx = 135 + i * 6;
+      var fh = 2 + Math.sin(t * 8 + i * 2) * 2;
+      ctx.fillRect(fx, Math.floor(139 - fh), 2, Math.floor(fh));
+    }
+    // Pulsing red border
+    var pulse = (Math.sin(t * 4) + 1) * 0.15;
+    ctx.strokeStyle = 'rgba(255,0,0,' + pulse.toFixed(2) + ')';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(1, 1, W - 2, H - 2);
+    ctx.lineWidth = 1;
+    return;
+  }
+
+  // --- SPRING OF CLEAN PATTERNS: sunny, flowers, rainbow ---
+  if (currentEventTitle.indexOf('Spring') !== -1) {
+    // Bright sun
+    ctx.fillStyle = '#FFFF55';
+    ctx.beginPath();
+    ctx.arc(260, 30, 12, 0, Math.PI * 2);
+    ctx.fill();
+    // Sun rays
+    ctx.strokeStyle = '#FFFF55';
+    ctx.lineWidth = 1;
+    for (var i = 0; i < 8; i++) {
+      var angle = i * Math.PI / 4 + t * 0.3;
+      ctx.beginPath();
+      ctx.moveTo(260 + Math.cos(angle) * 14, 30 + Math.sin(angle) * 14);
+      ctx.lineTo(260 + Math.cos(angle) * 20, 30 + Math.sin(angle) * 20);
+      ctx.stroke();
+    }
+    // Flowers on ground
+    var flowerColors = ['#FF5555', '#FFFF55', '#FF55FF', '#55FFFF', '#55FF55'];
+    for (var i = 0; i < 12; i++) {
+      var fx = (i * 27 + 10) % W;
+      var fy = 135 + (i * 7) % 20;
+      ctx.fillStyle = '#00AA00';
+      ctx.fillRect(fx + 1, fy, 1, 4); // stem
+      ctx.fillStyle = flowerColors[i % flowerColors.length];
+      ctx.fillRect(fx, fy - 1, 3, 2); // petals
+      ctx.fillStyle = '#FFFF55';
+      ctx.fillRect(fx + 1, fy - 1, 1, 1); // center
+    }
+    // Rainbow arc
+    var rainbowColors = ['#FF5555', '#FFAA00', '#FFFF55', '#55FF55', '#5555FF', '#F7DF1E'];
+    for (var rc = 0; rc < rainbowColors.length; rc++) {
+      ctx.strokeStyle = rainbowColors[rc];
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(160, 110, 70 + rc * 3, Math.PI * 1.1, Math.PI * 1.9);
+      ctx.stroke();
+    }
+    ctx.lineWidth = 1;
+    return;
+  }
+
+  // --- CALLBACK FOG: heavy fog obscuring everything ---
+  if (currentEventTitle.indexOf('Callback Fog') !== -1) {
+    // Dense fog layers
+    for (var layer = 0; layer < 3; layer++) {
+      var alpha = 0.15 + layer * 0.08;
+      ctx.fillStyle = 'rgba(170,170,170,' + alpha.toFixed(2) + ')';
+      for (var i = 0; i < 10; i++) {
+        var fogX = (i * 35 + t * (6 + layer * 4) + layer * 50) % (W + 60) - 30;
+        var fogY = 60 + layer * 30 + Math.sin(t * 0.4 + i * 0.9 + layer) * 10;
+        var fogR = 18 + layer * 8 + Math.sin(t * 0.3 + i) * 5;
+        ctx.beginPath();
+        ctx.arc(fogX, fogY, fogR, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    // Fog below obscuring ground details
+    ctx.fillStyle = 'rgba(170,170,170,0.25)';
+    ctx.fillRect(0, 110, W, 60);
+    return;
+  }
+}
+
+// =====================================================================
+// DEATH SCREEN — Apple II green phosphor style
+// =====================================================================
+function drawDeathScene(time) {
+  var t = (time || 0) * 0.001;
+  var G = '#33FF33'; // Apple II green
+  var GD = '#1a8a1a'; // darker green for details
+
+  // Black background
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, W, H);
+
+  // Ground line
+  ctx.fillStyle = GD;
+  ctx.fillRect(0, 148, W, 1);
+
+  // --- OX (left side) ---
+  var ox = 100, oy = 128;
+  // Body
+  ctx.fillStyle = G;
+  ctx.fillRect(ox, oy, 24, 14);
+  // Head
+  ctx.fillRect(ox - 10, oy - 2, 12, 10);
+  // Horns
+  ctx.fillRect(ox - 12, oy - 6, 3, 5);
+  ctx.fillRect(ox - 4, oy - 6, 3, 5);
+  // Snout
+  ctx.fillStyle = GD;
+  ctx.fillRect(ox - 10, oy + 4, 6, 3);
+  // Eye
+  ctx.fillStyle = '#000';
+  ctx.fillRect(ox - 7, oy, 2, 2);
+  // Legs
+  ctx.fillStyle = G;
+  ctx.fillRect(ox + 2, oy + 14, 4, 8);
+  ctx.fillRect(ox + 10, oy + 14, 4, 8);
+  ctx.fillRect(ox + 16, oy + 14, 4, 8);
+  // Tail
+  ctx.fillRect(ox + 24, oy + 2, 6, 2);
+  ctx.fillRect(ox + 29, oy, 2, 4);
+
+  // --- HITCH ---
+  ctx.fillStyle = G;
+  ctx.fillRect(ox + 28, oy + 8, 14, 2);
+
+  // --- WAGON ---
+  var wx = 142, wy = 108;
+  // Wagon bed
+  ctx.fillStyle = G;
+  ctx.fillRect(wx, wy + 20, 50, 16);
+  // Bed slats (dark lines)
+  ctx.fillStyle = GD;
+  ctx.fillRect(wx, wy + 24, 50, 1);
+  ctx.fillRect(wx, wy + 28, 50, 1);
+  ctx.fillRect(wx, wy + 32, 50, 1);
+  // Side rails
+  ctx.fillStyle = G;
+  ctx.fillRect(wx, wy + 18, 2, 18);
+  ctx.fillRect(wx + 48, wy + 18, 2, 18);
+
+  // Canvas cover (the bonnet)
+  ctx.fillStyle = G;
+  // Left arch
+  ctx.fillRect(wx + 4, wy + 4, 2, 16);
+  // Right arch
+  ctx.fillRect(wx + 44, wy + 4, 2, 16);
+  // Top cover
+  ctx.fillRect(wx + 4, wy + 2, 42, 4);
+  // Cover fill
+  ctx.fillRect(wx + 6, wy + 6, 38, 12);
+  // Cover shading
+  ctx.fillStyle = GD;
+  ctx.fillRect(wx + 8, wy + 8, 34, 2);
+  ctx.fillRect(wx + 8, wy + 12, 34, 2);
+  ctx.fillRect(wx + 8, wy + 16, 34, 1);
+
+  // Wheels
+  var wheelR = 8;
+  var wheels = [wx + 8, wx + 42];
+  var wa = t * 0.5; // slow rotation
+  ctx.strokeStyle = G;
+  ctx.lineWidth = 1.5;
+  for (var wi = 0; wi < wheels.length; wi++) {
+    var cx = wheels[wi], cy = wy + 38;
+    // Rim
+    ctx.beginPath();
+    ctx.arc(cx, cy, wheelR, 0, Math.PI * 2);
+    ctx.stroke();
+    // Spokes
+    for (var sp = 0; sp < 6; sp++) {
+      var angle = wa + sp * Math.PI / 3;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(angle) * wheelR, cy + Math.sin(angle) * wheelR);
+      ctx.stroke();
+    }
+    // Hub
+    ctx.fillStyle = G;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.lineWidth = 1;
+
+  // Subtle scanline effect
+  ctx.fillStyle = 'rgba(0,0,0,0.08)';
+  for (var sl = 0; sl < H; sl += 3) {
+    ctx.fillRect(0, sl, W, 1);
+  }
+
+  // Subtle green glow/vignette
+  var grd = ctx.createRadialGradient(W/2, H/2, 40, W/2, H/2, W * 0.7);
+  grd.addColorStop(0, 'rgba(0,0,0,0)');
+  grd.addColorStop(1, 'rgba(0,0,0,0.4)');
+  ctx.fillStyle = grd;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function renderCanvas(time) {
+  // Death screen: green phosphor Apple II style
+  if (gameState === STATES.DEATH) {
+    drawDeathScene(time);
+    return;
+  }
+
+  const skyColors = getSkyColors();
+
+  // Sky gradient (banded for EGA feel)
+  const bands = 10;
+  const skyBottom = 110;
+  for (let i = 0; i < bands; i++) {
+    const t = i / (bands - 1);
+    const r1 = parseInt(skyColors.top.substr(1, 2), 16);
+    const g1 = parseInt(skyColors.top.substr(3, 2), 16);
+    const b1 = parseInt(skyColors.top.substr(5, 2), 16);
+    const r2 = parseInt(skyColors.bottom.substr(1, 2), 16);
+    const g2 = parseInt(skyColors.bottom.substr(3, 2), 16);
+    const b2 = parseInt(skyColors.bottom.substr(5, 2), 16);
+    const r = Math.floor(r1 + (r2 - r1) * t);
+    const g = Math.floor(g1 + (g2 - g1) * t);
+    const b = Math.floor(b1 + (b2 - b1) * t);
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    const bandH = Math.ceil(skyBottom / bands) + 1;
+    ctx.fillRect(0, Math.floor(i * (skyBottom / bands)), W, bandH);
+  }
+
+  // Clouds (parallax 0.2x)
+  const cloudOffset = scrollX * 0.2;
+  for (const c of cloudPositions) {
+    let cx = ((c.x - cloudOffset) % (W + 80));
+    if (cx < -40) cx += W + 80;
+    drawPixelCloud(cx - 20, c.y, c.w, c.h);
+  }
+
+  // Far mountains (parallax 0.3x) - Express yellow signature
+  const farOffset = scrollX * 0.3;
+  for (const m of farMountains) {
+    let mx = ((m.x - farOffset) % (W + 100));
+    if (mx < -50) mx += W + 100;
+    drawMountain(mx - 25, m.h, m.w, '#F7DF1E', false);
+  }
+
+  // Near mountains (parallax 0.4x) - Bright yellow with snow caps
+  const nearOffset = scrollX * 0.4;
+  for (const m of nearMountains) {
+    let mx = ((m.x - nearOffset) % (W + 80));
+    if (mx < -40) mx += W + 80;
+    drawMountain(mx - 20, m.h, m.w, '#FFFF55', m.snow);
+  }
+
+  // Grass
+  ctx.fillStyle = '#00AA00';
+  ctx.fillRect(0, 110, W, H - 110);
+
+  // Bright grass highlights
+  ctx.fillStyle = '#55FF55';
+  const grassOffset = scrollX * 1.0;
+  for (let i = 0; i < 50; i++) {
+    let gx = ((i * 11 + 5 - grassOffset) % (W + 20));
+    if (gx < -5) gx += W + 20;
+    const gy = 113 + (i * 7 + i * i * 3) % 55;
+    ctx.fillRect(Math.floor(gx), Math.floor(gy), 2, 2);
+  }
+
+  // Trees (parallax 0.6x)
+  const treeOffset = scrollX * 0.6;
+  const treeBaseY = 128;
+  for (const t of treesData) {
+    let tx = ((t.x - treeOffset) % (W + 60));
+    if (tx < -20) tx += W + 60;
+    drawTree(tx - 10, treeBaseY, t.h);
+  }
+
+  // Landmark for current stop (only at stops/events)
+  if (gameState === STATES.STOP || gameState === STATES.EVENT || gameState === STATES.RIVER) {
+    const stop = TRAIL_DATA.stops[currentStop];
+    if (stop) {
+      drawLandmark(stop.landmarkType, 240, 150);
+    }
+  }
+
+  // Trail/ground strip
+  if (!showRiver) {
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(0, 152, W, 15);
+    // Trail texture dots
+    ctx.fillStyle = '#885500';
+    for (let i = 0; i < 35; i++) {
+      let dotX = ((i * 10 - scrollX * 1.0) % (W + 10));
+      if (dotX < -3) dotX += W + 10;
+      ctx.fillRect(Math.floor(dotX), 155 + (i % 4) * 2, 3, 1);
+    }
+    // Ruts
+    ctx.fillStyle = '#775500';
+    ctx.fillRect(0, 157, W, 1);
+    ctx.fillRect(0, 162, W, 1);
+  }
+
+  // River (when active)
+  if (showRiver) {
+    drawRiver(time || 0);
+  }
+
+  // Wagon
+  const wagonX = 65;
+  const wagonY = showRiver ? 148 : 149;
+  drawWagon(wagonX, wagonY);
+
+  // Event-specific visual overlay
+  if (gameState === STATES.EVENT || gameState === STATES.RIVER) {
+    drawEventOverlay(time);
+  }
+
+  // Ground below trail
+  ctx.fillStyle = '#885500';
+  ctx.fillRect(0, showRiver ? 173 : 167, W, 15);
+  ctx.fillStyle = '#553300';
+  ctx.fillRect(0, showRiver ? 188 : 182, W, H - 182);
+}
+
+// =====================================================================
+// MUSIC SYSTEM (Web Audio API Chiptune)
+// =====================================================================
+const NOTE_FREQ = {
+  'C3': 130.81, 'D3': 146.83, 'G2': 98.00, 'A2': 110.00,
+  'C4': 261.63, 'D4': 293.66, 'E4': 329.63, 'G4': 392.00,
+  'A4': 440.00, 'C5': 523.25, 'REST': 0
+};
+
+const melody = [
+  { note: 'E4', dur: 1 }, { note: 'G4', dur: 1 }, { note: 'A4', dur: 1 }, { note: 'G4', dur: 1 },
+  { note: 'E4', dur: 1 }, { note: 'D4', dur: 1 }, { note: 'C4', dur: 1 }, { note: 'REST', dur: 1 },
+  { note: 'E4', dur: 1 }, { note: 'G4', dur: 1 }, { note: 'A4', dur: 1 }, { note: 'C5', dur: 1 },
+  { note: 'A4', dur: 2 }, { note: 'G4', dur: 2 },
+  { note: 'C4', dur: 1 }, { note: 'D4', dur: 1 }, { note: 'E4', dur: 1 }, { note: 'G4', dur: 1 },
+  { note: 'A4', dur: 1 }, { note: 'G4', dur: 1 }, { note: 'E4', dur: 1 }, { note: 'D4', dur: 1 },
+  { note: 'C4', dur: 1 }, { note: 'E4', dur: 1 }, { note: 'G4', dur: 1 }, { note: 'E4', dur: 1 },
+  { note: 'D4', dur: 1 }, { note: 'C4', dur: 3 }
+];
+
+const bassLine = [
+  { note: 'C3', dur: 4 }, { note: 'A2', dur: 4 }, { note: 'C3', dur: 4 }, { note: 'A2', dur: 4 },
+  { note: 'C3', dur: 4 }, { note: 'G2', dur: 4 }, { note: 'D3', dur: 4 }, { note: 'C3', dur: 4 }
+];
+
+let musicScheduleTimer = null;
+let nextMelodyTime = 0;
+let nextBassTime = 0;
+
+var masterGain = null;
+
+function initAudio() {
+  if (audioCtx) return;
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = 1.0;
+    masterGain.connect(audioCtx.destination);
+    musicInitialized = true;
+  } catch (e) {
+    console.warn('Web Audio not available:', e);
+  }
+}
+
+function playNote(freq, startTime, duration, type, gainVal) {
+  if (!audioCtx || freq === 0) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, startTime);
+  // Envelope: attack then decay
+  gain.gain.setValueAtTime(0.001, startTime);
+  gain.gain.linearRampToValueAtTime(gainVal, startTime + 0.02);
+  gain.gain.setValueAtTime(gainVal, startTime + duration * 0.75);
+  gain.gain.linearRampToValueAtTime(0.001, startTime + duration * 0.95);
+  osc.connect(gain);
+  gain.connect(masterGain || audioCtx.destination);
+  osc.start(startTime);
+  osc.stop(startTime + duration);
+}
+
+function scheduleLoop() {
+  if (!musicPlaying || !audioCtx) return;
+  const bpm = 110;
+  const quarterDur = 60 / bpm;
+  const now = audioCtx.currentTime;
+
+  // Schedule melody
+  let t = now + 0.05;
+  for (const note of melody) {
+    const dur = note.dur * quarterDur;
+    if (note.note !== 'REST') {
+      playNote(NOTE_FREQ[note.note], t, dur, 'square', 0.06);
+    }
+    t += dur;
+  }
+
+  // Schedule bass
+  let tb = now + 0.05;
+  for (const note of bassLine) {
+    const dur = note.dur * quarterDur;
+    playNote(NOTE_FREQ[note.note], tb, dur, 'triangle', 0.08);
+    tb += dur;
+  }
+
+  // Total loop duration in beats: melody has 32 quarter beats = 32 * quarterDur
+  const totalBeats = 32;
+  const loopDurationMs = totalBeats * quarterDur * 1000;
+
+  musicScheduleTimer = setTimeout(scheduleLoop, loopDurationMs - 200);
+}
+
+function startMusic() {
+  if (!musicInitialized) initAudio();
+  if (!audioCtx) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  if (masterGain) masterGain.gain.setValueAtTime(1.0, audioCtx.currentTime);
+  musicPlaying = true;
+  scheduleLoop();
+  updateMusicIndicator();
+}
+
+function stopMusic() {
+  musicPlaying = false;
+  if (musicScheduleTimer) {
+    clearTimeout(musicScheduleTimer);
+    musicScheduleTimer = null;
+  }
+  if (masterGain) masterGain.gain.setValueAtTime(0, audioCtx.currentTime);
+  updateMusicIndicator();
+}
+
+function toggleMusic() {
+  if (!musicInitialized) initAudio();
+  if (musicPlaying) {
+    stopMusic();
+  } else {
+    startMusic();
+  }
+  renderStatusBar();
+}
+
+function updateMusicIndicator() {
+  const el = document.getElementById('music-indicator');
+  if (!el) return;
+  el.textContent = musicPlaying ? 'M: Music ON' : 'M: Music OFF';
+  el.style.color = musicPlaying ? '#55FF55' : '#555555';
+}
+
+// =====================================================================
+// SYNTAX HIGHLIGHTING (EGA Colors — JavaScript)
+// =====================================================================
+const JS_KEYWORDS = new Set([
+  'const', 'let', 'var', 'function', 'async', 'await', 'return',
+  'if', 'else', 'for', 'while', 'new', 'typeof', 'instanceof',
+  'try', 'catch', 'throw', 'class', 'extends', 'import', 'export',
+  'from', 'require', 'module', 'exports', 'default', 'switch', 'case',
+  'break', 'continue', 'true', 'false', 'null', 'undefined', 'void',
+  'of', 'in', 'delete', 'this', 'super', 'yield', 'static'
+]);
+
+function escHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function highlightCode(code) {
+  return code.split('\n').map(function(line) {
+    if (line.trim().startsWith('//')) {
+      return '<span style="color:#75715e">' + escHtml(line) + '</span>';
+    }
+    var result = '';
+    var i = 0;
+    while (i < line.length) {
+      // Template literal
+      if (line[i] === '`') {
+        var end = i + 1;
+        while (end < line.length && line[end] !== '`') {
+          if (line[end] === '\\') end++;
+          if (line[end] === '$' && end + 1 < line.length && line[end + 1] === '{') {
+            end++;
+          }
+          end++;
+        }
+        end = Math.min(end + 1, line.length);
+        result += '<span style="color:#e6db74">' + escHtml(line.substring(i, end)) + '</span>';
+        i = end;
+        continue;
+      }
+      // String literal
+      if (line[i] === "'" || line[i] === '"') {
+        var quote = line[i];
+        var end = i + 1;
+        while (end < line.length && line[end] !== quote) {
+          if (line[end] === '\\') end++;
+          end++;
+        }
+        end = Math.min(end + 1, line.length);
+        result += '<span style="color:#e6db74">' + escHtml(line.substring(i, end)) + '</span>';
+        i = end;
+        continue;
+      }
+      // Inline comment
+      if (line[i] === '/' && i + 1 < line.length && line[i + 1] === '/') {
+        result += '<span style="color:#75715e">' + escHtml(line.substring(i)) + '</span>';
+        break;
+      }
+      // Number
+      if (/\d/.test(line[i]) && (i === 0 || !/\w/.test(line[i - 1]))) {
+        var end2 = i;
+        while (end2 < line.length && /[\d._]/.test(line[end2])) end2++;
+        result += '<span style="color:#ae81ff">' + escHtml(line.substring(i, end2)) + '</span>';
+        i = end2;
+        continue;
+      }
+      // Identifier or keyword
+      if (/[a-zA-Z_$]/.test(line[i])) {
+        var end3 = i;
+        while (end3 < line.length && /[\w$]/.test(line[end3])) end3++;
+        var word = line.substring(i, end3);
+        if (JS_KEYWORDS.has(word)) {
+          result += '<span style="color:#f92672">' + escHtml(word) + '</span>';
+        } else if (end3 < line.length && line[end3] === '(') {
+          result += '<span style="color:#a6e22e">' + escHtml(word) + '</span>';
+        } else {
+          result += '<span style="color:#f8f8f2">' + escHtml(word) + '</span>';
+        }
+        i = end3;
+        continue;
+      }
+      // Punctuation / operators
+      result += '<span style="color:#f8f8f2">' + escHtml(line[i]) + '</span>';
+      i++;
+    }
+    return result;
+  }).join('\n');
+}
+
+// =====================================================================
+// TEXT PANEL RENDERING
+// =====================================================================
+var textPanel = document.getElementById('text-panel');
+var statusBar = document.getElementById('status-bar');
+
+function setTextPanel(html) {
+  textPanel.innerHTML = html;
+  textPanel.scrollTop = 0;
+}
+
+function renderTitleScreen() {
+  setTextPanel(
+    '<div style="text-align:center; padding-top:20px;">' +
+    '<div style="color:#FFFF55; font-size:16px; letter-spacing:2px;">THE CODEREGON TRAIL</div>' +
+    '<div style="color:#AAAAAA; margin-top:8px;">The Middleware Prairie - Express Edition</div>' +
+    '<div style="margin-top:30px;" class="blink">Press SPACE BAR to begin</div>' +
+    '</div>'
+  );
+}
+
+function renderSetupScreen() {
+  var profsHtml = '';
+  for (var i = 0; i < PROFESSIONS.length; i++) {
+    var p = PROFESSIONS[i];
+    var sel = (i === selectedDifficulty);
+    var color = sel ? '#FFFF55' : '#AAAAAA';
+    var marker = sel ? '>' : ' ';
+    var perks = 'HP:' + p.health + '  Hints:' + p.supplies;
+    if (p.hintFree) perks += '  (free hints!)';
+    profsHtml += '<div style="color:' + color + '; cursor:pointer;" onclick="selectDifficulty(' + i + ')">' +
+             marker + ' [' + (i + 1) + '] ' + p.name + '</div>';
+    profsHtml += '<div style="color:' + (sel ? '#AAAAAA' : '#555555') + '; margin-left:28px; font-size:12px;">' + p.desc + '  ' + perks + '</div>';
+  }
+
+  var hearts = '\u2665\u2665\u2665';
+  setTextPanel(
+    '<div style="padding:8px 20px;">' +
+    '<div style="color:#55FFFF; margin-bottom:10px;">Your party of key concepts:</div>' +
+    '<div style="margin-left:16px;">' +
+    '<div style="color:#55FF55;">1. Middleware Chain          <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">2. Route Handlers            <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">3. Error Handling            <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">4. Async Patterns            <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '</div>' +
+    '<div style="color:#55FFFF; margin-top:14px; margin-bottom:6px;">What is your profession?</div>' +
+    '<div style="margin-left:16px;">' + profsHtml + '</div>' +
+    '<div style="margin-top:18px; text-align:center;" class="blink">Press ENTER to hit the trail!</div>' +
+    '</div>'
+  );
+}
+
+function renderTravelScreen() {
+  var flavor = travelFlavors[travelFlavorIndex % travelFlavors.length];
+  setTextPanel(
+    '<div style="text-align:center; padding-top:30px;">' +
+    '<div style="color:#FFFF55;">Day ' + day + '...</div>' +
+    '<div style="color:#AAAAAA; margin-top:12px;">' + escHtml(flavor) + '</div>' +
+    '<div style="margin-top:24px; color:#555555;" class="blink">Press SPACE BAR to continue</div>' +
+    '</div>'
+  );
+}
+
+function renderStopScreen() {
+  var stop = TRAIL_DATA.stops[currentStop];
+  if (!stop) return;
+
+  var codeHtml = highlightCode(stop.code.content);
+  setTextPanel(
+    '<div style="padding:4px 12px;">' +
+    '<div style="color:#FFFF55; text-align:center; font-size:14px;">\u2550\u2550 ' + escHtml(stop.name) + ' \u2014 ' + escHtml(stop.subtitle) + ' \u2550\u2550</div>' +
+    '<div style="color:#555555; text-align:center; font-size:11px; margin-bottom:4px;">[' + escHtml(stop.concept) + ']</div>' +
+    '<div style="border:1px solid #3e3d32; padding:2px 4px; margin:4px 0 2px 0; font-size:11px; color:#75715e;">\u250C\u2500 ' + escHtml(stop.code.file) + ' \u2500\u2500\u2500</div>' +
+    '<div class="code-box">' + codeHtml + '</div>' +
+    '<div style="color:#AAAAAA; margin:6px 0; line-height:1.4; font-size:13px;">' + escHtml(stop.narration) + '</div>' +
+    '<div style="margin-top:8px;" id="stop-choices">' +
+    '<span class="stop-opt' + (selectedStopChoice === 0 ? ' choice-selected' : '') + '" onclick="handleStopChoice(1)">[1] Continue</span>' +
+    '<span class="stop-opt' + (selectedStopChoice === 1 ? ' choice-selected' : '') + '" style="margin-left:20px;" onclick="handleStopChoice(2)">[2] Examine code</span>' +
+    '</div>' +
+    '</div>'
+  );
+}
+
+function renderEventScreen(event) {
+  var isRiver = event.type === 'river';
+  var isFortune = event.type === 'fortune';
+  var typeLabel, headerColor;
+
+  if (isRiver) {
+    typeLabel = '\uD83C\uDF0A RIVER CROSSING';
+    headerColor = '#5555FF';
+  } else if (event.type === 'weather') {
+    typeLabel = '\u26A1 WEATHER';
+    headerColor = '#FFFF55';
+  } else if (event.type === 'encounter') {
+    typeLabel = '\uD83D\uDC64 ENCOUNTER';
+    headerColor = '#FFFF55';
+  } else if (event.type === 'misfortune') {
+    typeLabel = '\u2620 MISFORTUNE';
+    headerColor = '#FF5555';
+  } else {
+    typeLabel = '\u2728 FORTUNE';
+    headerColor = '#55FF55';
+  }
+
+  var diffBadge = '';
+  if (event.difficulty) {
+    var diffColors = { easy: '#55FF55', medium: '#FFFF55', hard: '#FF5555' };
+    var diffColor = diffColors[event.difficulty] || '#AAAAAA';
+    diffBadge = ' <span style="display:inline-block;padding:1px 6px;border:1px solid ' + diffColor + ';color:' + diffColor + ';font-size:10px;margin-left:8px;border-radius:2px;">' + event.difficulty.toUpperCase() + '</span>';
+  }
+
+  var choicesHtml = '';
+  if (event.choices.length > 0 && !eventAnswered) {
+    var labels = ['A', 'B', 'C', 'D'];
+    for (var i = 0; i < shuffledIndices.length; i++) {
+      var origIdx = shuffledIndices[i];
+      var dimmedClass = (eventHinted && dimmedChoice === i) ? ' choice-dimmed' : '';
+      var selClass = (selectedEventChoice === i) ? ' choice-selected' : '';
+      choicesHtml += '<div class="choice-item' + dimmedClass + selClass + '" onclick="handleEventChoice(' + i + ')" style="margin:4px 0;">  ' + labels[i] + '. ' + escHtml(event.choices[origIdx].text) + '</div>';
+    }
+    var hintAvail = (PROFESSIONS[difficulty] && PROFESSIONS[difficulty].hintFree) || supplies > 0;
+    var hintLabel = (PROFESSIONS[difficulty] && PROFESSIONS[difficulty].hintFree) ? 'H = Free Hint' : 'H = Hint (-1 supply)';
+    choicesHtml += '<div style="margin-top:10px; color:#555555;">Arrow keys + Enter to choose' + (hintAvail ? '  |  ' + hintLabel : '') + '</div>';
+  } else if (isFortune) {
+    choicesHtml = '<div style="color:#55FF55; margin-top:8px;">+20 Health restored!</div>' +
+                  '<div style="margin-top:10px;" class="blink">Press SPACE BAR to continue</div>';
+  }
+
+  setTextPanel(
+    '<div style="padding:4px 12px;">' +
+    '<div style="color:' + headerColor + '; font-size:14px; text-align:center;">' + typeLabel + ' \u2014 ' + escHtml(event.title) + diffBadge + '</div>' +
+    '<div style="color:#FFFFFF; margin:8px 0; line-height:1.4;">' + escHtml(event.text) + '</div>' +
+    '<div id="event-choices">' + choicesHtml + '</div>' +
+    '<div id="event-result"></div>' +
+    '</div>'
+  );
+}
+
+function showEventResult(event, displayIdx) {
+  var origIdx = shuffledIndices[displayIdx];
+  var choice = event.choices[origIdx];
+  var correct = choice.correct;
+  var isRiver = event.type === 'river';
+
+  var resultHtml = '';
+  if (correct) {
+    var bonus = streak >= 3 ? ' (+5 streak bonus!)' : '';
+    resultHtml = '<div style="color:#55FF55; margin-top:8px; font-size:14px;">CORRECT! +10 Health' + bonus + '</div>';
+  } else {
+    var dmg = isRiver ? 20 : 15;
+    resultHtml = '<div style="color:#FF5555; margin-top:8px; font-size:14px;">WRONG! -' + dmg + ' Health</div>';
+    document.getElementById('game-container').classList.add('shake');
+    setTimeout(function() { document.getElementById('game-container').classList.remove('shake'); }, 500);
+  }
+  resultHtml += '<div style="color:#AAAAAA; margin-top:6px; line-height:1.4;">' + escHtml(choice.explanation) + '</div>';
+  resultHtml += '<div style="margin-top:10px;" class="blink">Press SPACE BAR to continue</div>';
+
+  // Update choices display in shuffled order
+  var labels = ['A', 'B', 'C', 'D'];
+  var choicesHtml = '';
+  for (var i = 0; i < shuffledIndices.length; i++) {
+    var oi = shuffledIndices[i];
+    var c = event.choices[oi];
+    var cls = c.correct ? 'choice-correct' : (i === displayIdx ? 'choice-wrong' : 'text-gray');
+    var marker = c.correct ? '\u2713' : (i === displayIdx ? '\u2717' : ' ');
+    choicesHtml += '<div class="' + cls + '" style="margin:4px 0;">' + marker + ' ' + labels[i] + '. ' + escHtml(c.text) + '</div>';
+  }
+
+  var choicesEl = document.getElementById('event-choices');
+  if (choicesEl) choicesEl.innerHTML = choicesHtml;
+  var resultEl = document.getElementById('event-result');
+  if (resultEl) resultEl.innerHTML = resultHtml;
+}
+
+function renderDeathScreen() {
+  var deathMsg;
+  if (techDebtDeath) {
+    var techDebtMsgs = [
+      'You have died of tech debt dysentery.',
+    ];
+    deathMsg = techDebtMsgs[Math.floor(Math.random() * techDebtMsgs.length)];
+    techDebtDeath = false;
+  } else {
+    deathMsg = TRAIL_DATA.deathMessages[Math.floor(Math.random() * TRAIL_DATA.deathMessages.length)];
+  }
+
+  setTextPanel(
+    '<div style="text-align:center; padding-top:16px;">' +
+    '<div style="display:inline-block; border:2px solid #33FF33; padding:10px 24px; min-width:280px;">' +
+    '<span id="death-text" style="color:#33FF33; font-size:16px;"></span>' +
+    '</div>' +
+    '<div style="color:#1a8a1a; margin-top:14px; font-size:13px;">Stops: ' + currentStop + '/' + TRAIL_DATA.stops.length + '  Score: ' + score + '/' + totalQuestions + '  Streak: ' + bestStreak + '</div>' +
+    '<div style="color:#33FF33; margin-top:14px;" class="blink">Press SPACE BAR to try again</div>' +
+    '</div>'
+  );
+
+  // Typewriter animation
+  typewriterText = deathMsg;
+  typewriterIndex = 0;
+  if (typewriterTimer) clearInterval(typewriterTimer);
+  typewriterTimer = setInterval(function() {
+    var el = document.getElementById('death-text');
+    if (!el) { clearInterval(typewriterTimer); return; }
+    typewriterIndex++;
+    el.textContent = typewriterText.substring(0, typewriterIndex);
+    if (typewriterIndex >= typewriterText.length) clearInterval(typewriterTimer);
+  }, 50);
+}
+
+function renderWinScreen() {
+  var survivors = partyHealth.filter(function(h) { return h > 0; }).length;
+  var pctScore = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 100;
+
+  var conceptNames = ['Middleware Chain', 'Route Handlers', 'Error Handling', 'Async Patterns'];
+
+  var masteryHtml = '';
+  var weakestName = '';
+  var weakestHp = 999;
+  for (var i = 0; i < conceptNames.length; i++) {
+    var hp = partyHealth[i];
+    var maxHp = TRAIL_DATA.partyMembers[i].maxHealth;
+    var stars, color;
+    if (hp <= 0) {
+      stars = '<span style="color:#555555">\u2606\u2606\u2606 (died)</span>';
+      color = '#555555';
+    } else {
+      stars = '';
+      for (var s = 0; s < hp; s++) stars += '\u2605';
+      for (var s2 = 0; s2 < maxHp - hp; s2++) stars += '\u2606';
+      color = '#FFFF55';
+    }
+    if (hp < weakestHp) { weakestHp = hp; weakestName = conceptNames[i]; }
+    masteryHtml += '<div style="color:' + color + ';">    ' + conceptNames[i] + '  ' + stars + '</div>';
+  }
+
+  var tip = weakestHp < TRAIL_DATA.partyMembers[0].maxHealth ? '"Study up on ' + weakestName + '!"' : '"Perfect understanding!"';
+
+  setTextPanel(
+    '<div style="padding:8px 16px;">' +
+    '<div style="color:#FFFF55; text-align:center; font-size:16px;">\u2605 YOU MADE IT TO JSON RESPONSE FRONTIER! \u2605</div>' +
+    '<div style="margin-top:10px; color:#AAAAAA;">' +
+    '<div>  Framework:    <span style="color:#55FFFF;">Express.js (The Middleware Prairie)</span></div>' +
+    '<div>  Survivors:    <span style="color:#55FF55;">' + survivors + '/' + partyHealth.length + '</span></div>' +
+    '<div>  Quiz Score:   <span style="color:#FFFF55;">' + score + '/' + totalQuestions + ' (' + pctScore + '%)</span></div>' +
+    '<div>  Best Streak:  <span style="color:#FF55FF;">' + bestStreak + '</span></div>' +
+    '<div>  Hints Used:   <span style="color:#AAAAAA;">' + hintsUsed + '</span></div>' +
+    '</div>' +
+    '<div style="margin-top:10px; color:#FFFF55;">  Concept Mastery:</div>' +
+    '<div>' + masteryHtml + '</div>' +
+    '<div style="margin-top:10px; color:#55FF55; text-align:center;">' + tip + '</div>' +
+    '<div style="margin-top:14px; text-align:center;" class="blink">Press SPACE BAR to play again</div>' +
+    '</div>'
+  );
+}
+
+// =====================================================================
+// STATUS BAR
+// =====================================================================
+function renderStatusBar() {
+  if (gameState === STATES.TITLE) {
+    var titleMusic = musicPlaying
+      ? 'Music: <span style="color:#55FF55;">On</span> <span style="color:#555555;">(M to toggle off)</span>'
+      : 'Music: <span style="color:#FF5555;">Off</span> <span style="color:#555555;">(M to toggle on)</span>';
+    statusBar.innerHTML = '<span style="color:#555555;">The Coderegon Trail v1.0</span>  |  ' + titleMusic;
+    return;
+  }
+
+  var maxH = maxHealthForGame;
+  var healthPct = Math.max(0, health / maxH);
+  var barLen = 10;
+  var filled = Math.round(healthPct * barLen);
+  var healthColor = health > maxH * 0.6 ? '#00AA00' : (health > maxH * 0.3 ? '#FFFF55' : '#FF5555');
+  var healthBar = '<span style="color:' + healthColor + ';">';
+  for (var i = 0; i < filled; i++) healthBar += '\u2588';
+  healthBar += '</span><span style="color:#555555;">';
+  for (var i2 = 0; i2 < barLen - filled; i2++) healthBar += '\u2591';
+  healthBar += '</span>';
+
+  var streakStars = '<span style="color:#FFFF55;">';
+  for (var s = 0; s < Math.min(streak, 5); s++) streakStars += '\u2605';
+  streakStars += '</span>';
+
+  var musicHint = musicPlaying
+    ? 'Music: <span style="color:#55FF55;">On</span> <span style="color:#555555;">(M to toggle off)</span>'
+    : 'Music: <span style="color:#FF5555;">Off</span> <span style="color:#555555;">(M to toggle on)</span>';
+
+  statusBar.innerHTML = 'HP: ' + healthBar + ' ' + Math.max(0, health) +
+    '  Hints: ' + supplies + '  ' + streakStars +
+    '  |  Stop ' + (currentStop + 1) + '/' + TRAIL_DATA.stops.length +
+    '  |  ' + musicHint;
+}
+
+// =====================================================================
+// GAME LOGIC
+// =====================================================================
+function resetGame() {
+  gameState = STATES.TITLE;
+  difficulty = 1;
+  selectedDifficulty = 1;
+  health = 100;
+  maxHealthForGame = 100;
+  supplies = 5;
+  currentStop = 0;
+  day = 1;
+  score = 0;
+  totalQuestions = 0;
+  streak = 0;
+  bestStreak = 0;
+  hintsUsed = 0;
+  scrollX = 0;
+  showRiver = false;
+  wagonWheelAngle = 0;
+  travelFlavorIndex = 0;
+  deathPending = false;
+  partyHealth = TRAIL_DATA.partyMembers.map(function(p) { return p.maxHealth; });
+  pendingEvents = [];
+  currentEventIndex = 0;
+  eventAnswered = false;
+  eventHinted = false;
+  dimmedChoice = -1;
+  selectedEventChoice = 0;
+  selectedStopChoice = 0;
+  shuffledIndices = [];
+  currentEventType = '';
+  currentEventTitle = '';
+  drainAccumulator = 0;
+  techDebtDeath = false;
+  if (travelTimer) { clearTimeout(travelTimer); travelTimer = null; }
+  if (typewriterTimer) { clearInterval(typewriterTimer); typewriterTimer = null; }
+}
+
+function selectDifficulty(idx) {
+  selectedDifficulty = Math.max(0, Math.min(PROFESSIONS.length - 1, idx));
+  renderSetupScreen();
+}
+
+function startGame() {
+  difficulty = selectedDifficulty;
+  var prof = PROFESSIONS[difficulty];
+  health = prof.health;
+  maxHealthForGame = prof.health;
+  supplies = prof.supplies;
+  partyHealth = TRAIL_DATA.partyMembers.map(function(p) { return p.maxHealth; });
+  currentStop = 0;
+  day = 1;
+  score = 0;
+  totalQuestions = 0;
+  streak = 0;
+  bestStreak = 0;
+  hintsUsed = 0;
+  scrollX = 0;
+  deathPending = false;
+  enterTravel();
+}
+
+function enterTravel() {
+  gameState = STATES.TRAVEL;
+  showRiver = false;
+  currentEventType = '';
+  currentEventTitle = '';
+  day += Math.floor(Math.random() * 7) + 1;
+  travelFlavorIndex = Math.floor(Math.random() * travelFlavors.length);
+  renderTravelScreen();
+  renderStatusBar();
+
+  if (travelTimer) clearTimeout(travelTimer);
+  travelTimer = setTimeout(function() {
+    if (gameState === STATES.TRAVEL) advanceFromTravel();
+  }, 2500);
+}
+
+function advanceFromTravel() {
+  if (travelTimer) { clearTimeout(travelTimer); travelTimer = null; }
+
+  // Collect events for the current stop (triggerStop is 1-indexed relative to stop we just visited)
+  // Events trigger BEFORE showing the stop
+  var DIFFICULTY_TIERS = [['easy'],['easy','medium'],['medium','hard'],['hard']];
+  var allowedTiers = DIFFICULTY_TIERS[difficulty] || ['easy','medium','hard'];
+  var allStopEvents = TRAIL_DATA.events.filter(function(e) { return e.triggerStop === currentStop; });
+  pendingEvents = allStopEvents.filter(function(e) { return e.type === 'fortune' || !e.difficulty || allowedTiers.indexOf(e.difficulty) !== -1; });
+  currentEventIndex = 0;
+
+  if (pendingEvents.length > 0) {
+    showNextEvent();
+  } else {
+    enterStop();
+  }
+}
+
+function showNextEvent() {
+  if (currentEventIndex >= pendingEvents.length) {
+    // After all events, check if we should die
+    if (checkDeath()) return;
+    enterStop();
+    return;
+  }
+
+  var event = pendingEvents[currentEventIndex];
+  eventAnswered = false;
+  eventHinted = false;
+  dimmedChoice = -1;
+  selectedEventChoice = 0;
+  currentEventType = event.type;
+  currentEventTitle = event.title;
+
+  // Shuffle choice order so correct answer isn't always first
+  shuffledIndices = [];
+  for (var si = 0; si < event.choices.length; si++) shuffledIndices.push(si);
+  for (var si = shuffledIndices.length - 1; si > 0; si--) {
+    var sj = Math.floor(Math.random() * (si + 1));
+    var tmp = shuffledIndices[si]; shuffledIndices[si] = shuffledIndices[sj]; shuffledIndices[sj] = tmp;
+  }
+
+  if (event.type === 'river') {
+    gameState = STATES.RIVER;
+    showRiver = true;
+  } else {
+    gameState = STATES.EVENT;
+    showRiver = false;
+  }
+
+  // Fortune events auto-apply health
+  if (event.type === 'fortune') {
+    health = Math.min(health + 20, maxHealthForGame);
+    eventAnswered = true;
+  }
+
+  renderEventScreen(event);
+  renderStatusBar();
+}
+
+function handleEventChoice(displayIdx) {
+  if (eventAnswered) return;
+  var event = pendingEvents[currentEventIndex];
+  if (!event || event.choices.length === 0) return;
+  if (displayIdx < 0 || displayIdx >= shuffledIndices.length) return;
+  if (eventHinted && dimmedChoice === displayIdx) return;
+
+  var prof = PROFESSIONS[difficulty];
+  var forgiving = prof && prof.forgiving;
+  var origIdx = shuffledIndices[displayIdx];
+  var choice = event.choices[origIdx];
+  var isRiver = event.type === 'river';
+
+  if (forgiving && !choice.correct) {
+    // Ralph Wiggum mode: dim the wrong answer, let them try again
+    var items = document.querySelectorAll('.choice-item');
+    if (items[displayIdx]) {
+      items[displayIdx].classList.add('choice-dimmed');
+      items[displayIdx].style.pointerEvents = 'none';
+    }
+    // Move selection to next available choice
+    for (var ni = 0; ni < shuffledIndices.length; ni++) {
+      var nextIdx = (displayIdx + 1 + ni) % shuffledIndices.length;
+      if (!(eventHinted && dimmedChoice === nextIdx) && !items[nextIdx].classList.contains('choice-dimmed')) {
+        selectedEventChoice = nextIdx;
+        updateChoiceHighlight();
+        break;
+      }
+    }
+    return;
+  }
+
+  eventAnswered = true;
+
+  totalQuestions++;
+
+  if (choice.correct) {
+    var bonus = streak >= 3 ? 5 : 0;
+    health = Math.min(health + 10 + bonus, maxHealthForGame);
+    score++;
+    streak++;
+    if (streak > bestStreak) bestStreak = streak;
+  } else {
+    var dmg = isRiver ? 20 : 15;
+    health -= dmg;
+    streak = 0;
+    // Damage related party member
+    var concept = event.concept;
+    var memberIdx = -1;
+    for (var mi = 0; mi < TRAIL_DATA.partyMembers.length; mi++) {
+      if (TRAIL_DATA.partyMembers[mi].name === concept) { memberIdx = mi; break; }
+    }
+    if (memberIdx >= 0 && partyHealth[memberIdx] > 0) {
+      partyHealth[memberIdx]--;
+    }
+  }
+
+  showEventResult(event, displayIdx);
+  renderStatusBar();
+}
+
+function handleEventHint() {
+  var prof = PROFESSIONS[difficulty];
+  var hintFree = prof && prof.hintFree;
+  if (eventAnswered || eventHinted) return;
+  if (!hintFree && supplies <= 0) return;
+  var event = pendingEvents[currentEventIndex];
+  if (!event || event.choices.length === 0) return;
+
+  if (!hintFree) supplies--;
+  hintsUsed++;
+  eventHinted = true;
+
+  // Find a wrong answer in display order (dimmedChoice is a display index)
+  var wrongDisplayIndices = [];
+  for (var i = 0; i < shuffledIndices.length; i++) {
+    if (!event.choices[shuffledIndices[i]].correct) wrongDisplayIndices.push(i);
+  }
+  dimmedChoice = wrongDisplayIndices[Math.floor(Math.random() * wrongDisplayIndices.length)];
+
+  renderEventScreen(event);
+  renderStatusBar();
+}
+
+function updateChoiceHighlight() {
+  var items = document.querySelectorAll('.choice-item');
+  for (var i = 0; i < items.length; i++) {
+    items[i].classList.toggle('choice-selected', i === selectedEventChoice);
+  }
+}
+
+function updateStopHighlight() {
+  var items = document.querySelectorAll('.stop-opt');
+  for (var i = 0; i < items.length; i++) {
+    items[i].classList.toggle('choice-selected', i === selectedStopChoice);
+  }
+}
+
+function checkDeath() {
+  if (health <= 0) {
+    enterDeath();
+    return true;
+  }
+  var allDead = true;
+  for (var i = 0; i < partyHealth.length; i++) {
+    if (partyHealth[i] > 0) { allDead = false; break; }
+  }
+  if (allDead) {
+    enterDeath();
+    return true;
+  }
+  return false;
+}
+
+function advanceFromEvent() {
+  currentEventIndex++;
+  if (currentEventIndex < pendingEvents.length) {
+    if (checkDeath()) return;
+    showNextEvent();
+  } else {
+    if (checkDeath()) return;
+    enterStop();
+  }
+}
+
+function enterStop() {
+  gameState = STATES.STOP;
+  showRiver = false;
+  selectedStopChoice = 0;
+
+  var stop = TRAIL_DATA.stops[currentStop];
+  if (stop && stop.landmarkType === 'river') {
+    showRiver = true;
+  }
+
+  renderStopScreen();
+  renderStatusBar();
+}
+
+function handleStopChoice(choice) {
+  if (choice === 2) {
+    var codeBox = textPanel.querySelector('.code-box');
+    if (codeBox) {
+      codeBox.style.maxHeight = '280px';
+      codeBox.scrollIntoView({ behavior: 'smooth' });
+    }
+    return;
+  }
+
+  currentStop++;
+  if (currentStop >= TRAIL_DATA.stops.length) {
+    enterWin();
+  } else {
+    enterTravel();
+  }
+}
+
+function enterDeath() {
+  gameState = STATES.DEATH;
+  showRiver = false;
+  renderDeathScreen();
+  renderStatusBar();
+}
+
+function enterWin() {
+  gameState = STATES.WIN;
+  showRiver = false;
+  renderWinScreen();
+  renderStatusBar();
+}
+
+// =====================================================================
+// INPUT HANDLING
+// =====================================================================
+function ensureAudio() {
+  if (!musicInitialized) {
+    initAudio();
+    startMusic();
+  }
+}
+
+document.addEventListener('keydown', function(e) {
+  var key = e.key;
+
+  // Music toggle always works
+  if (key === 'm' || key === 'M') {
+    if (!musicInitialized) initAudio();
+    toggleMusic();
+    return;
+  }
+
+  // Start audio on first interaction
+  if (!musicInitialized) ensureAudio();
+
+  switch (gameState) {
+    case STATES.TITLE:
+      if (key === ' ' || key === 'Enter') {
+        e.preventDefault();
+        gameState = STATES.SETUP;
+        renderSetupScreen();
+        renderStatusBar();
+      }
+      break;
+
+    case STATES.SETUP:
+      if (key === 'ArrowDown' || key === 'ArrowRight') {
+        e.preventDefault();
+        selectDifficulty((selectedDifficulty + 1) % PROFESSIONS.length);
+      } else if (key === 'ArrowUp' || key === 'ArrowLeft') {
+        e.preventDefault();
+        selectDifficulty((selectedDifficulty - 1 + PROFESSIONS.length) % PROFESSIONS.length);
+      } else if (key === '1') selectDifficulty(0);
+      else if (key === '2') selectDifficulty(1);
+      else if (key === '3') selectDifficulty(2);
+      else if (key === '4') selectDifficulty(3);
+      else if (key === 'Enter' || key === ' ') {
+        e.preventDefault();
+        startGame();
+      }
+      break;
+
+    case STATES.TRAVEL:
+      if (key === ' ' || key === 'Enter') {
+        e.preventDefault();
+        advanceFromTravel();
+      }
+      break;
+
+    case STATES.STOP:
+      if (key === 'ArrowLeft' || key === 'ArrowRight') {
+        e.preventDefault();
+        selectedStopChoice = (key === 'ArrowLeft') ? 0 : 1;
+        updateStopHighlight();
+      } else if (key === 'ArrowUp' || key === 'ArrowDown') {
+        e.preventDefault();
+        selectedStopChoice = selectedStopChoice === 0 ? 1 : 0;
+        updateStopHighlight();
+      } else if (key === 'Enter' || key === ' ') {
+        e.preventDefault();
+        handleStopChoice(selectedStopChoice + 1);
+      } else if (key === '1') {
+        handleStopChoice(1);
+      } else if (key === '2') {
+        handleStopChoice(2);
+      }
+      break;
+
+    case STATES.EVENT:
+    case STATES.RIVER:
+      if (!eventAnswered) {
+        var ev = pendingEvents[currentEventIndex];
+        if (ev && ev.choices.length > 0) {
+          var numChoices = ev.choices.length;
+          if (key === 'ArrowDown' || key === 'ArrowRight') {
+            e.preventDefault();
+            selectedEventChoice = (selectedEventChoice + 1) % numChoices;
+            // Skip dimmed choice
+            if (eventHinted && dimmedChoice === selectedEventChoice) selectedEventChoice = (selectedEventChoice + 1) % numChoices;
+            updateChoiceHighlight();
+          } else if (key === 'ArrowUp' || key === 'ArrowLeft') {
+            e.preventDefault();
+            selectedEventChoice = (selectedEventChoice - 1 + numChoices) % numChoices;
+            if (eventHinted && dimmedChoice === selectedEventChoice) selectedEventChoice = (selectedEventChoice - 1 + numChoices) % numChoices;
+            updateChoiceHighlight();
+          } else if (key === 'Enter' || key === ' ') {
+            e.preventDefault();
+            if (!(eventHinted && dimmedChoice === selectedEventChoice)) {
+              handleEventChoice(selectedEventChoice);
+            }
+          } else if (key === '1' || key === 'a' || key === 'A') handleEventChoice(0);
+          else if (key === '2' || key === 'b' || key === 'B') handleEventChoice(1);
+          else if (key === '3' || key === 'c' || key === 'C') handleEventChoice(2);
+          else if (key === 'h' || key === 'H') handleEventHint();
+        }
+        // Fortune: space/enter to continue
+        if (ev && ev.type === 'fortune' && (key === ' ' || key === 'Enter')) {
+          e.preventDefault();
+          advanceFromEvent();
+        }
+      } else {
+        if (key === ' ' || key === 'Enter') {
+          e.preventDefault();
+          if (checkDeath()) return;
+          advanceFromEvent();
+        }
+      }
+      break;
+
+    case STATES.DEATH:
+      if (key === ' ' || key === 'Enter') {
+        e.preventDefault();
+        resetGame();
+        renderTitleScreen();
+        renderStatusBar();
+      }
+      break;
+
+    case STATES.WIN:
+      if (key === ' ' || key === 'Enter') {
+        e.preventDefault();
+        resetGame();
+        renderTitleScreen();
+        renderStatusBar();
+      }
+      break;
+  }
+});
+
+// =====================================================================
+// ANIMATION LOOP + TECH DEBT DRAIN
+// =====================================================================
+var lastTime = 0;
+var drainAccumulator = 0;
+var DRAIN_INTERVAL = 3000; // drain 1 HP every 3 seconds
+var techDebtDeath = false;
+
+function gameLoop(timestamp) {
+  var dt = timestamp - lastTime;
+  lastTime = timestamp;
+
+  // Clamp dt to avoid huge jumps
+  if (dt > 100) dt = 16;
+
+  if (gameState === STATES.TRAVEL) {
+    scrollX += dt * 0.03;
+    wagonWheelAngle += dt * 0.004;
+  } else if (gameState === STATES.TITLE) {
+    scrollX += dt * 0.01;
+  } else {
+    // Gentle idle scroll
+    scrollX += dt * 0.002;
+  }
+
+  // Tech debt drain: HP ticks down during active gameplay (disabled for Ralph Wiggum)
+  var isForgiving = PROFESSIONS[difficulty] && PROFESSIONS[difficulty].forgiving;
+  var isActive = gameState === STATES.STOP || gameState === STATES.EVENT || gameState === STATES.RIVER;
+  if (isActive && !deathPending && !isForgiving) {
+    drainAccumulator += dt;
+    while (drainAccumulator >= DRAIN_INTERVAL) {
+      drainAccumulator -= DRAIN_INTERVAL;
+      health--;
+      renderStatusBar();
+      if (health <= 0) {
+        techDebtDeath = true;
+        enterDeath();
+        break;
+      }
+    }
+  }
+
+  renderCanvas(timestamp);
+  animFrame = requestAnimationFrame(gameLoop);
+}
+
+// =====================================================================
+// INITIALIZATION
+// =====================================================================
+resetGame();
+renderTitleScreen();
+renderStatusBar();
+updateMusicIndicator();
+animFrame = requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>

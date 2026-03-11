@@ -2,3 +2,4 @@
 *.mp3
 /config/tts.local.json
 node_modules/
+/.diff-review/
