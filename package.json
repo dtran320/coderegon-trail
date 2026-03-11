@@ -1,0 +1,7 @@
+{
+  "name": "diff-pair-review-elevenlabs-tts",
+  "private": true,
+  "dependencies": {
+    "@elevenlabs/elevenlabs-js": "^2.35.0"
+  }
+}

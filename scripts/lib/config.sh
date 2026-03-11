@@ -19,6 +19,8 @@ load_config() {
   if [[ -z "${DIFF_REVIEW_TTS_VOICE:-}" ]]; then
     if [[ "$ENGINE" == "say" ]]; then
       VOICE=$(jq -r '.say.voice // "Samantha"' "$config_file")
+    elif [[ "$ENGINE" == "elevenlabs" ]]; then
+      VOICE=$(jq -r '.elevenlabs.voice // ""' "$config_file")
     else
       VOICE=$(jq -r '.openai.voice // "alloy"' "$config_file")
     fi
@@ -29,10 +31,18 @@ load_config() {
   fi
 
   if [[ -z "${DIFF_REVIEW_TTS_SPEED:-}" ]]; then
-    SPEED=$(jq -r '.openai.speed // 1.0' "$config_file")
+    if [[ "$ENGINE" == "elevenlabs" ]]; then
+      SPEED=$(jq -r '.elevenlabs.speed // 1.0' "$config_file")
+    else
+      SPEED=$(jq -r '.openai.speed // 1.0' "$config_file")
+    fi
   fi
 
   if [[ -z "${DIFF_REVIEW_TTS_MODEL:-}" ]]; then
-    MODEL=$(jq -r '.openai.model // "tts-1"' "$config_file")
+    if [[ "$ENGINE" == "elevenlabs" ]]; then
+      MODEL=$(jq -r '.elevenlabs.model // "eleven_turbo_v2_5"' "$config_file")
+    else
+      MODEL=$(jq -r '.openai.model // "tts-1"' "$config_file")
+    fi
   fi
 }

@@ -42,6 +42,10 @@ lib/               Shared cross-cutting instructions
   shared-instructions.md  Navigation commands, display formatting, state tracking
 
 scripts/           Shell infrastructure
+  tts.sh             Universal TTS wrapper (macOS say + OpenAI + ElevenLabs with fallback)
+  tts-elevenlabs.js  Node.js CLI for ElevenLabs TTS API
+  fly-pause.sh       TTS duration estimator + pause for fly-through auto-advance
+  open-viz.sh        Write HTML viz file and open in browser
   tts.sh             Universal TTS wrapper (macOS say + OpenAI API fallback)
   fly-pause.sh       TTS duration estimator + pause for fly-through auto-advance
   open-viz.sh        Write HTML viz file and open in browser
@@ -78,14 +82,29 @@ examples/          Example generated game files
 
 - **macOS `say`** (default): voice=Samantha, rate=200 WPM
 - **OpenAI TTS** (`DIFF_REVIEW_TTS_ENGINE=openai`): requires `OPENAI_API_KEY`, auto-falls back to `say` on failure
+- **ElevenLabs TTS** (`DIFF_REVIEW_TTS_ENGINE=elevenlabs`): requires `ELEVENLABS_API_KEY`, uses `scripts/tts-elevenlabs.js` (Node.js), auto-falls back to `say` on failure
 - TTS runs asynchronously (non-blocking)
 - User overrides go in `config/tts.local.json` (gitignored)
 
-Key env vars: `DIFF_REVIEW_TTS_ENGINE`, `DIFF_REVIEW_TTS_VOICE`, `DIFF_REVIEW_TTS_RATE`, `DIFF_REVIEW_TTS_SPEED`, `OPENAI_API_KEY`, `DIFF_REVIEW_DEBUG`
+Key env vars: `DIFF_REVIEW_TTS_ENGINE`, `DIFF_REVIEW_TTS_VOICE`, `DIFF_REVIEW_TTS_RATE`, `DIFF_REVIEW_TTS_SPEED`, `OPENAI_API_KEY`, `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, `DIFF_REVIEW_DEBUG`
 
 ## Runtime Dependencies
 
-Requires: `bash`, `jq`, `git`, `gh` (GitHub CLI), `say` (macOS), `afplay` (macOS). Optional: `curl` (for OpenAI TTS).
+Requires: `bash`, `jq`, `git`, `gh` (GitHub CLI), `say` (macOS), `afplay` (macOS). Optional: `curl` (for OpenAI TTS), `node`/`npm` (for ElevenLabs TTS).
+
+## Development
+
+All "code" is markdown prompts and shell scripts. To modify behavior:
+
+- Edit command specs in `commands/*.md` to change user-facing flow
+- Edit agent prompts in `agents/*.md` to change analysis/narration behavior
+- Edit `skills/narration/SKILL.md` or its `references/` to change narration quality rules
+- Edit `scripts/tts.sh` for TTS engine logic
+- Edit `config/tts.json` for default TTS settings
+
+**Debugging**: Set `DIFF_REVIEW_DEBUG=true` or pass `--debug` to `tts.sh` for debug logging to stderr.
+
+**Testing**: Manual only — run `/diff-review` and `/walkthrough` in Claude Code against real repos.
 
 ## Conventions
 

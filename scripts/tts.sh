@@ -1,6 +1,6 @@
 #!/bin/bash
 # scripts/tts.sh - Universal TTS wrapper for diff-pair-review
-# Supports macOS say (default) and OpenAI TTS API with automatic fallback
+# Supports macOS say (default), OpenAI TTS API, and ElevenLabs with automatic fallback
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -102,16 +102,17 @@ while [[ $# -gt 0 ]]; do
 Usage: tts.sh [OPTIONS] [TEXT]
 
 OPTIONS:
-  --engine ENGINE   say or openai (default: say)
-  --voice VOICE     Voice name (default: Samantha/alloy)
+  --engine ENGINE   say, openai, or elevenlabs (default: say)
+  --voice VOICE     Voice name/ID (default: Samantha/alloy/ElevenLabs voice ID)
   --rate RATE       Words per minute for say (default: 200)
-  --speed SPEED     Speed multiplier for openai 0.25-4.0 (default: 1.0)
-  --model MODEL     OpenAI model: tts-1 or tts-1-hd (default: tts-1)
+  --speed SPEED     Speed multiplier for openai/elevenlabs (default: 1.0)
+  --model MODEL     TTS model (default: tts-1 / eleven_turbo_v2_5)
   --debug           Enable debug output
 
 ENVIRONMENT:
   DIFF_REVIEW_TTS_ENGINE, DIFF_REVIEW_TTS_VOICE, DIFF_REVIEW_TTS_RATE
   DIFF_REVIEW_TTS_SPEED, DIFF_REVIEW_TTS_MODEL, OPENAI_API_KEY
+  ELEVENLABS_API_KEY, ELEVENLABS_VOICE_ID
 EOF
       exit 0
       ;;
@@ -134,11 +135,11 @@ load_config
 
 # Set default voice based on engine if still empty
 if [[ -z "$VOICE" ]]; then
-  if [[ "$ENGINE" == "openai" ]]; then
-    VOICE="alloy"
-  else
-    VOICE="Samantha"
-  fi
+  case "$ENGINE" in
+    openai) VOICE="alloy" ;;
+    elevenlabs) VOICE="${ELEVENLABS_VOICE_ID:-pjcYQlDFKMbcOUp6F5GD}" ;;
+    *) VOICE="Samantha" ;;
+  esac
 fi
 
 # Create temp directory
@@ -157,6 +158,15 @@ case "$ENGINE" in
   openai)
     if ! exec_openai_tts "$TEXT" "$VOICE" "$MODEL" "$SPEED"; then
       warn "OpenAI TTS failed, falling back to macOS say"
+      exec_say_tts "$TEXT" "${DIFF_REVIEW_TTS_VOICE:-Samantha}" "$RATE"
+    fi
+    ;;
+  elevenlabs)
+    el_args=("--voice" "$VOICE" "--speed" "$SPEED" "--model" "$MODEL")
+    if [[ "$DEBUG" == "true" ]]; then el_args+=("--debug"); fi
+    debug "Delegating to tts-elevenlabs.js (voice=$VOICE, model=$MODEL, speed=$SPEED)"
+    if ! node "${SCRIPT_DIR}/tts-elevenlabs.js" "${el_args[@]}" "$TEXT"; then
+      warn "ElevenLabs TTS failed, falling back to macOS say"
       exec_say_tts "$TEXT" "${DIFF_REVIEW_TTS_VOICE:-Samantha}" "$RATE"
     fi
     ;;

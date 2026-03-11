@@ -22,6 +22,24 @@ To use OpenAI TTS:
 Bash: ${CLAUDE_PLUGIN_ROOT}/scripts/tts.sh --engine openai --voice nova "narration text"
 ```
 
+To use ElevenLabs TTS:
+```
+Bash: ${CLAUDE_PLUGIN_ROOT}/scripts/tts.sh --engine elevenlabs "narration text"
+```
+
+To use a specific ElevenLabs voice (team mode):
+```
+Bash: ${CLAUDE_PLUGIN_ROOT}/scripts/tts.sh --engine elevenlabs --voice "pNInz6obpgDQGcFmaJgB" "narration text"
+```
+
+### ElevenLabs Break Tags
+
+When using the ElevenLabs engine, you can insert pauses in narration using SSML-style break tags:
+```
+"Let's look at the authentication module. <break time="1.0s" /> The key change here is..."
+```
+Only use break tags when the TTS engine is `elevenlabs` — other engines will read them literally.
+
 ## Interactive Navigation
 
 After displaying each section, present these commands and wait for user input:
