@@ -1,6 +1,6 @@
-# O'Reorg Trail — Game Mechanics Reference
+# Coderegon Trail — Game Mechanics Reference
 
-The O'Reorg Trail is a retro pixel art game that teaches web framework concepts by mapping the request pipeline to a trail journey. Each framework has ~8 stops, and the player must answer quiz questions disguised as trail events to survive the journey.
+The Coderegon Trail is a retro pixel art game that teaches web framework concepts by mapping the request pipeline to a trail journey. Each framework has ~8 stops, and the player must answer quiz questions disguised as trail events to survive the journey.
 
 ## Game Loop
 
@@ -9,7 +9,7 @@ TITLE → SETUP → [TRAVEL → STOP/EVENT]×8 → WIN or DEATH
 ```
 
 ### Title Screen
-- Pixel art logo: "O'REORG TRAIL" in western-style pixel font
+- Pixel art logo: "CODEREGON TRAIL" in western-style pixel font
 - Scrolling landscape behind the title
 - "Press any key to start" or "Click to begin"
 - Subtitle: "A [Framework] Learning Adventure"
@@ -221,6 +221,27 @@ Framework-specific tombstone inscriptions. Include at least 8 per framework, ran
 - "Lost in the service container — binding not found."
 - "Died of mass assignment vulnerability."
 - "The Artisan command ran but nobody was listening."
+
+## Difficulty Tiers
+
+Each framework has 12-15 events at three difficulty tiers. The player's chosen profession determines which tiers they see:
+
+| Profession | Sees Tiers | Style |
+|---|---|---|
+| Ralph Wiggum | `easy` only | Forgiving mode — wrong answers let you try again |
+| Vibe Coder | `easy` + `medium` | "What does X do?" and "Why does X work this way?" |
+| Engineer | `medium` + `hard` | "Why/how" + "Spot the bug" / "Trace the flow" |
+| Staff Architect | `hard` only | Deep tradeoff questions, no hints |
+
+The game filters events by difficulty tier based on the selected profession. All matching events at each stop are shown (no cap or shuffle). Fortune events (rewards) bypass the difficulty filter and trigger on answer streaks regardless of tier.
+
+Each framework has 15 events across three tiers and ~6 stops. Each profession tier has at least 5 eligible events.
+
+### Tier Guidelines
+
+- **Easy**: "What does X do?" / "Which is the right pattern?" — tests recognition and basic understanding. Sourced from getting-started docs and tutorials.
+- **Medium**: "Why does X work this way?" / "What happens if...?" — tests comprehension and cause-effect reasoning. Sourced from concept guides and best practices docs.
+- **Hard**: "Spot the bug" / "Trace the flow" / "What's the tradeoff?" — tests deep architectural understanding. Sourced from advanced guides, performance docs, and security advisories.
 
 ## Event Catalog Template
 

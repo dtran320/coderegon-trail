@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Coderegon Trail - OpenClaw Edition</title>
+<title>The Coderegon Trail - Express Edition</title>
 <style>
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 html, body {
@@ -75,7 +75,7 @@ html, body {
 }
 .shake { animation: shake 0.5s ease-in-out; }
 .code-box {
-  background: #000;
+  background: #272822;
   border: 1px solid #555555;
   padding: 6px 8px;
   margin: 6px 0;
@@ -85,10 +85,10 @@ html, body {
   font-size: 12px;
   line-height: 1.3;
   white-space: pre;
-  color: #55FF55;
+  color: #f8f8f2;
 }
 .code-box::-webkit-scrollbar { width: 6px; height: 6px; }
-.code-box::-webkit-scrollbar-track { background: #000; }
+.code-box::-webkit-scrollbar-track { background: #272822; }
 .code-box::-webkit-scrollbar-thumb { background: #555555; }
 .choice-item { cursor: pointer; padding: 2px 4px; }
 .choice-item:hover { color: #FFFF55; }
@@ -135,7 +135,7 @@ html, body {
 // =====================================================================
 // TRAIL DATA
 // =====================================================================
-const TRAIL_DATA={"framework":"openclaw","trailName":"The Gateway Trail","stops":[{"name":"Channel Outpost","subtitle":"Message Arrives","concept":"Channel Plugins","landmarkType":"town","code":{"file":"extensions/whatsapp/src/plugin.ts","content":"// extensions/whatsapp/src/plugin.ts (conceptual)\nimport { ChannelPlugin } from '@openclaw/types'\n\nexport const whatsappPlugin: ChannelPlugin = {\n  config: {\n    listAccountIds(cfg) {\n      return cfg.whatsapp?.accounts?.map(a => a.id) ?? []\n    },\n    async isConfigured(account) {\n      return !!account.phoneNumber\n    },\n    resolveAccount(cfg, id) {\n      return cfg.whatsapp.accounts.find(a => a.id === id)\n    },\n  },\n  gateway: {\n    async startAccount({ account, gateway }) {\n      const sock = makeWASocket({ auth: account.auth })\n      sock.ev.on('messages.upsert', async ({ messages }) => {\n        for (const msg of messages) {\n          await gateway.handleInbound({\n            channel: 'whatsapp',\n            peer: msg.key.remoteJid,\n            text: msg.message?.conversation,\n            accountId: account.id,\n          })\n        }\n      })\n    },\n    async stopAccount({ account }) {\n      // Graceful disconnect\n    },\n  },\n}","language":"typescript"},"narration":"Every journey starts at a channel outpost. OpenClaw connects to thirteen different messaging platforms. Each has a channel plugin following the same interface. Here's the WhatsApp plugin using Baileys to listen for messages. When a message arrives, it normalizes it into a common format and hands it to the gateway."},{"name":"Normalization Pass","subtitle":"Common Message Format","concept":"Channel Plugins","landmarkType":"camp","code":{"file":"src/channels/plugins/types.ts","content":"// src/channels/plugins/types.ts (simplified)\nexport interface ChannelPlugin {\n  config: {\n    listAccountIds(cfg: Config): string[]\n    isConfigured(account: AccountConfig): Promise<boolean>\n    resolveAccount(cfg: Config, id: string): AccountConfig\n  }\n  gateway?: {\n    startAccount(opts: StartAccountOpts): Promise<void>\n    stopAccount(opts: StopAccountOpts): Promise<void>\n  }\n}\n\n// The normalized inbound message shape:\ninterface InboundMessage {\n  channel: string\n  accountId: string\n  peer: RoutePeer\n  text: string\n  threadId?: string\n  attachments?: Media[]\n  guildId?: string\n}","language":"typescript"},"narration":"At the Normalization Pass, chaos becomes order. Every messaging platform has its own format. The ChannelPlugin interface forces them all into one shape. The gateway never needs to know whether you messaged from WhatsApp or Telegram."},{"name":"Route Resolution Fork","subtitle":"Finding the Right Agent","concept":"Route Resolution","landmarkType":"mountain","code":{"file":"src/routing/resolve-route.ts","content":"// src/routing/resolve-route.ts (simplified)\nexport function resolveAgentRoute({\n  cfg, channel, accountId, peer, guildId, teamId,\n}: ResolveRouteInput): ResolvedRoute {\n\n  for (const agent of cfg.agents.list) {\n    const routing = agent.routing\n\n    // 1. Exact peer match (highest priority)\n    const peerMatch = routing.peer?.find(\n      b => b.peer === peer.id && b.channel === channel\n    )\n    if (peerMatch) return { agentId: agent.id, matchedBy: 'peer' }\n\n    // 2. Guild/server match\n    const guildMatch = routing.guild?.find(\n      b => b.guildId === guildId && b.channel === channel\n    )\n    if (guildMatch) return { agentId: agent.id, matchedBy: 'guild' }\n\n    // 3. Account-level match\n    const accountMatch = routing.account?.find(\n      b => b.accountId === accountId && b.channel === channel\n    )\n    if (accountMatch) return { agentId: agent.id, matchedBy: 'account' }\n  }\n\n  return { agentId: cfg.agents.default, matchedBy: 'default' }\n}","language":"typescript"},"narration":"Here's where the trail forks. The resolver checks priority order: specific peer binding, then guild/server, then account, then default. One gateway can serve different agents to different people."},{"name":"Session Persistence Camp","subtitle":"Loading Conversation State","concept":"Session Persistence","landmarkType":"camp","code":{"file":"src/sessions/session-utils.ts","content":"// src/sessions/session-utils.ts (simplified)\nimport { readFile, writeFile, mkdir } from 'fs/promises'\n\nconst SESSIONS_DIR = '~/.openclaw/sessions'\n\nexport async function loadSessionEntry(\n  agentId: string,\n  sessionKey: string,\n): Promise<SessionEntry> {\n  const path = `${SESSIONS_DIR}/${agentId}/${sessionKey}.json`\n\n  try {\n    const raw = await readFile(path, 'utf-8')\n    return JSON.parse(raw)\n  } catch {\n    return {\n      sessionKey,\n      agentId,\n      transcript: [],\n      metadata: {\n        model: 'anthropic/claude-opus-4-6',\n        thinkingLevel: 'medium',\n        tokensUsed: 0,\n        createdAt: Date.now(),\n      },\n    }\n  }\n}","language":"typescript"},"narration":"Sessions are just JSON files on disk. Each agent-plus-peer combination gets its own file. If the file doesn't exist, a fresh session starts with sensible defaults. Zero database dependencies, easy backup."},{"name":"Gateway Control Ridge","subtitle":"The WebSocket Command Center","concept":"Gateway Control Plane","landmarkType":"mountain","code":{"file":"src/gateway/server-chat.ts","content":"// src/gateway/server-chat.ts (simplified)\nexport function createChatRunRegistry(gateway: GatewayServer) {\n\n  async function handleChatSend(\n    sessionEntry: SessionEntry,\n    message: InboundMessage,\n  ) {\n    sessionEntry.transcript.push({\n      role: 'user',\n      content: message.text,\n      timestamp: Date.now(),\n    })\n\n    const agentRpc = gateway.acp.getClient(sessionEntry.agentId)\n    const stream = await agentRpc.call('chat.send', {\n      sessionId: sessionEntry.sessionKey,\n      messages: sessionEntry.transcript,\n      tools: sessionEntry.metadata.enabledTools,\n      model: sessionEntry.metadata.model,\n    })\n\n    for await (const chunk of stream) {\n      if (chunk.type === 'text') {\n        gateway.broadcast('chat.stream', { text: chunk.text })\n      } else if (chunk.type === 'tool_use') {\n        const result = await executeTool(chunk.tool, chunk.input)\n        agentRpc.sendToolResult(chunk.id, result)\n      }\n    }\n    await saveSession(sessionEntry)\n  }\n\n  return { handleChatSend }\n}","language":"typescript"},"narration":"The gateway server accepts WebSocket connections from channels, the CLI, and native apps. The streaming loop handles text and tool calls differently. Text streams in real time; tool calls get executed on the gateway and results feed back."},{"name":"Agent RPC Rapids","subtitle":"Talking to the AI","concept":"Gateway Control Plane","landmarkType":"river","code":{"file":"src/acp/client.ts","content":"// src/acp/client.ts (simplified)\nexport function createAcpClient(agentId: string, wsUrl: string) {\n  const ws = new WebSocket(wsUrl)\n\n  async function* call(\n    method: string,\n    params: ChatSendParams,\n  ): AsyncGenerator<AgentChunk> {\n    const requestId = crypto.randomUUID()\n\n    ws.send(JSON.stringify({\n      jsonrpc: '2.0',\n      id: requestId,\n      method,\n      params,\n    }))\n\n    while (true) {\n      const msg = await nextMessage(ws, requestId)\n      if (msg.type === 'done') break\n      yield msg\n    }\n  }\n\n  function sendToolResult(toolCallId: string, result: ToolResult) {\n    ws.send(JSON.stringify({\n      jsonrpc: '2.0',\n      method: 'tool.result',\n      params: { toolCallId, result },\n    }))\n  }\n\n  return { call, sendToolResult }\n}","language":"typescript"},"narration":"Now we cross the RPC Rapids. The gateway and agent communicate over JSON-RPC. The agent decides what to do, but the gateway controls what actually happens on your machine. Security through architecture."},{"name":"Tool Execution Gorge","subtitle":"Running Commands on the Host","concept":"Gateway Control Plane","landmarkType":"forest","code":{"file":"src/agents/bash-tools.exec.ts","content":"// src/agents/bash-tools.exec.ts (simplified)\nexport async function executeBashTool(\n  input: { command: string },\n  context: ToolContext,\n): Promise<ToolResult> {\n  const { command } = input\n  const { sessionEntry, securityPolicy } = context\n\n  if (!securityPolicy.allowBash) {\n    return { error: 'Bash execution not permitted' }\n  }\n\n  const pty = spawn('bash', ['-c', command], {\n    cwd: sessionEntry.metadata.workingDir,\n    env: { ...process.env, ...sessionEntry.metadata.env },\n    timeout: 120_000,\n  })\n\n  let stdout = ''\n  pty.onData(data => { stdout += data })\n  const exitCode = await pty.wait()\n\n  return {\n    stdout: stdout.slice(0, 100_000),\n    exitCode,\n  }\n}","language":"typescript"},"narration":"Deep in Tool Execution Gorge, the agent's intentions become real actions. Security check first, then a real PTY with a two-minute timeout. Bash is just one tool \u2014 same pattern for browser control, canvas, and device actions."},{"name":"Response Delivery Frontier","subtitle":"Back Through the Channel","concept":"Channel Plugins","landmarkType":"town","code":{"file":"src/gateway/server-channels.ts","content":"// src/gateway/server-channels.ts (simplified)\nexport function createChannelManager(gateway: GatewayServer) {\n\n  async function deliverResponse(\n    sessionEntry: SessionEntry,\n    response: AgentResponse,\n  ) {\n    const { channel, peer, accountId } = sessionEntry.routing\n    const plugin = gateway.channels.get(channel)\n\n    const formatted = formatForChannel(channel, response.text, {\n      maxLength: getChannelLimit(channel),\n    })\n\n    for (const chunk of formatted) {\n      await plugin.send({ accountId, peer, text: chunk })\n    }\n\n    sessionEntry.transcript.push({\n      role: 'assistant',\n      content: response.text,\n      timestamp: Date.now(),\n    })\n    await saveSession(sessionEntry)\n\n    gateway.broadcast('chat.response', { text: response.text })\n  }\n\n  return { deliverResponse }\n}","language":"typescript"},"narration":"You made it! The response travels back through the same channel. Formatted for each platform's limits, chunked automatically, saved to the transcript. Message in, intelligence applied, response out. Your wagon has arrived."}],"events":[{"type":"weather","trigger":"after_stop","triggerStop":1,"title":"Protocol Storm!","text":"A storm of messages hits your gateway \u2014 WhatsApp sends phone numbers, Discord sends snowflake IDs, Slack sends workspace tokens. How do you weather this storm?","choices":[{"text":"Define a common interface that all channel plugins must implement","correct":true,"explanation":"OpenClaw's ChannelPlugin interface forces every platform into the same shape. New channels can be added without touching gateway code."},{"text":"Write a giant switch statement in the gateway for each platform","correct":false,"explanation":"That would make the gateway a tangled mess. Every new channel means modifying core code."},{"text":"Only support one messaging platform to keep things simple","correct":false,"explanation":"Multi-channel support is core to OpenClaw's value. The trick is clean abstraction through the plugin interface."}],"concept":"Channel Plugins","difficulty":"easy"},{"type":"encounter","trigger":"after_stop","triggerStop":2,"title":"A Fellow Operator Appears","text":"A seasoned operator says: 'I run three agents \u2014 personal on WhatsApp, work on Slack, social bot on Discord. One gateway.' How does it know which agent handles which message?","choices":[{"text":"Route bindings in the config map channels, peers, and guilds to agents","correct":true,"explanation":"Config bindings map at multiple levels. Priority: peer, guild, team, account, channel, then default."},{"text":"Each agent runs its own separate gateway on a different port","correct":false,"explanation":"One gateway, multiple agents. Separate gateways would mean separate configs and connections."},{"text":"The user specifies which agent to use in every message","correct":false,"explanation":"Routing is automatic and invisible. The gateway figures it out from the config bindings."}],"concept":"Route Resolution","difficulty":"easy"},{"type":"river","trigger":"after_stop","triggerStop":3,"title":"The Session State River","text":"You've reached the boundary between stateless request handling and persistent memory. Your assistant needs to remember last week's conversation across a restart. How do you cross?","choices":[{"text":"Store sessions as JSON files on disk, loaded on demand per key","correct":true,"explanation":"Each session is a JSON file at a predictable path. No database needed. The file system IS the persistence layer."},{"text":"Keep all sessions in memory with a Redis cache","correct":false,"explanation":"In-memory state is lost on restart. Redis adds an external dependency. OpenClaw is local-first."},{"text":"Store history in the AI model's context and let it remember","correct":false,"explanation":"Context windows are limited and expensive. The persistence layer is separate from inference."}],"concept":"Session Persistence","difficulty":"medium"},{"type":"misfortune","trigger":"after_stop","triggerStop":5,"title":"Runaway Process!","text":"The AI agent ran a shell command that's an infinite loop consuming 100% CPU. Your gateway is grinding to a halt!","choices":[{"text":"Tool execution needs timeouts and session security policies should gate commands","correct":true,"explanation":"Bash tools have a two-minute timeout, and security policies control what's allowed. The gateway is the security boundary."},{"text":"The agent should be smarter and never request dangerous commands","correct":false,"explanation":"Never rely on the AI as the security boundary. Defense in depth means the gateway enforces limits."},{"text":"Run all tools in the agent's process so only it crashes","correct":false,"explanation":"Tools run on the gateway because they need local machine access. The separation is a feature."}],"concept":"Gateway Control Plane","difficulty":"medium"},{"type":"river","trigger":"after_stop","triggerStop":5,"title":"The RPC River","text":"The deepest river \u2014 the boundary between gateway and agent runtime. The agent needs a browser screenshot but runs in a different process. How?","choices":[{"text":"JSON-RPC over WebSocket: agent requests, gateway executes locally","correct":true,"explanation":"The agent streams tool_use blocks, the gateway intercepts and executes. The agent could run remotely."},{"text":"The agent directly imports and calls the browser module","correct":false,"explanation":"Separate processes can't call each other's code. The RPC boundary IS the security model."},{"text":"The agent writes commands to a shared file the gateway watches","correct":false,"explanation":"File watching is slow and unreliable. WebSocket RPC gives real-time bidirectional streaming."}],"concept":"Gateway Control Plane","difficulty":"hard"},{"type":"fortune","trigger":"after_stop","triggerStop":6,"title":"Spring of Clean Architecture","text":"Your understanding of the control plane is solid! Friendly contributors join your camp and share plugin templates.","choices":[],"concept":"Channel Plugins","difficulty":"easy"},{"type":"weather","trigger":"after_stop","triggerStop":6,"title":"Message Chunking Fog","text":"Dense fog. Your assistant wrote 3000 words but WhatsApp only allows 4096 characters. The user sees a truncated response. What went wrong?","choices":[{"text":"The formatter should chunk messages based on each channel's limit","correct":true,"explanation":"WhatsApp: 4096, Discord: 2000, Slack: 40000. The delivery layer splits into properly-sized chunks."},{"text":"Tell the AI to always write short responses","correct":false,"explanation":"You can't enforce output length on LLMs. The delivery layer handles formatting."},{"text":"Switch to a channel with no message limits","correct":false,"explanation":"Multi-channel means meeting users where they are. Every channel must work correctly."}],"concept":"Channel Plugins","difficulty":"easy"}],"partyMembers":[{"name":"Gateway Control Plane","icon":"gateway","maxHealth":3},{"name":"Channel Plugins","icon":"channel","maxHealth":3},{"name":"Route Resolution","icon":"route","maxHealth":3},{"name":"Session Persistence","icon":"session","maxHealth":3}],"deathMessages":["You have died of unhandled WebSocket disconnections.","You have died of missing default routes.","You have drowned in the RPC River.","You have died of session bloat.","You have died of a runaway bash command.","You have died of unhandled plugin exceptions.","You have died of API rate limits.","You have died of dependency conflicts.","You have died of expired sessions.","You have died of Discord snowflake avalanche.","You have died of invalid routing config."]};
+const TRAIL_DATA={"framework": "express", "trailName": "The Middleware Prairie", "stops": [{"name": "Server Startup Camp", "subtitle": "The Entry Point", "concept": "Server initialization", "landmarkType": "town", "code": {"file": "app.js", "content": "// app.js:1-25\nconst express = require('express')\nconst morgan = require('morgan')\nconst helmet = require('helmet')\nconst { connectDB } = require('./config/db')\n\nconst app = express()\nconst PORT = process.env.PORT || 3000\n\n// Security headers first — always\napp.use(helmet())\n\n// Request logging\napp.use(morgan('dev'))\n\n// Connect to database, then start listening\nconnectDB().then(() => {\n  app.listen(PORT, () => {\n    console.log(`Server running on port ${PORT}`)\n  })\n})\n\n// Unhandled rejection safety net\nprocess.on('unhandledRejection', (err) => {\n  console.error('Unhandled rejection:', err)\n  process.exit(1)\n})\n\nmodule.exports = app", "language": "javascript"}, "narration": "Every Express journey starts right here — calling express to create your app. This single function call returns the object that everything else attaches to. Notice the order: helmet goes on first for security headers, then morgan for logging. Order matters in Express because middleware runs top to bottom. The server waits for the database before listening. That unhandled rejection handler at the bottom is your safety net for async errors that slip through."}, {"name": "Body Parser Bridge", "subtitle": "Parsing Request Bodies", "concept": "Request body parsing", "landmarkType": "mountain", "code": {"file": "middleware/parsers.js", "content": "// middleware/parsers.js:1-22\nconst express = require('express')\n\nmodule.exports = function configureParsers(app) {\n  // Parse JSON bodies (Content-Type: application/json)\n  app.use(express.json({\n    limit: '10mb',\n    strict: true,\n  }))\n\n  // Parse URL-encoded bodies (HTML form submissions)\n  app.use(express.urlencoded({\n    extended: true,\n    limit: '10mb',\n  }))\n\n  // Custom raw body parser for webhooks that need signature verification\n  app.use('/api/webhooks', express.raw({\n    type: 'application/json',\n    limit: '5mb',\n  }))\n}", "language": "javascript"}, "narration": "Welcome to Body Parser Bridge. Raw HTTP requests arrive as streams of bytes. Express dot json reads that stream, parses the JSON, and puts the result on req dot body. Without this middleware, req dot body is undefined. The limit option prevents someone from sending a giant payload and crashing your server. Notice the webhook route gets a separate raw parser. Stripe and GitHub webhooks need the raw bytes to verify signatures. Parsed JSON would break the hash check."}, {"name": "CORS Crossing", "subtitle": "Cross-Origin Configuration", "concept": "CORS middleware", "landmarkType": "desert", "code": {"file": "middleware/cors.js", "content": "// middleware/cors.js:1-24\nconst cors = require('cors')\n\nconst allowedOrigins = [\n  'https://myapp.com',\n  'https://staging.myapp.com',\n  process.env.NODE_ENV === 'development' && 'http://localhost:5173',\n].filter(Boolean)\n\nconst corsOptions = {\n  origin: function (origin, callback) {\n    // Allow requests with no origin (mobile apps, curl, Postman)\n    if (!origin) return callback(null, true)\n\n    if (allowedOrigins.includes(origin)) {\n      callback(null, true)\n    } else {\n      callback(new Error('Not allowed by CORS'))\n    }\n  },\n  credentials: true,\n  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],\n  allowedHeaders: ['Content-Type', 'Authorization'],\n}\n\nmodule.exports = cors(corsOptions)", "language": "javascript"}, "narration": "CORS Crossing is where many developers get stuck. Browsers block cross-origin requests by default. This middleware sends the right headers to allow your frontend to talk to your API. The origin function checks each request against a whitelist. Notice the filter for no-origin requests — tools like curl and mobile apps do not send an origin header. Setting credentials to true lets the browser send cookies cross-origin. Get this wrong and your frontend shows a mysterious CORS error with zero helpful details."}, {"name": "Auth Checkpoint", "subtitle": "Authentication Middleware", "concept": "JWT authentication", "landmarkType": "camp", "code": {"file": "middleware/auth.js", "content": "// middleware/auth.js:1-25\nconst jwt = require('jsonwebtoken')\nconst { findUserById } = require('../services/userService')\n\nasync function authenticate(req, res, next) {\n  const header = req.headers.authorization\n  if (!header || !header.startsWith('Bearer ')) {\n    return res.status(401).json({ error: 'No token provided' })\n  }\n\n  try {\n    const token = header.split(' ')[1]\n    const decoded = jwt.verify(token, process.env.JWT_SECRET)\n\n    const user = await findUserById(decoded.sub)\n    if (!user) {\n      return res.status(401).json({ error: 'User not found' })\n    }\n\n    req.user = user\n    next()\n  } catch (err) {\n    if (err.name === 'TokenExpiredError') {\n      return res.status(401).json({ error: 'Token expired' })\n    }\n    return res.status(401).json({ error: 'Invalid token' })\n  }\n}\n\nmodule.exports = { authenticate }", "language": "javascript"}, "narration": "The Auth Checkpoint guards everything behind it. This middleware extracts the JWT from the Authorization header, verifies the signature, and looks up the user. The key pattern here is attaching the user to the request object. Every middleware and handler downstream can now access req dot user. Notice it calls next only on success. If the token is missing, expired, or invalid, it short-circuits with a four oh one. This is Express at its best — one middleware protects every route that uses it."}, {"name": "Route Matching Mesa", "subtitle": "The Router System", "concept": "Express Router", "landmarkType": "mountain", "code": {"file": "routes/users.js", "content": "// routes/users.js:1-24\nconst { Router } = require('express')\nconst { authenticate } = require('../middleware/auth')\nconst { authorize } = require('../middleware/authorize')\nconst userController = require('../controllers/userController')\n\nconst router = Router()\n\n// Public routes\nrouter.post('/register', userController.register)\nrouter.post('/login', userController.login)\n\n// Protected routes — authenticate applies to everything below\nrouter.use(authenticate)\n\nrouter.get('/me', userController.getProfile)\nrouter.put('/me', userController.updateProfile)\n\n// Admin-only routes — stacked middleware\nrouter.get('/', authorize('admin'), userController.listUsers)\nrouter.delete('/:id', authorize('admin'), userController.deleteUser)\n\n// Param middleware — runs whenever :id is in the route\nrouter.param('id', userController.loadUserById)\n\nmodule.exports = router", "language": "javascript"}, "narration": "Route Matching Mesa is where URLs map to code. Express dot Router creates a mini-application with its own middleware and routes. Notice the pattern: public routes at the top, then router dot use adds authentication as a gate for everything below. Stacked middleware like authorize admin adds a second check for specific routes. The param middleware is clever — it fires automatically whenever a route contains colon id, preloading the user before the handler runs. Mount this router on slash api slash users and the whole tree activates."}, {"name": "Controller Gulch", "subtitle": "Request Handlers", "concept": "Controller patterns", "landmarkType": "forest", "code": {"file": "controllers/userController.js", "content": "// controllers/userController.js:1-25\nconst userService = require('../services/userService')\nconst { AppError } = require('../utils/errors')\n\nexports.getProfile = async (req, res, next) => {\n  try {\n    const user = await userService.getUserWithStats(req.user.id)\n    res.json({ data: user })\n  } catch (err) {\n    next(err)\n  }\n}\n\nexports.updateProfile = async (req, res, next) => {\n  try {\n    const { name, email } = req.body\n\n    if (!name && !email) {\n      throw new AppError('Nothing to update', 400)\n    }\n\n    const updated = await userService.updateUser(req.user.id, { name, email })\n    res.json({ data: updated })\n  } catch (err) {\n    next(err)\n  }\n}", "language": "javascript"}, "narration": "Welcome to Controller Gulch where requests become responses. Controllers are thin — they extract data from the request, call a service, and send the result. Notice the try-catch pattern wrapping every handler. When something goes wrong, next with an error skips all remaining middleware and jumps straight to your error handler. The controller does not contain business logic. It validates input, delegates to the service layer, and formats the output. Keeping controllers thin makes your code testable and reusable."}, {"name": "Service Springs", "subtitle": "Business Logic Layer", "concept": "Service layer and async patterns", "landmarkType": "river", "code": {"file": "services/userService.js", "content": "// services/userService.js:1-25\nconst db = require('../config/db')\nconst bcrypt = require('bcrypt')\nconst { AppError } = require('../utils/errors')\n\nasync function getUserWithStats(userId) {\n  const [user, stats] = await Promise.all([\n    db('users').where({ id: userId }).first(),\n    db('user_stats').where({ user_id: userId }).first(),\n  ])\n\n  if (!user) throw new AppError('User not found', 404)\n\n  return { ...user, stats }\n}\n\nasync function updateUser(userId, updates) {\n  const [updated] = await db('users')\n    .where({ id: userId })\n    .update({\n      ...updates,\n      updated_at: db.fn.now(),\n    })\n    .returning('*')\n\n  if (!updated) throw new AppError('Update failed', 500)\n\n  return updated\n}\n\nmodule.exports = { getUserWithStats, updateUser }", "language": "javascript"}, "narration": "Service Springs is where the real work happens. This layer owns your business logic and database access. Notice Promise dot all fetching the user and their stats in parallel — that is twice as fast as awaiting them sequentially. The service throws typed errors with status codes. It does not know about req or res. That separation is the whole point. You can call these same functions from a controller, a background job, a CLI script, or a test. The service does not care who is asking."}, {"name": "JSON Response Frontier", "subtitle": "Error Handling and Response", "concept": "Error handling and response formatting", "landmarkType": "town", "code": {"file": "middleware/errorHandler.js", "content": "// middleware/errorHandler.js:1-28\nconst { AppError } = require('../utils/errors')\n\nfunction errorHandler(err, req, res, next) {\n  // Log the full error for debugging\n  console.error(`[${req.method}] ${req.path}:`, err.message)\n\n  if (err instanceof AppError) {\n    return res.status(err.statusCode).json({\n      status: 'error',\n      message: err.message,\n    })\n  }\n\n  // Mongoose/Sequelize validation errors\n  if (err.name === 'ValidationError') {\n    return res.status(400).json({\n      status: 'error',\n      message: 'Validation failed',\n      errors: Object.values(err.errors).map(e => e.message),\n    })\n  }\n\n  // Unexpected errors — don't leak internals\n  res.status(500).json({\n    status: 'error',\n    message: process.env.NODE_ENV === 'production'\n      ? 'Internal server error'\n      : err.message,\n  })\n}\n\nmodule.exports = errorHandler", "language": "javascript"}, "narration": "You made it to JSON Response Frontier — the final stop where everything comes together. This error handler has four parameters instead of three. That extra err parameter is how Express knows this is an error handler, not regular middleware. It catches every error passed through next. Known errors like AppError return clean messages with proper status codes. Validation errors get formatted nicely. Unknown errors hide their details in production to avoid leaking internals. This single middleware is your safety net for the entire application. Your wagon has arrived."}], "events": [{"type": "weather", "trigger": "after_stop", "triggerStop": 1, "title": "Payload Storm!", "text": "A massive storm of requests is hitting your API. Someone is sending 500 megabyte JSON payloads, and your server is running out of memory. Requests are piling up and the event loop is frozen.", "choices": [{"text": "Set a size limit on express.json() using the limit option", "correct": true, "explanation": "The limit option on express dot json caps how large a request body can be. Setting it to something reasonable like 10 megabytes rejects oversized payloads before they consume memory. Express returns a 413 Payload Too Large status automatically."}, {"text": "Increase the server's RAM to handle larger payloads", "correct": false, "explanation": "Throwing hardware at the problem does not fix the vulnerability. An attacker can always send a bigger payload. You need to reject oversized requests at the middleware level before they consume resources."}, {"text": "Parse the body manually inside each route handler instead", "correct": false, "explanation": "That duplicates parsing logic across every route and makes it easy to forget the size check. Centralized middleware with a limit applies the protection uniformly to every request."}], "concept": "Middleware Chain", "difficulty": "easy"}, {"type": "encounter", "trigger": "after_stop", "triggerStop": 2, "title": "A Frontend Developer Appears", "text": "A fellow traveler is frustrated. 'My React app on localhost colon 5173 keeps getting CORS errors when calling my Express API on localhost colon 3000. I set Access-Control-Allow-Origin to star but cookies are not being sent.' What is wrong?", "choices": [{"text": "Wildcard origin does not allow credentials — you must specify the exact origin and set credentials to true", "correct": true, "explanation": "The CORS spec forbids combining Access-Control-Allow-Origin star with Access-Control-Allow-Credentials true. You need to explicitly list the origin and enable credentials. This is a security feature preventing any site from sending authenticated requests to your API."}, {"text": "Cookies do not work cross-origin at all — use Authorization headers instead", "correct": false, "explanation": "Cookies absolutely work cross-origin when CORS is configured correctly. You need the exact origin, credentials set to true, and the cookie must have SameSite set to None with Secure. Many auth flows depend on cross-origin cookies."}, {"text": "Add Access-Control-Allow-Credentials as a custom header in the request", "correct": false, "explanation": "Allow-Credentials is a response header set by the server, not a request header set by the client. The browser reads this header from the server's response to decide whether to expose the response to JavaScript."}], "concept": "Middleware Chain", "difficulty": "medium"}, {"type": "river", "trigger": "after_stop", "triggerStop": 3, "title": "The Auth River", "text": "You have reached the deepest river on the trail — the boundary between public and protected routes. Your API has both public endpoints like slash register and protected endpoints like slash me. How do you structure the middleware so authentication only applies where needed?", "choices": [{"text": "Mount auth middleware on the router after public routes, so only routes defined below it are protected", "correct": true, "explanation": "Express processes middleware in registration order. By placing router dot use authenticate after your public routes, those public routes never hit the auth check. Everything registered after the use call requires a valid token. Order is the mechanism."}, {"text": "Add an if statement in the auth middleware to skip certain paths", "correct": false, "explanation": "Hardcoding path exceptions inside the auth middleware creates tight coupling. Every new public route means editing the auth code. Using middleware ordering is cleaner and follows the Express convention."}, {"text": "Apply app dot use authenticate at the top of the file and mark public routes with a skip flag", "correct": false, "explanation": "Express does not have a built-in skip flag for middleware. You would need a custom wrapper, which adds complexity. The idiomatic solution is to control which routes the middleware applies to through registration order or selective route-level attachment."}], "concept": "Route Handlers", "difficulty": "medium"}, {"type": "misfortune", "trigger": "after_stop", "triggerStop": 4, "title": "Unhandled Promise Rejection!", "text": "Disaster! An async route handler throws an error, but Express does not catch it. The request hangs forever, the client times out, and your error handler never fires. The server keeps running but that route is broken.", "choices": [{"text": "Wrap async handlers in try-catch and pass errors to next, or use an async wrapper utility", "correct": true, "explanation": "Express 4 does not automatically catch errors from rejected promises in async handlers. You must either wrap every handler in try-catch with next err, or use a wrapper function like express-async-errors that patches this behavior. Express 5 fixes this natively."}, {"text": "Add process dot on unhandledRejection to catch it globally", "correct": false, "explanation": "That catches the rejection at the process level, but Express has already moved on. The response is still hanging because Express never knew about the error. You need the error to flow through next so the error handler middleware can send a proper response."}, {"text": "Use synchronous code instead of async await to avoid the problem", "correct": false, "explanation": "Almost all real-world Express handlers need database queries, API calls, or file operations — all of which are asynchronous. Avoiding async is not practical. The solution is proper error propagation, not avoiding the feature."}], "concept": "Error Handling", "difficulty": "hard"}, {"type": "fortune", "trigger": "after_stop", "triggerStop": 5, "title": "Spring of Clean Patterns", "text": "Your party has been making excellent decisions! You found a spring of clean architecture patterns — separating controllers from services, keeping routes thin, and handling errors properly. Your health is restored.", "choices": [], "concept": "Route Handlers", "difficulty": "easy"}, {"type": "weather", "trigger": "after_stop", "triggerStop": 6, "title": "The Callback Fog", "text": "Dense fog rolls in. A legacy part of your codebase uses nested callbacks three levels deep — a database query inside a file read inside an API call. The error handling is scattered and the code is nearly unreadable. How do you clear the fog?", "choices": [{"text": "Refactor callbacks into async await with try-catch for linear, readable error handling", "correct": true, "explanation": "Async await flattens nested callbacks into sequential-looking code. Each await pauses execution until the promise resolves. Errors bubble up to a single try-catch block instead of being scattered across callback error parameters. The logic reads top to bottom like synchronous code."}, {"text": "Use Promise dot then chains to replace the callbacks", "correct": false, "explanation": "Promise chains are better than raw callbacks but still create nesting with dot then dot then dot catch. Async await is syntactic sugar over promises that produces cleaner, more readable code. It is the modern standard."}, {"text": "Keep the callbacks but add more comments to explain the flow", "correct": false, "explanation": "Comments do not fix structural problems. The issue is not understanding — it is that callback nesting makes error handling fragile and the control flow hard to follow. Refactoring to async await solves the root cause."}], "concept": "Async Patterns", "difficulty": "easy"}, {"type": "encounter", "trigger": "after_stop", "triggerStop": 1, "title": "A Fellow Developer Appears", "text": "A traveler shows you their Express setup. 'I serve my CSS and images with app.use(express.static(\"public\")).' They ask: 'Where does Express look for static files, and what happens if a static file and a route have the same path?'", "choices": [{"text": "express.static serves files from the 'public' directory, and middleware order determines priority — if static is first, it serves the file before routes run", "correct": true, "explanation": "express.static looks in the specified directory (here, 'public') for a file matching the URL. If the middleware is registered before your routes, a file at public/about.html would be served for /about.html before any route handler runs. Middleware order controls priority."}, {"text": "Express always checks routes first and only falls back to static files if no route matches", "correct": false, "explanation": "Express processes middleware in registration order. If express.static is registered before routes, it checks for files first. There's no built-in priority — order is everything in Express."}, {"text": "Static files must be in a folder called 'static' and are always served at the /static URL prefix", "correct": false, "explanation": "The directory name and URL prefix are fully configurable. You can use any folder name, and optionally mount it at a prefix with app.use('/assets', express.static('public')). Express imposes no naming conventions."}], "concept": "Middleware Chain", "difficulty": "easy"}, {"type": "weather", "trigger": "after_stop", "triggerStop": 2, "title": "Route Parameter Storm!", "text": "A storm of 404 errors hits your API. You have two routes: app.get('/users/:id', getUser) and app.get('/users/search', searchUsers). Every request to /users/search returns a 404 because getUser is trying to find a user with ID 'search'.", "choices": [{"text": "Move the /users/search route BEFORE /users/:id — Express matches routes in registration order and :id matches any string", "correct": true, "explanation": "The :id parameter matches any string, including 'search'. Express checks routes top to bottom and stops at the first match. Putting the specific /users/search route first ensures it matches before the wildcard :id catches it."}, {"text": "Change the parameter to a number type: /users/:id(\\\\d+) to exclude non-numeric values", "correct": false, "explanation": "While /users/:id(\\\\d+) with regex works in Express 4, it only solves this specific case. Route ordering is the fundamental concept — specific routes before parameterized ones. Understanding top-to-bottom matching prevents this entire class of bugs."}, {"text": "Use a query parameter instead: /users?search=term", "correct": false, "explanation": "Query parameters work but change the API design. The root cause is route ordering, not URL design. Understanding that Express matches top-to-bottom is a fundamental concept for any Express developer."}], "concept": "Route Handlers", "difficulty": "easy"}, {"type": "misfortune", "trigger": "after_stop", "triggerStop": 3, "title": "Silent Error Handler!", "text": "Your Express app has an error handler, but errors are never caught by it. Instead, the default Express error page shows in production. Your error middleware looks like: app.use((err, req, res) => { ... }). What's wrong?", "choices": [{"text": "Error-handling middleware must have exactly four parameters: (err, req, res, next) — Express uses the arity to distinguish it from regular middleware", "correct": true, "explanation": "Express identifies error handlers by their function signature having exactly four parameters. With three parameters, Express treats it as regular middleware and never routes errors to it. Even if you don't use next, you must include it in the signature."}, {"text": "The error handler must be registered before all routes, not after", "correct": false, "explanation": "Error handlers must be registered AFTER routes — they catch errors thrown by the middleware and routes above them. If registered first, there are no routes above to catch errors from."}, {"text": "You need to use app.error() instead of app.use() for error handlers", "correct": false, "explanation": "There is no app.error() method in Express. Error handlers are registered with app.use() just like regular middleware — the four-parameter signature is what makes Express treat them as error handlers."}], "concept": "Error Handling", "difficulty": "medium"}, {"type": "encounter", "trigger": "after_stop", "triggerStop": 4, "title": "A Router Expert Appears", "text": "A seasoned traveler shows you their project. Instead of putting all 50 routes in app.js, they use express.Router() to create mini-applications: one for /api/users, one for /api/posts, one for /api/comments. 'Each router has its own middleware,' they explain. What's the key benefit?", "choices": [{"text": "Routers let you organize routes into modules with their own middleware, keeping each file focused on one resource", "correct": true, "explanation": "express.Router() creates a self-contained routing module. Each router can have its own middleware stack — for example, the admin router can require authentication while the public router doesn't. It's the Express way of organizing large applications."}, {"text": "Using Router makes routes faster because Express can skip middleware for unmatched prefixes", "correct": false, "explanation": "Express doesn't have route-prefix optimization built in. Routers are about code organization and middleware scoping, not performance. The request still flows through the middleware stack in order."}, {"text": "Router automatically handles versioning, so /v1/ and /v2/ routes are generated for you", "correct": false, "explanation": "Express Router doesn't auto-generate versioned routes. You'd mount routers at different prefixes manually: app.use('/v1', v1Router). Routers are a structural tool, not a versioning system."}], "concept": "Route Handlers", "difficulty": "medium"}, {"type": "river", "trigger": "after_stop", "triggerStop": 5, "title": "The Event Loop River", "text": "Your Express API has a CPU-intensive route that computes statistics from a large dataset. While that request processes, all other requests hang — even simple health checks time out. The event loop is blocked.", "choices": [{"text": "Offload CPU-intensive work to a worker thread or child process so the event loop stays free for I/O", "correct": true, "explanation": "Node.js is single-threaded for JavaScript execution. CPU-heavy synchronous code blocks the event loop, starving all other requests. Worker threads run code in parallel threads, and child processes spin up separate Node instances. Either keeps the main event loop responsive."}, {"text": "Add more async/await keywords to make the computation non-blocking", "correct": false, "explanation": "async/await only helps with I/O operations (network, disk) that already have asynchronous APIs. CPU-bound computation is synchronous by nature — wrapping it in a promise doesn't move it off the main thread. You need actual parallelism."}, {"text": "Increase the server's timeout to give the computation more time to complete", "correct": false, "explanation": "Longer timeouts don't unblock the event loop. While the computation runs, the event loop can't process ANY other callbacks — including incoming connections, timeouts, and health checks. The issue is blocking, not time limits."}], "concept": "Async Patterns", "difficulty": "hard"}, {"type": "misfortune", "trigger": "after_stop", "triggerStop": 5, "title": "Stream Backpressure Flood!", "text": "Your Express endpoint streams a large file to the client, but slow clients cause memory to spike to gigabytes. You're reading from a fast disk and piping directly to res, but the client connection is slow. The read stream produces data faster than the write stream can consume it.", "choices": [{"text": "Use pipe() or pipeline() instead of manually reading and writing — they handle backpressure automatically by pausing the read stream when the write stream is full", "correct": true, "explanation": "Backpressure is the flow control mechanism in Node streams. pipe() automatically pauses the readable stream when the writable stream's buffer is full, then resumes when it drains. Without it, data accumulates in memory. pipeline() adds error handling on top."}, {"text": "Read the entire file into memory first, then send it all at once to avoid the streaming issue", "correct": false, "explanation": "Loading the entire file into memory is worse — a 2GB file would consume 2GB of RAM per request. Streaming with backpressure is the solution: it limits memory to the buffer size regardless of file size."}, {"text": "Set a maximum response size to reject files that are too large", "correct": false, "explanation": "Size limits don't fix the backpressure problem — even a 100MB file can exhaust memory if clients are slow enough. The issue is the rate mismatch between reading and writing, which pipe/pipeline solves."}], "concept": "Async Patterns", "difficulty": "hard"}, {"type": "encounter", "trigger": "after_stop", "triggerStop": 2, "title": "A Middleware Teacher Appears", "text": "A teacher draws a diagram on the ground. 'In Express, calling next() passes control to the next middleware. But there's also next(err) and next(\"route\"). Each does something different.' What happens when you call next(err) with an error argument?", "choices": [{"text": "It skips all remaining regular middleware and jumps to the next error-handling middleware (the one with four parameters)", "correct": true, "explanation": "Calling next with any argument (except 'route') tells Express to skip all normal middleware and find the next error handler — a middleware with the (err, req, res, next) signature. This is how errors propagate through the Express middleware chain."}, {"text": "It logs the error to the console and continues to the next middleware normally", "correct": false, "explanation": "next(err) doesn't log anything automatically. It changes the flow entirely — Express switches from the normal middleware chain to the error-handling chain. Understanding this flow switch is fundamental to Express error handling."}, {"text": "It sends a 500 error response to the client immediately", "correct": false, "explanation": "next(err) doesn't send any response. It hands the error to the next error-handling middleware, which decides what response to send. You might want different responses for different errors — 400 for validation, 404 for not found, 500 for server errors."}], "concept": "Middleware Chain", "difficulty": "medium"}, {"triggerStop": 3, "type": "misfortune", "title": "Async Context Leak!", "text": "Your Express app tracks request IDs for logging using a module-level variable. Under concurrent load, log entries show the wrong request IDs — one request’s logs are tagged with another request’s ID.", "choices": [{"text": "Module-level variables are shared across all requests — use AsyncLocalStorage for per-request context across async boundaries", "correct": true, "explanation": "Node.js uses a single thread, so module variables are shared. When two async requests interleave, they overwrite each other’s ID. AsyncLocalStorage maintains context that flows through async operations — each request gets its own isolated storage."}, {"text": "Add a mutex to prevent concurrent access to the request ID variable", "correct": false, "explanation": "JavaScript is single-threaded — there are no data races in the traditional sense. The problem is async interleaving. A mutex would serialize all requests, destroying performance."}, {"text": "Generate the request ID in each middleware and pass it as a response header instead", "correct": false, "explanation": "The request ID needs to be available deep in the call stack for logging. Passing it via response headers only makes it available to the HTTP response, not the call chain."}], "concept": "Error Handling", "difficulty": "hard"}, {"triggerStop": 6, "type": "weather", "title": "Memory Leak Storm!", "text": "Your Express server’s memory usage grows steadily over hours until it crashes. Heap snapshots show thousands of accumulated event listener registrations. Every request adds a listener but never removes it.", "choices": [{"text": "Always remove event listeners when no longer needed — use once() for single-use listeners, or call removeListener() in cleanup", "correct": true, "explanation": "Event listeners keep references to their callback closures. Without removal, they accumulate indefinitely. EventEmitter.once() auto-removes after one call. For long-lived listeners, track references and remove them when the context ends."}, {"text": "Increase the maxListeners limit on the EventEmitter to prevent the warning", "correct": false, "explanation": "setMaxListeners() only changes when the warning fires — it doesn’t fix the leak. The warning exists to alert you to exactly this kind of bug. Silencing it makes the leak invisible."}, {"text": "Switch to a different event library that handles cleanup automatically", "correct": false, "explanation": "The problem isn’t the EventEmitter library — it’s the application code failing to clean up. Any event system requires the programmer to manage listener lifecycle."}], "concept": "Async Patterns", "difficulty": "hard"}], "partyMembers": [{"name": "Middleware Chain", "icon": "middleware", "maxHealth": 3}, {"name": "Route Handlers", "icon": "route", "maxHealth": 3}, {"name": "Error Handling", "icon": "error", "maxHealth": 3}, {"name": "Async Patterns", "icon": "async", "maxHealth": 3}], "deathMessages": ["Lost in the middleware — never called next().", "Died of callback hell. No async slash await equipped.", "The unhandled rejection consumed all resources.", "Here lies your API. It died of CORS misconfiguration.", "Buried under an avalanche of unvalidated request bodies.", "Drowned in the Auth River — token verification threw but nobody caught it.", "Your error handler had three parameters. Express thought it was regular middleware.", "Starved waiting for the database connection. The pool was exhausted and nobody released."]};
 
 // =====================================================================
 // GAME STATE
@@ -187,21 +187,21 @@ let currentEventType = '';  // event type for canvas overlay
 let currentEventTitle = ''; // event title for canvas overlay
 
 const travelFlavors = [
-  "The WebSocket connection is strong today...",
-  "Packets flow smoothly across the middleware...",
+  "The event loop is humming along nicely...",
+  "Requests flow smoothly through the middleware stack...",
   "Your JSON payloads are well-formed...",
-  "The config files look clean and tidy...",
-  "A gentle breeze carries API responses...",
-  "The route resolver hums along quietly...",
-  "Session files persist without corruption...",
-  "The gateway handles traffic with grace...",
-  "Your TypeScript types provide comfort on the trail...",
-  "The event loop is calm and responsive...",
+  "The node_modules folder weighs heavy on the wagon...",
+  "A gentle breeze carries HTTP responses...",
+  "The route matcher hums along quietly...",
+  "req.body is parsing without errors...",
+  "Your Express app handles traffic with grace...",
+  "Your npm dependencies are all up to date...",
+  "The callback queue is calm and responsive...",
   "A hawk circles overhead, watching your throughput...",
-  "The trail ahead is well-documented...",
+  "The middleware chain is well-ordered today...",
   "Your error handling is robust today...",
-  "The authentication tokens are fresh...",
-  "Your dependency tree looks healthy..."
+  "The JWT tokens are fresh and valid...",
+  "Your package.json looks healthy..."
 ];
 
 // =====================================================================
@@ -374,10 +374,10 @@ function drawWagon(wx, wy) {
     ctx.fillStyle = '#553300';
     ctx.fillRect(Math.floor(wcx - 1), Math.floor(wcy - 1), 2, 2);
   }
-  // Purple flag
-  ctx.fillStyle = '#AA00AA';
+  // Yellow flag (Express yellow)
+  ctx.fillStyle = '#F7DF1E';
   ctx.fillRect(Math.floor(wx + 14), Math.floor(wy - 22), 1, -7);
-  ctx.fillStyle = '#FF55FF';
+  ctx.fillStyle = '#FFFF55';
   ctx.fillRect(Math.floor(wx + 15), Math.floor(wy - 29), 6, 4);
 }
 
@@ -435,8 +435,8 @@ function drawLandmark(type, x, baseY) {
       ctx.fillRect(Math.floor(x + 18), Math.floor(baseY - 2), 8, 2);
       break;
     case 'mountain':
-      drawMountain(x - 20, 60, 50, '#AA00AA', true);
-      drawMountain(x + 10, 45, 40, '#FF55FF', true);
+      drawMountain(x - 20, 60, 50, '#F7DF1E', true);
+      drawMountain(x + 10, 45, 40, '#FFFF55', true);
       break;
     case 'river':
       ctx.fillStyle = '#AA5500';
@@ -460,6 +460,33 @@ function drawLandmark(type, x, baseY) {
       for (let i = 0; i < 6; i++) {
         drawTree(x + i * 7, baseY, 14 + (i % 3) * 3);
       }
+      break;
+    case 'desert':
+      // Sand dunes
+      ctx.fillStyle = '#FFAA00';
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(x - 15), Math.floor(baseY));
+      ctx.quadraticCurveTo(Math.floor(x), Math.floor(baseY - 12), Math.floor(x + 15), Math.floor(baseY));
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#F7DF1E';
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(x + 10), Math.floor(baseY));
+      ctx.quadraticCurveTo(Math.floor(x + 25), Math.floor(baseY - 8), Math.floor(x + 40), Math.floor(baseY));
+      ctx.closePath();
+      ctx.fill();
+      // Cactus
+      ctx.fillStyle = '#00AA00';
+      ctx.fillRect(Math.floor(x + 22), Math.floor(baseY - 18), 3, 18);
+      ctx.fillRect(Math.floor(x + 18), Math.floor(baseY - 14), 4, 3);
+      ctx.fillRect(Math.floor(x + 18), Math.floor(baseY - 14), 2, -5);
+      ctx.fillRect(Math.floor(x + 25), Math.floor(baseY - 10), 4, 3);
+      ctx.fillRect(Math.floor(x + 27), Math.floor(baseY - 10), 2, -4);
+      // Sun-bleached sign
+      ctx.fillStyle = '#AA5500';
+      ctx.fillRect(Math.floor(x - 5), Math.floor(baseY - 15), 2, 15);
+      ctx.fillStyle = '#AAAAAA';
+      ctx.fillRect(Math.floor(x - 8), Math.floor(baseY - 17), 8, 5);
       break;
   }
 }
@@ -492,8 +519,8 @@ function drawEventOverlay(time) {
 
   var t = (time || 0) * 0.001; // seconds
 
-  // --- PROTOCOL STORM: dark sky, lightning, rain ---
-  if (currentEventTitle.indexOf('Protocol Storm') !== -1) {
+  // --- PAYLOAD STORM: dark sky, lightning, rain ---
+  if (currentEventTitle.indexOf('Payload Storm') !== -1) {
     // Darken sky
     ctx.fillStyle = 'rgba(0,0,50,0.45)';
     ctx.fillRect(0, 0, W, 110);
@@ -529,8 +556,8 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- FELLOW OPERATOR: person standing by campfire ---
-  if (currentEventTitle.indexOf('Fellow Operator') !== -1) {
+  // --- FRONTEND DEVELOPER: person standing with laptop ---
+  if (currentEventTitle.indexOf('Frontend Developer') !== -1) {
     var px = 200, py = 142;
     // Person body
     ctx.fillStyle = '#AA5500';
@@ -539,10 +566,15 @@ function drawEventOverlay(time) {
     ctx.fillRect(px, py - 15, 4, 3); // head
     ctx.fillRect(px - 1, py - 4, 2, 5); // left leg
     ctx.fillRect(px + 3, py - 4, 2, 5); // right leg
-    // Hat
-    ctx.fillStyle = '#555555';
+    // Hat (React blue beanie)
+    ctx.fillStyle = '#55FFFF';
     ctx.fillRect(px - 1, py - 17, 6, 2);
     ctx.fillRect(px, py - 19, 4, 2);
+    // Laptop
+    ctx.fillStyle = '#555555';
+    ctx.fillRect(px + 8, py - 8, 8, 5);
+    ctx.fillStyle = '#55FFFF';
+    ctx.fillRect(px + 9, py - 7, 6, 3);
     // Campfire
     var fx = 212, fy = 148;
     ctx.fillStyle = '#AA5500';
@@ -563,8 +595,8 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- SESSION STATE RIVER: rough rapids with white water ---
-  if (currentEventTitle.indexOf('Session State') !== -1) {
+  // --- AUTH RIVER: rough rapids with white water ---
+  if (currentEventTitle.indexOf('Auth River') !== -1) {
     // Extra turbulence on the river
     ctx.fillStyle = '#55FFFF';
     for (var i = 0; i < 20; i++) {
@@ -582,8 +614,8 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- RUNAWAY PROCESS: red sky, smoke, warning ---
-  if (currentEventTitle.indexOf('Runaway Process') !== -1) {
+  // --- UNHANDLED PROMISE REJECTION: red sky, smoke, warning ---
+  if (currentEventTitle.indexOf('Unhandled Promise') !== -1) {
     // Red danger tint
     ctx.fillStyle = 'rgba(170,0,0,0.25)';
     ctx.fillRect(0, 0, W, H);
@@ -619,32 +651,7 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- RPC RIVER: deep blue, fog/mist over water ---
-  if (currentEventTitle.indexOf('RPC River') !== -1) {
-    // Fog layers drifting over the river
-    ctx.fillStyle = 'rgba(85,85,255,0.12)';
-    for (var i = 0; i < 6; i++) {
-      var fogX = (i * 60 + t * 12 + Math.sin(i) * 20) % (W + 40) - 20;
-      var fogY = 145 + Math.sin(t * 0.5 + i * 1.1) * 5;
-      ctx.beginPath();
-      ctx.arc(fogX, fogY, 20 + i * 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.fillStyle = 'rgba(170,170,255,0.08)';
-    for (var i = 0; i < 8; i++) {
-      var fogX = (i * 45 + t * 8) % (W + 30) - 15;
-      var fogY = 150 + Math.sin(t * 0.3 + i * 0.8) * 8;
-      ctx.beginPath();
-      ctx.arc(fogX, fogY, 15 + i * 2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // Deeper water tint
-    ctx.fillStyle = 'rgba(0,0,85,0.2)';
-    ctx.fillRect(0, 155, W, 18);
-    return;
-  }
-
-  // --- SPRING OF CLEAN ARCHITECTURE: sunny, flowers, rainbow ---
+  // --- SPRING OF CLEAN PATTERNS: sunny, flowers, rainbow ---
   if (currentEventTitle.indexOf('Spring') !== -1) {
     // Bright sun
     ctx.fillStyle = '#FFFF55';
@@ -674,7 +681,7 @@ function drawEventOverlay(time) {
       ctx.fillRect(fx + 1, fy - 1, 1, 1); // center
     }
     // Rainbow arc
-    var rainbowColors = ['#FF5555', '#FFAA00', '#FFFF55', '#55FF55', '#5555FF', '#AA00AA'];
+    var rainbowColors = ['#FF5555', '#FFAA00', '#FFFF55', '#55FF55', '#5555FF', '#F7DF1E'];
     for (var rc = 0; rc < rainbowColors.length; rc++) {
       ctx.strokeStyle = rainbowColors[rc];
       ctx.lineWidth = 2;
@@ -686,8 +693,8 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- MESSAGE CHUNKING FOG: heavy fog obscuring everything ---
-  if (currentEventTitle.indexOf('Chunking Fog') !== -1) {
+  // --- CALLBACK FOG: heavy fog obscuring everything ---
+  if (currentEventTitle.indexOf('Callback Fog') !== -1) {
     // Dense fog layers
     for (var layer = 0; layer < 3; layer++) {
       var alpha = 0.15 + layer * 0.08;
@@ -862,20 +869,20 @@ function renderCanvas(time) {
     drawPixelCloud(cx - 20, c.y, c.w, c.h);
   }
 
-  // Far mountains (parallax 0.3x) - DARK MAGENTA signature Oregon Trail
+  // Far mountains (parallax 0.3x) - Express yellow signature
   const farOffset = scrollX * 0.3;
   for (const m of farMountains) {
     let mx = ((m.x - farOffset) % (W + 100));
     if (mx < -50) mx += W + 100;
-    drawMountain(mx - 25, m.h, m.w, '#AA00AA', false);
+    drawMountain(mx - 25, m.h, m.w, '#F7DF1E', false);
   }
 
-  // Near mountains (parallax 0.4x) - LIGHT MAGENTA with snow caps
+  // Near mountains (parallax 0.4x) - Bright yellow with snow caps
   const nearOffset = scrollX * 0.4;
   for (const m of nearMountains) {
     let mx = ((m.x - nearOffset) % (W + 80));
     if (mx < -40) mx += W + 80;
-    drawMountain(mx - 20, m.h, m.w, '#FF55FF', m.snow);
+    drawMountain(mx - 20, m.h, m.w, '#FFFF55', m.snow);
   }
 
   // Grass
@@ -1078,14 +1085,15 @@ function updateMusicIndicator() {
 }
 
 // =====================================================================
-// SYNTAX HIGHLIGHTING (EGA Colors)
+// SYNTAX HIGHLIGHTING (EGA Colors — JavaScript)
 // =====================================================================
-const TS_KEYWORDS = new Set([
-  'import', 'export', 'from', 'const', 'let', 'var', 'function', 'async',
-  'await', 'return', 'if', 'else', 'for', 'while', 'new', 'typeof', 'instanceof',
-  'interface', 'type', 'class', 'extends', 'implements', 'try', 'catch', 'throw',
-  'default', 'switch', 'case', 'break', 'continue', 'true', 'false', 'null',
-  'undefined', 'void', 'of', 'in'
+const JS_KEYWORDS = new Set([
+  'const', 'let', 'var', 'function', 'async', 'await', 'return',
+  'if', 'else', 'for', 'while', 'new', 'typeof', 'instanceof',
+  'try', 'catch', 'throw', 'class', 'extends', 'import', 'export',
+  'from', 'require', 'module', 'exports', 'default', 'switch', 'case',
+  'break', 'continue', 'true', 'false', 'null', 'undefined', 'void',
+  'of', 'in', 'delete', 'this', 'super', 'yield', 'static'
 ]);
 
 function escHtml(s) {
@@ -1095,13 +1103,28 @@ function escHtml(s) {
 function highlightCode(code) {
   return code.split('\n').map(function(line) {
     if (line.trim().startsWith('//')) {
-      return '<span style="color:#555555">' + escHtml(line) + '</span>';
+      return '<span style="color:#75715e">' + escHtml(line) + '</span>';
     }
     var result = '';
     var i = 0;
     while (i < line.length) {
+      // Template literal
+      if (line[i] === '`') {
+        var end = i + 1;
+        while (end < line.length && line[end] !== '`') {
+          if (line[end] === '\\') end++;
+          if (line[end] === '$' && end + 1 < line.length && line[end + 1] === '{') {
+            end++;
+          }
+          end++;
+        }
+        end = Math.min(end + 1, line.length);
+        result += '<span style="color:#e6db74">' + escHtml(line.substring(i, end)) + '</span>';
+        i = end;
+        continue;
+      }
       // String literal
-      if (line[i] === "'" || line[i] === '"' || line[i] === '`') {
+      if (line[i] === "'" || line[i] === '"') {
         var quote = line[i];
         var end = i + 1;
         while (end < line.length && line[end] !== quote) {
@@ -1109,20 +1132,20 @@ function highlightCode(code) {
           end++;
         }
         end = Math.min(end + 1, line.length);
-        result += '<span style="color:#FFFF55">' + escHtml(line.substring(i, end)) + '</span>';
+        result += '<span style="color:#e6db74">' + escHtml(line.substring(i, end)) + '</span>';
         i = end;
         continue;
       }
       // Inline comment
       if (line[i] === '/' && i + 1 < line.length && line[i + 1] === '/') {
-        result += '<span style="color:#555555">' + escHtml(line.substring(i)) + '</span>';
+        result += '<span style="color:#75715e">' + escHtml(line.substring(i)) + '</span>';
         break;
       }
       // Number
       if (/\d/.test(line[i]) && (i === 0 || !/\w/.test(line[i - 1]))) {
         var end2 = i;
         while (end2 < line.length && /[\d._]/.test(line[end2])) end2++;
-        result += '<span style="color:#FF55FF">' + escHtml(line.substring(i, end2)) + '</span>';
+        result += '<span style="color:#ae81ff">' + escHtml(line.substring(i, end2)) + '</span>';
         i = end2;
         continue;
       }
@@ -1131,16 +1154,18 @@ function highlightCode(code) {
         var end3 = i;
         while (end3 < line.length && /[\w$]/.test(line[end3])) end3++;
         var word = line.substring(i, end3);
-        if (TS_KEYWORDS.has(word)) {
-          result += '<span style="color:#55FFFF">' + escHtml(word) + '</span>';
+        if (JS_KEYWORDS.has(word)) {
+          result += '<span style="color:#f92672">' + escHtml(word) + '</span>';
+        } else if (end3 < line.length && line[end3] === '(') {
+          result += '<span style="color:#a6e22e">' + escHtml(word) + '</span>';
         } else {
-          result += '<span style="color:#55FF55">' + escHtml(word) + '</span>';
+          result += '<span style="color:#f8f8f2">' + escHtml(word) + '</span>';
         }
         i = end3;
         continue;
       }
       // Punctuation / operators
-      result += '<span style="color:#AAAAAA">' + escHtml(line[i]) + '</span>';
+      result += '<span style="color:#f8f8f2">' + escHtml(line[i]) + '</span>';
       i++;
     }
     return result;
@@ -1162,7 +1187,7 @@ function renderTitleScreen() {
   setTextPanel(
     '<div style="text-align:center; padding-top:20px;">' +
     '<div style="color:#FFFF55; font-size:16px; letter-spacing:2px;">THE CODEREGON TRAIL</div>' +
-    '<div style="color:#AAAAAA; margin-top:8px;">The Gateway Trail - OpenClaw Edition</div>' +
+    '<div style="color:#AAAAAA; margin-top:8px;">The Middleware Prairie - Express Edition</div>' +
     '<div style="margin-top:30px;" class="blink">Press SPACE BAR to begin</div>' +
     '</div>'
   );
@@ -1187,10 +1212,10 @@ function renderSetupScreen() {
     '<div style="padding:8px 20px;">' +
     '<div style="color:#55FFFF; margin-bottom:10px;">Your party of key concepts:</div>' +
     '<div style="margin-left:16px;">' +
-    '<div style="color:#55FF55;">1. Gateway Control Plane    <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">2. Channel Plugins          <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">3. Route Resolution         <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">4. Session Persistence      <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">1. Middleware Chain          <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">2. Route Handlers            <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">3. Error Handling            <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">4. Async Patterns            <span style="color:#FF5555">' + hearts + '</span></div>' +
     '</div>' +
     '<div style="color:#55FFFF; margin-top:14px; margin-bottom:6px;">What is your profession?</div>' +
     '<div style="margin-left:16px;">' + profsHtml + '</div>' +
@@ -1219,7 +1244,7 @@ function renderStopScreen() {
     '<div style="padding:4px 12px;">' +
     '<div style="color:#FFFF55; text-align:center; font-size:14px;">\u2550\u2550 ' + escHtml(stop.name) + ' \u2014 ' + escHtml(stop.subtitle) + ' \u2550\u2550</div>' +
     '<div style="color:#555555; text-align:center; font-size:11px; margin-bottom:4px;">[' + escHtml(stop.concept) + ']</div>' +
-    '<div style="border:1px solid #555555; padding:2px 4px; margin:4px 0 2px 0; font-size:11px; color:#AAAAAA;">\u250C\u2500 ' + escHtml(stop.code.file) + ' \u2500\u2500\u2500</div>' +
+    '<div style="border:1px solid #3e3d32; padding:2px 4px; margin:4px 0 2px 0; font-size:11px; color:#75715e;">\u250C\u2500 ' + escHtml(stop.code.file) + ' \u2500\u2500\u2500</div>' +
     '<div class="code-box">' + codeHtml + '</div>' +
     '<div style="color:#AAAAAA; margin:6px 0; line-height:1.4; font-size:13px;">' + escHtml(stop.narration) + '</div>' +
     '<div style="margin-top:8px;" id="stop-choices">' +
@@ -1252,6 +1277,13 @@ function renderEventScreen(event) {
     headerColor = '#55FF55';
   }
 
+  var diffBadge = '';
+  if (event.difficulty) {
+    var diffColors = { easy: '#55FF55', medium: '#FFFF55', hard: '#FF5555' };
+    var diffColor = diffColors[event.difficulty] || '#AAAAAA';
+    diffBadge = ' <span style="display:inline-block;padding:1px 6px;border:1px solid ' + diffColor + ';color:' + diffColor + ';font-size:10px;margin-left:8px;border-radius:2px;">' + event.difficulty.toUpperCase() + '</span>';
+  }
+
   var choicesHtml = '';
   if (event.choices.length > 0 && !eventAnswered) {
     var labels = ['A', 'B', 'C', 'D'];
@@ -1271,7 +1303,7 @@ function renderEventScreen(event) {
 
   setTextPanel(
     '<div style="padding:4px 12px;">' +
-    '<div style="color:' + headerColor + '; font-size:14px; text-align:center;">' + typeLabel + ' \u2014 ' + escHtml(event.title) + '</div>' +
+    '<div style="color:' + headerColor + '; font-size:14px; text-align:center;">' + typeLabel + ' \u2014 ' + escHtml(event.title) + diffBadge + '</div>' +
     '<div style="color:#FFFFFF; margin:8px 0; line-height:1.4;">' + escHtml(event.text) + '</div>' +
     '<div id="event-choices">' + choicesHtml + '</div>' +
     '<div id="event-result"></div>' +
@@ -1320,10 +1352,6 @@ function renderDeathScreen() {
   if (techDebtDeath) {
     var techDebtMsgs = [
       'You have died of tech debt dysentery.',
-      // 'You have died of refactoring dysentery.',
-      // 'You have died of unresolved TODOs.',
-      // 'You have died of scope creep.',
-      // 'You have died of dependency bloat.',
     ];
     deathMsg = techDebtMsgs[Math.floor(Math.random() * techDebtMsgs.length)];
     techDebtDeath = false;
@@ -1358,7 +1386,7 @@ function renderWinScreen() {
   var survivors = partyHealth.filter(function(h) { return h > 0; }).length;
   var pctScore = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 100;
 
-  var conceptNames = ['Gateway Control Plane', 'Channel Plugins', 'Route Resolution', 'Session Persistence'];
+  var conceptNames = ['Middleware Chain', 'Route Handlers', 'Error Handling', 'Async Patterns'];
 
   var masteryHtml = '';
   var weakestName = '';
@@ -1384,9 +1412,9 @@ function renderWinScreen() {
 
   setTextPanel(
     '<div style="padding:8px 16px;">' +
-    '<div style="color:#FFFF55; text-align:center; font-size:16px;">\u2605 YOU MADE IT TO RESPONSE FRONTIER! \u2605</div>' +
+    '<div style="color:#FFFF55; text-align:center; font-size:16px;">\u2605 YOU MADE IT TO JSON RESPONSE FRONTIER! \u2605</div>' +
     '<div style="margin-top:10px; color:#AAAAAA;">' +
-    '<div>  Framework:    <span style="color:#55FFFF;">OpenClaw (The Gateway Trail)</span></div>' +
+    '<div>  Framework:    <span style="color:#55FFFF;">Express.js (The Middleware Prairie)</span></div>' +
     '<div>  Survivors:    <span style="color:#55FF55;">' + survivors + '/' + partyHealth.length + '</span></div>' +
     '<div>  Quiz Score:   <span style="color:#FFFF55;">' + score + '/' + totalQuestions + ' (' + pctScore + '%)</span></div>' +
     '<div>  Best Streak:  <span style="color:#FF55FF;">' + bestStreak + '</span></div>' +
@@ -1521,7 +1549,10 @@ function advanceFromTravel() {
 
   // Collect events for the current stop (triggerStop is 1-indexed relative to stop we just visited)
   // Events trigger BEFORE showing the stop
-  pendingEvents = TRAIL_DATA.events.filter(function(e) { return e.triggerStop === currentStop; });
+  var DIFFICULTY_TIERS = [['easy'],['easy','medium'],['medium','hard'],['hard']];
+  var allowedTiers = DIFFICULTY_TIERS[difficulty] || ['easy','medium','hard'];
+  var allStopEvents = TRAIL_DATA.events.filter(function(e) { return e.triggerStop === currentStop; });
+  pendingEvents = allStopEvents.filter(function(e) { return e.type === 'fortune' || !e.difficulty || allowedTiers.indexOf(e.difficulty) !== -1; });
   currentEventIndex = 0;
 
   if (pendingEvents.length > 0) {

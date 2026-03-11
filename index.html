@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Coderegon Trail</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  color: #e2e8f0;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', 'Courier New', monospace;
+}
+body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60px 20px;
+}
+h1 {
+  font-size: 32px;
+  letter-spacing: 4px;
+  color: #FFFF55;
+  text-align: center;
+  margin-bottom: 8px;
+}
+.subtitle {
+  color: #6272a4;
+  font-size: 14px;
+  text-align: center;
+  margin-bottom: 48px;
+}
+.trails {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 600px;
+}
+.trail-card {
+  display: block;
+  background: #1a1a2e;
+  border: 2px solid #333;
+  border-radius: 4px;
+  padding: 20px 24px;
+  text-decoration: none;
+  color: #e2e8f0;
+  transition: border-color 0.2s, background 0.2s;
+}
+.trail-card:hover {
+  border-color: #63b3ed;
+  background: #1e2235;
+}
+.trail-card .name {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+.trail-card .desc {
+  font-size: 13px;
+  color: #6272a4;
+}
+.trail-card .tag {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 2px;
+  margin-top: 8px;
+}
+.tag-live {
+  background: #1a3a2a;
+  color: #48bb78;
+  border: 1px solid #48bb78;
+}
+.tag-soon {
+  background: #2d2d1a;
+  color: #ecc94b;
+  border: 1px solid #ecc94b;
+}
+.footer {
+  margin-top: 48px;
+  font-size: 12px;
+  color: #4a5568;
+  text-align: center;
+  line-height: 1.8;
+}
+.footer a {
+  color: #63b3ed;
+  text-decoration: none;
+}
+.footer a:hover {
+  text-decoration: underline;
+}
+</style>
+</head>
+<body>
+<h1>THE CODEREGON TRAIL</h1>
+<p class="subtitle">Learn codebases by surviving the trail</p>
+
+<h2 style="color:#6272a4;font-size:13px;letter-spacing:2px;margin-bottom:12px;text-transform:uppercase;">Web Framework Trails</h2>
+<div class="trails">
+  <a href="rails/" class="trail-card" style="border-color:#CC0000">
+    <div class="name" style="color:#FF5555">The Convention Trail</div>
+    <div class="desc">Ruby on Rails — Rack middleware, RESTful routing, ActiveRecord, ERB templates, and the full request cycle</div>
+    <span class="tag tag-live">PLAY NOW</span>
+  </a>
+
+  <a href="django/" class="trail-card" style="border-color:#0C4B33">
+    <div class="name" style="color:#2BA977">The WSGI Wagon Trail</div>
+    <div class="desc">Django — WSGI entry, middleware stack, URLconf, views, ORM QuerySets, template inheritance, and responses</div>
+    <span class="tag tag-live">PLAY NOW</span>
+  </a>
+
+  <a href="express/" class="trail-card" style="border-color:#F7DF1E">
+    <div class="name" style="color:#FFFF55">The Middleware Prairie</div>
+    <div class="desc">Express.js — body parsing, CORS, JWT auth, routing, controllers, services, and error handling</div>
+    <span class="tag tag-live">PLAY NOW</span>
+  </a>
+
+  <a href="react/" class="trail-card" style="border-color:#61DAFB">
+    <div class="name" style="color:#61DAFB">The Component Canyon</div>
+    <div class="desc">React/Vite — component tree, client-side routing, hooks, state management, and virtual DOM reconciliation</div>
+    <span class="tag tag-live">PLAY NOW</span>
+  </a>
+
+  <a href="laravel/" class="trail-card" style="border-color:#FF2D20">
+    <div class="name" style="color:#FF5555">The Artisan Trail</div>
+    <div class="desc">Laravel — service container, middleware, Eloquent ORM, Blade templates, and JSON resources</div>
+    <span class="tag tag-live">PLAY NOW</span>
+  </a>
+
+  <a href="openclaw/" class="trail-card">
+    <div class="name">The Gateway Trail</div>
+    <div class="desc">OpenClaw — channel plugins, route resolution, session persistence, WebSocket RPC, and tool execution</div>
+    <span class="tag tag-live">PLAY NOW</span>
+  </a>
+</div>
+
+<h2 style="color:#6272a4;font-size:13px;letter-spacing:2px;margin:32px 0 12px;text-transform:uppercase;">Codebase Trails</h2>
+<div class="trails">
+  <a href="qmd/" class="trail-card">
+    <div class="name">The Hybrid Search Trail</div>
+    <div class="desc">QMD — BM25 keyword search, vector embeddings, RRF fusion, and LLM re-ranking</div>
+    <span class="tag tag-live">PLAY NOW</span>
+  </a>
+
+  <a href="pi-mono/" class="trail-card">
+    <div class="name">The Agent Loop Trail</div>
+    <div class="desc">Pi Mono — unified LLM API, tool calling, agent loop, and session persistence</div>
+    <span class="tag tag-live">PLAY NOW</span>
+  </a>
+
+  <a href="ruview/" class="trail-card">
+    <div class="name">The WiFi Sensing Trail</div>
+    <div class="desc">RuView — CSI capture, pose estimation, vital sign detection, and through-wall sensing</div>
+    <span class="tag tag-live">PLAY NOW</span>
+  </a>
+
+  <a href="shannon/" class="trail-card">
+    <div class="name">The Exploit Trail</div>
+    <div class="desc">Shannon — reconnaissance, injection testing, auth bypass, and proof-by-exploitation</div>
+    <span class="tag tag-live">PLAY NOW</span>
+  </a>
+
+  <a href="spacetimedb/" class="trail-card">
+    <div class="name">The Spacetime Trail</div>
+    <div class="desc">SpacetimeDB — WASM modules, reducers, incremental subscriptions, and real-time sync</div>
+    <span class="tag tag-live">PLAY NOW</span>
+  </a>
+
+  <a href="superpowers/" class="trail-card">
+    <div class="name">The Superpowers Trail</div>
+    <div class="desc">Superpowers — hard-gate enforcement, subagent-driven dev, TDD discipline, and skills workflows</div>
+    <span class="tag tag-live">PLAY NOW</span>
+  </a>
+</div>
+
+<div class="footer">
+  A <a href="https://github.com/dtran320/coderegon-trail">Claude Code plugin</a> for learning codebases through play<br>
+  Install: <code>claude plugins add dtran320/coderegon-trail</code>
+</div>
+</body>
+</html>

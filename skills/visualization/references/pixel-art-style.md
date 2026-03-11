@@ -1,6 +1,6 @@
-# O'Reorg Trail — Pixel Art Style Guide
+# Coderegon Trail — Pixel Art Style Guide
 
-Visual specifications for the O'Reorg Trail game. All rendering is done programmatically on HTML5 Canvas (no image assets).
+Visual specifications for the Coderegon Trail game. All rendering is done programmatically on HTML5 Canvas (no image assets).
 
 ## Color Palette
 

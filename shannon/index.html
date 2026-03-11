@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Coderegon Trail - OpenClaw Edition</title>
+<title>The Coderegon Trail - Shannon Edition</title>
 <style>
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 html, body {
@@ -135,7 +135,7 @@ html, body {
 // =====================================================================
 // TRAIL DATA
 // =====================================================================
-const TRAIL_DATA={"framework":"openclaw","trailName":"The Gateway Trail","stops":[{"name":"Channel Outpost","subtitle":"Message Arrives","concept":"Channel Plugins","landmarkType":"town","code":{"file":"extensions/whatsapp/src/plugin.ts","content":"// extensions/whatsapp/src/plugin.ts (conceptual)\nimport { ChannelPlugin } from '@openclaw/types'\n\nexport const whatsappPlugin: ChannelPlugin = {\n  config: {\n    listAccountIds(cfg) {\n      return cfg.whatsapp?.accounts?.map(a => a.id) ?? []\n    },\n    async isConfigured(account) {\n      return !!account.phoneNumber\n    },\n    resolveAccount(cfg, id) {\n      return cfg.whatsapp.accounts.find(a => a.id === id)\n    },\n  },\n  gateway: {\n    async startAccount({ account, gateway }) {\n      const sock = makeWASocket({ auth: account.auth })\n      sock.ev.on('messages.upsert', async ({ messages }) => {\n        for (const msg of messages) {\n          await gateway.handleInbound({\n            channel: 'whatsapp',\n            peer: msg.key.remoteJid,\n            text: msg.message?.conversation,\n            accountId: account.id,\n          })\n        }\n      })\n    },\n    async stopAccount({ account }) {\n      // Graceful disconnect\n    },\n  },\n}","language":"typescript"},"narration":"Every journey starts at a channel outpost. OpenClaw connects to thirteen different messaging platforms. Each has a channel plugin following the same interface. Here's the WhatsApp plugin using Baileys to listen for messages. When a message arrives, it normalizes it into a common format and hands it to the gateway."},{"name":"Normalization Pass","subtitle":"Common Message Format","concept":"Channel Plugins","landmarkType":"camp","code":{"file":"src/channels/plugins/types.ts","content":"// src/channels/plugins/types.ts (simplified)\nexport interface ChannelPlugin {\n  config: {\n    listAccountIds(cfg: Config): string[]\n    isConfigured(account: AccountConfig): Promise<boolean>\n    resolveAccount(cfg: Config, id: string): AccountConfig\n  }\n  gateway?: {\n    startAccount(opts: StartAccountOpts): Promise<void>\n    stopAccount(opts: StopAccountOpts): Promise<void>\n  }\n}\n\n// The normalized inbound message shape:\ninterface InboundMessage {\n  channel: string\n  accountId: string\n  peer: RoutePeer\n  text: string\n  threadId?: string\n  attachments?: Media[]\n  guildId?: string\n}","language":"typescript"},"narration":"At the Normalization Pass, chaos becomes order. Every messaging platform has its own format. The ChannelPlugin interface forces them all into one shape. The gateway never needs to know whether you messaged from WhatsApp or Telegram."},{"name":"Route Resolution Fork","subtitle":"Finding the Right Agent","concept":"Route Resolution","landmarkType":"mountain","code":{"file":"src/routing/resolve-route.ts","content":"// src/routing/resolve-route.ts (simplified)\nexport function resolveAgentRoute({\n  cfg, channel, accountId, peer, guildId, teamId,\n}: ResolveRouteInput): ResolvedRoute {\n\n  for (const agent of cfg.agents.list) {\n    const routing = agent.routing\n\n    // 1. Exact peer match (highest priority)\n    const peerMatch = routing.peer?.find(\n      b => b.peer === peer.id && b.channel === channel\n    )\n    if (peerMatch) return { agentId: agent.id, matchedBy: 'peer' }\n\n    // 2. Guild/server match\n    const guildMatch = routing.guild?.find(\n      b => b.guildId === guildId && b.channel === channel\n    )\n    if (guildMatch) return { agentId: agent.id, matchedBy: 'guild' }\n\n    // 3. Account-level match\n    const accountMatch = routing.account?.find(\n      b => b.accountId === accountId && b.channel === channel\n    )\n    if (accountMatch) return { agentId: agent.id, matchedBy: 'account' }\n  }\n\n  return { agentId: cfg.agents.default, matchedBy: 'default' }\n}","language":"typescript"},"narration":"Here's where the trail forks. The resolver checks priority order: specific peer binding, then guild/server, then account, then default. One gateway can serve different agents to different people."},{"name":"Session Persistence Camp","subtitle":"Loading Conversation State","concept":"Session Persistence","landmarkType":"camp","code":{"file":"src/sessions/session-utils.ts","content":"// src/sessions/session-utils.ts (simplified)\nimport { readFile, writeFile, mkdir } from 'fs/promises'\n\nconst SESSIONS_DIR = '~/.openclaw/sessions'\n\nexport async function loadSessionEntry(\n  agentId: string,\n  sessionKey: string,\n): Promise<SessionEntry> {\n  const path = `${SESSIONS_DIR}/${agentId}/${sessionKey}.json`\n\n  try {\n    const raw = await readFile(path, 'utf-8')\n    return JSON.parse(raw)\n  } catch {\n    return {\n      sessionKey,\n      agentId,\n      transcript: [],\n      metadata: {\n        model: 'anthropic/claude-opus-4-6',\n        thinkingLevel: 'medium',\n        tokensUsed: 0,\n        createdAt: Date.now(),\n      },\n    }\n  }\n}","language":"typescript"},"narration":"Sessions are just JSON files on disk. Each agent-plus-peer combination gets its own file. If the file doesn't exist, a fresh session starts with sensible defaults. Zero database dependencies, easy backup."},{"name":"Gateway Control Ridge","subtitle":"The WebSocket Command Center","concept":"Gateway Control Plane","landmarkType":"mountain","code":{"file":"src/gateway/server-chat.ts","content":"// src/gateway/server-chat.ts (simplified)\nexport function createChatRunRegistry(gateway: GatewayServer) {\n\n  async function handleChatSend(\n    sessionEntry: SessionEntry,\n    message: InboundMessage,\n  ) {\n    sessionEntry.transcript.push({\n      role: 'user',\n      content: message.text,\n      timestamp: Date.now(),\n    })\n\n    const agentRpc = gateway.acp.getClient(sessionEntry.agentId)\n    const stream = await agentRpc.call('chat.send', {\n      sessionId: sessionEntry.sessionKey,\n      messages: sessionEntry.transcript,\n      tools: sessionEntry.metadata.enabledTools,\n      model: sessionEntry.metadata.model,\n    })\n\n    for await (const chunk of stream) {\n      if (chunk.type === 'text') {\n        gateway.broadcast('chat.stream', { text: chunk.text })\n      } else if (chunk.type === 'tool_use') {\n        const result = await executeTool(chunk.tool, chunk.input)\n        agentRpc.sendToolResult(chunk.id, result)\n      }\n    }\n    await saveSession(sessionEntry)\n  }\n\n  return { handleChatSend }\n}","language":"typescript"},"narration":"The gateway server accepts WebSocket connections from channels, the CLI, and native apps. The streaming loop handles text and tool calls differently. Text streams in real time; tool calls get executed on the gateway and results feed back."},{"name":"Agent RPC Rapids","subtitle":"Talking to the AI","concept":"Gateway Control Plane","landmarkType":"river","code":{"file":"src/acp/client.ts","content":"// src/acp/client.ts (simplified)\nexport function createAcpClient(agentId: string, wsUrl: string) {\n  const ws = new WebSocket(wsUrl)\n\n  async function* call(\n    method: string,\n    params: ChatSendParams,\n  ): AsyncGenerator<AgentChunk> {\n    const requestId = crypto.randomUUID()\n\n    ws.send(JSON.stringify({\n      jsonrpc: '2.0',\n      id: requestId,\n      method,\n      params,\n    }))\n\n    while (true) {\n      const msg = await nextMessage(ws, requestId)\n      if (msg.type === 'done') break\n      yield msg\n    }\n  }\n\n  function sendToolResult(toolCallId: string, result: ToolResult) {\n    ws.send(JSON.stringify({\n      jsonrpc: '2.0',\n      method: 'tool.result',\n      params: { toolCallId, result },\n    }))\n  }\n\n  return { call, sendToolResult }\n}","language":"typescript"},"narration":"Now we cross the RPC Rapids. The gateway and agent communicate over JSON-RPC. The agent decides what to do, but the gateway controls what actually happens on your machine. Security through architecture."},{"name":"Tool Execution Gorge","subtitle":"Running Commands on the Host","concept":"Gateway Control Plane","landmarkType":"forest","code":{"file":"src/agents/bash-tools.exec.ts","content":"// src/agents/bash-tools.exec.ts (simplified)\nexport async function executeBashTool(\n  input: { command: string },\n  context: ToolContext,\n): Promise<ToolResult> {\n  const { command } = input\n  const { sessionEntry, securityPolicy } = context\n\n  if (!securityPolicy.allowBash) {\n    return { error: 'Bash execution not permitted' }\n  }\n\n  const pty = spawn('bash', ['-c', command], {\n    cwd: sessionEntry.metadata.workingDir,\n    env: { ...process.env, ...sessionEntry.metadata.env },\n    timeout: 120_000,\n  })\n\n  let stdout = ''\n  pty.onData(data => { stdout += data })\n  const exitCode = await pty.wait()\n\n  return {\n    stdout: stdout.slice(0, 100_000),\n    exitCode,\n  }\n}","language":"typescript"},"narration":"Deep in Tool Execution Gorge, the agent's intentions become real actions. Security check first, then a real PTY with a two-minute timeout. Bash is just one tool \u2014 same pattern for browser control, canvas, and device actions."},{"name":"Response Delivery Frontier","subtitle":"Back Through the Channel","concept":"Channel Plugins","landmarkType":"town","code":{"file":"src/gateway/server-channels.ts","content":"// src/gateway/server-channels.ts (simplified)\nexport function createChannelManager(gateway: GatewayServer) {\n\n  async function deliverResponse(\n    sessionEntry: SessionEntry,\n    response: AgentResponse,\n  ) {\n    const { channel, peer, accountId } = sessionEntry.routing\n    const plugin = gateway.channels.get(channel)\n\n    const formatted = formatForChannel(channel, response.text, {\n      maxLength: getChannelLimit(channel),\n    })\n\n    for (const chunk of formatted) {\n      await plugin.send({ accountId, peer, text: chunk })\n    }\n\n    sessionEntry.transcript.push({\n      role: 'assistant',\n      content: response.text,\n      timestamp: Date.now(),\n    })\n    await saveSession(sessionEntry)\n\n    gateway.broadcast('chat.response', { text: response.text })\n  }\n\n  return { deliverResponse }\n}","language":"typescript"},"narration":"You made it! The response travels back through the same channel. Formatted for each platform's limits, chunked automatically, saved to the transcript. Message in, intelligence applied, response out. Your wagon has arrived."}],"events":[{"type":"weather","trigger":"after_stop","triggerStop":1,"title":"Protocol Storm!","text":"A storm of messages hits your gateway \u2014 WhatsApp sends phone numbers, Discord sends snowflake IDs, Slack sends workspace tokens. How do you weather this storm?","choices":[{"text":"Define a common interface that all channel plugins must implement","correct":true,"explanation":"OpenClaw's ChannelPlugin interface forces every platform into the same shape. New channels can be added without touching gateway code."},{"text":"Write a giant switch statement in the gateway for each platform","correct":false,"explanation":"That would make the gateway a tangled mess. Every new channel means modifying core code."},{"text":"Only support one messaging platform to keep things simple","correct":false,"explanation":"Multi-channel support is core to OpenClaw's value. The trick is clean abstraction through the plugin interface."}],"concept":"Channel Plugins","difficulty":"easy"},{"type":"encounter","trigger":"after_stop","triggerStop":2,"title":"A Fellow Operator Appears","text":"A seasoned operator says: 'I run three agents \u2014 personal on WhatsApp, work on Slack, social bot on Discord. One gateway.' How does it know which agent handles which message?","choices":[{"text":"Route bindings in the config map channels, peers, and guilds to agents","correct":true,"explanation":"Config bindings map at multiple levels. Priority: peer, guild, team, account, channel, then default."},{"text":"Each agent runs its own separate gateway on a different port","correct":false,"explanation":"One gateway, multiple agents. Separate gateways would mean separate configs and connections."},{"text":"The user specifies which agent to use in every message","correct":false,"explanation":"Routing is automatic and invisible. The gateway figures it out from the config bindings."}],"concept":"Route Resolution","difficulty":"easy"},{"type":"river","trigger":"after_stop","triggerStop":3,"title":"The Session State River","text":"You've reached the boundary between stateless request handling and persistent memory. Your assistant needs to remember last week's conversation across a restart. How do you cross?","choices":[{"text":"Store sessions as JSON files on disk, loaded on demand per key","correct":true,"explanation":"Each session is a JSON file at a predictable path. No database needed. The file system IS the persistence layer."},{"text":"Keep all sessions in memory with a Redis cache","correct":false,"explanation":"In-memory state is lost on restart. Redis adds an external dependency. OpenClaw is local-first."},{"text":"Store history in the AI model's context and let it remember","correct":false,"explanation":"Context windows are limited and expensive. The persistence layer is separate from inference."}],"concept":"Session Persistence","difficulty":"medium"},{"type":"misfortune","trigger":"after_stop","triggerStop":5,"title":"Runaway Process!","text":"The AI agent ran a shell command that's an infinite loop consuming 100% CPU. Your gateway is grinding to a halt!","choices":[{"text":"Tool execution needs timeouts and session security policies should gate commands","correct":true,"explanation":"Bash tools have a two-minute timeout, and security policies control what's allowed. The gateway is the security boundary."},{"text":"The agent should be smarter and never request dangerous commands","correct":false,"explanation":"Never rely on the AI as the security boundary. Defense in depth means the gateway enforces limits."},{"text":"Run all tools in the agent's process so only it crashes","correct":false,"explanation":"Tools run on the gateway because they need local machine access. The separation is a feature."}],"concept":"Gateway Control Plane","difficulty":"medium"},{"type":"river","trigger":"after_stop","triggerStop":5,"title":"The RPC River","text":"The deepest river \u2014 the boundary between gateway and agent runtime. The agent needs a browser screenshot but runs in a different process. How?","choices":[{"text":"JSON-RPC over WebSocket: agent requests, gateway executes locally","correct":true,"explanation":"The agent streams tool_use blocks, the gateway intercepts and executes. The agent could run remotely."},{"text":"The agent directly imports and calls the browser module","correct":false,"explanation":"Separate processes can't call each other's code. The RPC boundary IS the security model."},{"text":"The agent writes commands to a shared file the gateway watches","correct":false,"explanation":"File watching is slow and unreliable. WebSocket RPC gives real-time bidirectional streaming."}],"concept":"Gateway Control Plane","difficulty":"hard"},{"type":"fortune","trigger":"after_stop","triggerStop":6,"title":"Spring of Clean Architecture","text":"Your understanding of the control plane is solid! Friendly contributors join your camp and share plugin templates.","choices":[],"concept":"Channel Plugins","difficulty":"easy"},{"type":"weather","trigger":"after_stop","triggerStop":6,"title":"Message Chunking Fog","text":"Dense fog. Your assistant wrote 3000 words but WhatsApp only allows 4096 characters. The user sees a truncated response. What went wrong?","choices":[{"text":"The formatter should chunk messages based on each channel's limit","correct":true,"explanation":"WhatsApp: 4096, Discord: 2000, Slack: 40000. The delivery layer splits into properly-sized chunks."},{"text":"Tell the AI to always write short responses","correct":false,"explanation":"You can't enforce output length on LLMs. The delivery layer handles formatting."},{"text":"Switch to a channel with no message limits","correct":false,"explanation":"Multi-channel means meeting users where they are. Every channel must work correctly."}],"concept":"Channel Plugins","difficulty":"easy"}],"partyMembers":[{"name":"Gateway Control Plane","icon":"gateway","maxHealth":3},{"name":"Channel Plugins","icon":"channel","maxHealth":3},{"name":"Route Resolution","icon":"route","maxHealth":3},{"name":"Session Persistence","icon":"session","maxHealth":3}],"deathMessages":["You have died of unhandled WebSocket disconnections.","You have died of missing default routes.","You have drowned in the RPC River.","You have died of session bloat.","You have died of a runaway bash command.","You have died of unhandled plugin exceptions.","You have died of API rate limits.","You have died of dependency conflicts.","You have died of expired sessions.","You have died of Discord snowflake avalanche.","You have died of invalid routing config."]};
+const TRAIL_DATA={"framework":"shannon","trailName":"The Exploit Trail","stops":[{"name":"Independence, MO","subtitle":"Target Acquisition","concept":"Reconnaissance","landmarkType":"town","code":{"file":"src/config/target.ts","content":"// src/config/target.ts\nimport { TargetConfig } from '@shannon/types'\n\nexport interface PentestTarget {\n  name: string\n  codeRepo: string        // local path or git URL\n  appUrl: string          // running application URL\n  scope: ScopeDefinition\n}\n\nexport function loadTarget(config: TargetConfig): PentestTarget {\n  if (!config.codeRepo) {\n    throw new Error('White-box testing requires source code access')\n  }\n  if (!config.appUrl) {\n    throw new Error('Live application URL required for exploitation')\n  }\n\n  return {\n    name: config.name,\n    codeRepo: resolveCodePath(config.codeRepo),\n    appUrl: normalizeUrl(config.appUrl),\n    scope: {\n      includePaths: config.scope?.include ?? ['/**'],\n      excludePaths: config.scope?.exclude ?? ['/health', '/metrics'],\n      maxDepth: config.scope?.maxDepth ?? 5,\n    },\n  }\n}","language":"typescript"},"narration":"Every pentest journey starts at Independence. Shannon needs two things: source code and a running app URL. White-box testing means you can see the code — no guessing what the backend does. The target config defines what's in scope and what's off limits."},{"name":"Chimney Rock","subtitle":"Reconnaissance","concept":"Reconnaissance","landmarkType":"mountain","code":{"file":"src/agents/recon.ts","content":"// src/agents/recon.ts\nimport { Agent } from '@shannon/agent-sdk'\nimport { execNmap, execWhatWeb } from '../tools/scanners'\n\nexport const reconAgent = new Agent({\n  name: 'reconnaissance',\n  model: 'claude-sonnet-4-6',\n\n  async execute({ target }) {\n    // Static analysis: read source, map architecture\n    const codeAnalysis = await this.analyze({\n      task: 'Map application architecture',\n      files: await glob(target.codeRepo + '/src/**/*.{ts,js,py}'),\n      extract: ['routes', 'middleware', 'auth', 'database'],\n    })\n\n    // Active scanning: fingerprint the live target\n    const nmap = await execNmap(target.appUrl, {\n      flags: ['-sV', '-sC', '--top-ports', '1000'],\n    })\n    const whatweb = await execWhatWeb(target.appUrl)\n\n    return {\n      architecture: codeAnalysis.architecture,\n      entryPoints: codeAnalysis.routes,\n      techStack: whatweb.technologies,\n      openPorts: nmap.ports,\n      frameworks: whatweb.frameworks,\n    }\n  },\n})","language":"typescript"},"narration":"At Chimney Rock, Shannon scans the horizon. Static code analysis maps the architecture — routes, middleware, auth flows. Nmap and WhatWeb fingerprint the live target: open ports, technology stack, framework versions. Understand the target before you attack it."},{"name":"Fort Laramie","subtitle":"Exploration Mapping","concept":"Browser Automation","landmarkType":"camp","code":{"file":"src/agents/explorer.ts","content":"// src/agents/explorer.ts\nimport { Agent } from '@shannon/agent-sdk'\nimport { Browser } from 'playwright'\n\nexport const explorerAgent = new Agent({\n  name: 'explorer',\n  model: 'claude-sonnet-4-6',\n\n  async execute({ target, recon }) {\n    const browser = await Browser.launch({ headless: true })\n    const page = await browser.newPage()\n\n    // Navigate and map the application\n    await page.goto(target.appUrl)\n    const sitemap = await this.crawl(page, {\n      maxPages: 50,\n      followForms: true,\n    })\n\n    // Test authentication flows\n    for (const authEndpoint of recon.entryPoints.auth) {\n      await page.goto(authEndpoint.url)\n      await page.fill('[name=\"username\"]', 'test@example.com')\n      await page.fill('[name=\"password\"]', 'TestPassword123!')\n      await page.click('[type=\"submit\"]')\n      await this.recordAuthFlow(page)\n    }\n\n    // Submit forms with edge-case inputs\n    for (const form of sitemap.forms) {\n      await this.fuzzForm(page, form, {\n        inputs: ['\\' OR 1=1--', '<script>alert(1)</script>'],\n      })\n    }\n\n    await browser.close()\n    return { sitemap, authFlows: this.authFlows, formResults: this.results }\n  },\n})","language":"typescript"},"narration":"Fort Laramie is where Shannon gets hands-on. Playwright automates a real browser — navigating pages, filling forms, testing login flows. It's not just crawling links; it's interacting like a real user would. Every form submission, every auth flow gets mapped as potential attack surface."},{"name":"Independence Rock","subtitle":"Attack Surface Analysis","concept":"Exploitation","landmarkType":"mountain","code":{"file":"src/agents/analyzer.ts","content":"// src/agents/analyzer.ts\nimport { Agent } from '@shannon/agent-sdk'\n\nexport const attackSurfaceAgent = new Agent({\n  name: 'attack-surface-analyzer',\n  model: 'claude-sonnet-4-6',\n\n  async execute({ target, recon, exploration }) {\n    // Run specialized analysis agents in parallel\n    const [sqlResults, xssResults, authResults, ssrfResults] =\n      await Promise.all([\n        this.spawn('sql-injection-analyzer', {\n          codeRoutes: recon.entryPoints,\n          formResults: exploration.formResults,\n          ormType: recon.techStack.orm,\n        }),\n        this.spawn('xss-analyzer', {\n          templates: recon.architecture.views,\n          formResults: exploration.formResults,\n          framework: recon.techStack.frontend,\n        }),\n        this.spawn('auth-bypass-analyzer', {\n          authFlows: exploration.authFlows,\n          jwtConfig: recon.architecture.auth,\n          sessionMgmt: recon.architecture.sessions,\n        }),\n        this.spawn('ssrf-analyzer', {\n          urlParams: exploration.sitemap.urlParams,\n          serverCode: recon.architecture.httpClients,\n        }),\n      ])\n\n    return this.prioritize([...sqlResults, ...xssResults,\n      ...authResults, ...ssrfResults])\n  },\n})","language":"typescript"},"narration":"Independence Rock is where insights converge. Parallel agents analyze the combined results — one for SQL injection, one for XSS, one for auth bypass, one for SSRF. Each agent combines code analysis with exploration data. Static tells you where the code is vulnerable; dynamic tells you if you can reach it."},{"name":"South Pass","subtitle":"Injection Testing","concept":"Exploitation","landmarkType":"river","code":{"file":"src/agents/injector.ts","content":"// src/agents/injector.ts\nimport { Agent } from '@shannon/agent-sdk'\n\nexport const injectionAgent = new Agent({\n  name: 'injection-tester',\n  model: 'claude-sonnet-4-6',\n\n  async execute({ target, hypotheses }) {\n    const findings = []\n\n    for (const hypothesis of hypotheses.sqlInjection) {\n      // Code-aware payload crafting\n      const payload = this.craftPayload({\n        ormType: hypothesis.orm,        // Sequelize? Raw SQL?\n        paramType: hypothesis.paramType, // query string? body?\n        dbType: hypothesis.database,     // PostgreSQL? MySQL?\n        escaping: hypothesis.escaping,   // What sanitization exists?\n      })\n\n      const result = await this.inject(target.appUrl, {\n        endpoint: hypothesis.endpoint,\n        method: hypothesis.method,\n        param: hypothesis.param,\n        payload: payload,\n      })\n\n      if (result.indicates.sqli) {\n        findings.push({\n          type: 'SQL_INJECTION',\n          severity: 'CRITICAL',\n          endpoint: hypothesis.endpoint,\n          payload: payload,\n          evidence: result.response,\n          codeRef: hypothesis.sourceFile + ':' + hypothesis.sourceLine,\n        })\n      }\n    }\n\n    return findings\n  },\n})","language":"typescript"},"narration":"South Pass — the narrow gap where payloads squeeze through. Shannon doesn't spray generic payloads blindly. It reads the source code to understand which ORM is used, what sanitization exists, and crafts targeted payloads. Knowing the code means knowing exactly where raw SQL meets user input."},{"name":"Fort Bridger","subtitle":"Auth Bypass","concept":"Proof-by-Exploit","landmarkType":"forest","code":{"file":"src/agents/auth-bypass.ts","content":"// src/agents/auth-bypass.ts\nimport { Agent } from '@shannon/agent-sdk'\nimport { decode, sign, verify } from 'jsonwebtoken'\n\nexport const authBypassAgent = new Agent({\n  name: 'auth-bypass',\n  model: 'claude-sonnet-4-6',\n\n  async execute({ target, jwtConfig }) {\n    const findings = []\n    const token = await this.obtainValidToken(target)\n    const decoded = decode(token, { complete: true })\n\n    // Test alg:none attack\n    const noneToken = sign(\n      { ...decoded.payload, role: 'admin' },\n      '',\n      { algorithm: 'none' }\n    )\n    const noneResult = await this.testToken(target, noneToken)\n    if (noneResult.accepted) {\n      findings.push({\n        type: 'JWT_ALG_NONE',\n        severity: 'CRITICAL',\n        description: 'Server accepts unsigned JWT tokens',\n        exploit: `curl -H \"Authorization: Bearer ${noneToken}\" ${target.appUrl}/api/admin`,\n      })\n    }\n\n    // Test algorithm confusion (RS256 -> HS256)\n    if (decoded.header.alg === 'RS256' && jwtConfig.publicKey) {\n      const confusedToken = sign(\n        { ...decoded.payload, role: 'admin' },\n        jwtConfig.publicKey,\n        { algorithm: 'HS256' }\n      )\n      const confusedResult = await this.testToken(target, confusedToken)\n      if (confusedResult.accepted) {\n        findings.push({\n          type: 'JWT_ALG_CONFUSION',\n          severity: 'CRITICAL',\n          description: 'RS256/HS256 algorithm confusion',\n        })\n      }\n    }\n\n    return findings\n  },\n})","language":"typescript"},"narration":"Fort Bridger guards the authentication frontier. JWT attacks are Shannon's specialty here — the alg:none attack sets the algorithm to nothing, bypassing signature checks on misconfigured servers. Algorithm confusion tricks RS256 verification into accepting HS256 signed with the public key. Authentication is the crown jewels of security."},{"name":"The Dalles","subtitle":"Exploit Validation","concept":"Proof-by-Exploit","landmarkType":"river","code":{"file":"src/agents/validator.ts","content":"// src/agents/validator.ts\nimport { Agent } from '@shannon/agent-sdk'\n\nexport const exploitValidator = new Agent({\n  name: 'exploit-validator',\n  model: 'claude-sonnet-4-6',\n\n  async execute({ target, findings }) {\n    const validated = []\n\n    for (const finding of findings) {\n      // Actually execute the exploit — not just flag it\n      const exploitResult = await this.exploit(target, finding, {\n        timeout: 30_000,\n        maxRetries: 3,\n      })\n\n      if (exploitResult.success) {\n        // Reproduce it twice more to confirm\n        const repro1 = await this.exploit(target, finding)\n        const repro2 = await this.exploit(target, finding)\n\n        if (repro1.success && repro2.success) {\n          validated.push({\n            ...finding,\n            status: 'CONFIRMED',\n            reproducible: true,\n            exploitSteps: exploitResult.steps,\n            curlCommand: this.generateCurl(finding),\n            evidence: {\n              request: exploitResult.request,\n              response: exploitResult.response,\n              screenshot: exploitResult.screenshot,\n            },\n          })\n        }\n      }\n    }\n\n    return validated\n  },\n})","language":"typescript"},"narration":"The Dalles is where theory meets reality. Shannon doesn't just flag potential vulnerabilities — it exploits them. Three successful reproductions confirm a finding. No exploit, no report. This eliminates the false positives that plague traditional scanners and gives defenders reproducible proof."},{"name":"Oregon City","subtitle":"Report Generation","concept":"Browser Automation","landmarkType":"town","code":{"file":"src/report/generator.ts","content":"// src/report/generator.ts\nimport { ValidatedFinding } from '@shannon/types'\n\nexport function generateReport(\n  findings: ValidatedFinding[],\n  target: PentestTarget,\n): SecurityReport {\n  return {\n    executive_summary: summarize(findings),\n    target: {\n      name: target.name,\n      url: target.appUrl,\n      scope: target.scope,\n    },\n    findings: findings.map(f => ({\n      title: f.type,\n      severity: f.severity,\n      description: f.description,\n      // Copy-paste ready exploit command\n      reproduction: {\n        steps: f.exploitSteps,\n        curl: f.curlCommand,\n        evidence: f.evidence,\n      },\n      remediation: generateRemediation(f),\n      references: getCVEReferences(f),\n    })),\n    methodology: 'Autonomous white-box penetration test',\n    tools: ['Shannon AI', 'Playwright', 'Nmap', 'WhatWeb'],\n  }\n}","language":"typescript"},"narration":"You made it to Oregon City! The final report is what separates Shannon from noise-generating scanners. Every finding has copy-paste exploit commands, screenshots of successful exploitation, and specific remediation steps. An actionable security report, not a 500-page dump of theoretical alerts."}],"events":[{"type":"weather","trigger":"after_stop","triggerStop":1,"title":"Scope Storm!","text":"A storm of targets hits your terminal — production servers, staging environments, third-party APIs, internal tools. Your scope definition is being tested. Why does Shannon require source code access for white-box testing?","choices":[{"text":"Code analysis guides attack strategy and reveals vulnerabilities invisible to blind testing","correct":true,"explanation":"White-box testing means Shannon reads the source code to find where raw SQL meets user input, where auth is misconfigured, where secrets are hardcoded. Black-box testing can only guess."},{"text":"Shannon can't use a browser without source code","correct":false,"explanation":"Shannon uses Playwright for browser automation regardless of code access. Source code enables targeted testing, not browser control."},{"text":"Source code is easier to read than HTTP responses","correct":false,"explanation":"It's not about ease of reading — it's about finding vulnerabilities that are invisible from the outside, like unsafe ORM usage or hardcoded secrets."}],"concept":"Reconnaissance","difficulty":"easy"},{"type":"encounter","trigger":"after_stop","triggerStop":2,"title":"A Security Scout Appears!","text":"A grizzled security researcher approaches your camp. 'I see you're running Nmap and WhatWeb against the target. Good start.' What do these tools discover about the target?","choices":[{"text":"Open ports, services, technology stack, and framework versions","correct":true,"explanation":"Nmap discovers open ports and running services. WhatWeb fingerprints the technology stack — web server, framework, programming language, CMS versions. Together they map the attack surface."},{"text":"Passwords stored in the application database","correct":false,"explanation":"Nmap and WhatWeb are reconnaissance tools, not exploitation tools. They discover services and technologies, not credentials."},{"text":"Source code vulnerabilities like SQL injection","correct":false,"explanation":"These are network and technology fingerprinting tools. Source code analysis is a separate phase that Shannon handles with its code analysis agent."}],"concept":"Reconnaissance","difficulty":"easy"},{"type":"river","trigger":"after_stop","triggerStop":4,"title":"The Vulnerability River Crossing!","text":"You've reached the widest river on the trail — the gap between hypothesis and proof. Your analysis agents have generated dozens of potential vulnerabilities. Why does Shannon run analysis agents in parallel?","choices":[{"text":"Each vulnerability type can be analyzed independently, reducing total time","correct":true,"explanation":"SQL injection analysis doesn't depend on XSS analysis. Auth bypass doesn't need SSRF results. Running them in parallel via Promise.all cuts wall-clock time dramatically."},{"text":"One agent isn't smart enough to find all vulnerability types","correct":false,"explanation":"It's about efficiency, not intelligence. A single agent could analyze all types sequentially — parallelism is an optimization, not a capability requirement."},{"text":"Parallel execution is always faster than sequential","correct":false,"explanation":"Parallel is only faster when tasks are independent. If one analysis depended on another's output, you'd need sequential execution. Shannon's architecture ensures independence."}],"concept":"Exploitation","difficulty":"medium"},{"type":"weather","trigger":"after_stop","triggerStop":5,"title":"Injection Storm!","text":"Payloads are flying everywhere — SQL fragments, XSS vectors, template injections. The storm tests your understanding. How does code-aware testing improve SQL injection detection compared to blind fuzzing?","choices":[{"text":"Knowing the ORM and query builder reveals which inputs reach raw SQL vs parameterized queries","correct":true,"explanation":"If the code uses parameterized queries everywhere, Shannon skips those endpoints. If it finds raw string concatenation in SQL, it knows exactly which parameter to target and what database dialect to exploit."},{"text":"It makes the payloads longer and more complex","correct":false,"explanation":"Code-aware testing makes payloads more targeted, not longer. Understanding the ORM means fewer, smarter payloads instead of brute-force lists."},{"text":"It bypasses Web Application Firewalls automatically","correct":false,"explanation":"WAF bypass is a separate technique. Code-aware testing helps identify truly vulnerable code paths, not evade security controls."}],"concept":"Exploitation","difficulty":"medium"},{"type":"misfortune","trigger":"after_stop","triggerStop":6,"title":"Auth Bypass Gone Wrong!","text":"Your JWT manipulation backfired — the server returned a cryptic error and locked your test account. Before trying again, you need to understand the attack. What is the JWT alg:none attack?","choices":[{"text":"Setting the JWT algorithm to \"none\" to bypass signature verification on misconfigured servers","correct":true,"explanation":"The JWT spec technically allows algorithm \"none\" for trusted contexts. Misconfigured servers that don't validate the algorithm field will accept unsigned tokens, letting attackers forge any claims."},{"text":"Using no JWT at all and accessing endpoints directly","correct":false,"explanation":"The alg:none attack still sends a JWT — it just sets the algorithm header to \"none\" so the signature is empty. The token structure is preserved."},{"text":"Encrypting the JWT with a null cipher so nobody can read it","correct":false,"explanation":"JWTs are signed, not encrypted (unless using JWE). The alg:none attack removes the signature, it doesn't add encryption."}],"concept":"Proof-by-Exploit","difficulty":"hard"},{"type":"encounter","trigger":"after_stop","triggerStop":7,"title":"Proof-by-Exploitation Pioneer!","text":"A veteran pentester at The Dalles checkpoint asks the critical question: 'Why does Shannon require actual exploitation instead of just flagging potential issues?'","choices":[{"text":"Eliminates false positives — proves real-world exploitability with reproducible steps","correct":true,"explanation":"Traditional scanners flag thousands of 'potential' issues. Shannon exploits each finding three times to confirm it's real and reproducible. Defenders get actionable proof, not noise."},{"text":"Actual exploitation is more dramatic and impressive in reports","correct":false,"explanation":"It's not about drama — it's about accuracy. A finding with a working exploit and curl command is infinitely more useful than a 'possible vulnerability' warning."},{"text":"Static analysis is always wrong so you must exploit everything","correct":false,"explanation":"Static analysis is valuable for finding potential issues. But without exploitation, you don't know which findings are actually exploitable in the running application."}],"concept":"Proof-by-Exploit","difficulty":"medium"}],"partyMembers":[{"name":"Reconnaissance","icon":"server","maxHealth":3},{"name":"Exploitation","icon":"router","maxHealth":3},{"name":"Browser Automation","icon":"data","maxHealth":3},{"name":"Proof-by-Exploit","icon":"layout","maxHealth":3}],"deathMessages":["Died of false positives. Your report was 500 pages of noise.","Lost in the authentication maze \u2014 2FA was too strong.","Drowned in rate limiting. The WAF blocked all your payloads.","Killed by your own SQL injection. The database dropped itself.","Your Playwright session crashed. The browser ate all the RAM.","Starved waiting for Temporal workflow to resume. Durable execution wasn't so durable.","Died of scope creep. You started pentesting the wrong application.","Buried under a mountain of unexploitable CVEs."]};
 
 // =====================================================================
 // GAME STATE
@@ -187,21 +187,21 @@ let currentEventType = '';  // event type for canvas overlay
 let currentEventTitle = ''; // event title for canvas overlay
 
 const travelFlavors = [
-  "The WebSocket connection is strong today...",
-  "Packets flow smoothly across the middleware...",
-  "Your JSON payloads are well-formed...",
-  "The config files look clean and tidy...",
-  "A gentle breeze carries API responses...",
-  "The route resolver hums along quietly...",
-  "Session files persist without corruption...",
-  "The gateway handles traffic with grace...",
-  "Your TypeScript types provide comfort on the trail...",
-  "The event loop is calm and responsive...",
-  "A hawk circles overhead, watching your throughput...",
-  "The trail ahead is well-documented...",
-  "Your error handling is robust today...",
-  "The authentication tokens are fresh...",
-  "Your dependency tree looks healthy..."
+  "The Playwright session is stable today...",
+  "Payloads flow smoothly through the request pipeline...",
+  "Your Nmap scans return clean results...",
+  "The target's WAF seems asleep...",
+  "A gentle breeze carries HTTP responses...",
+  "The vulnerability scanner hums along quietly...",
+  "Exploit proofs reproduce without issues...",
+  "The pentesting framework handles traffic with grace...",
+  "Your TypeScript agents coordinate perfectly...",
+  "The Temporal workflow is calm and responsive...",
+  "A hawk circles overhead, watching your network traffic...",
+  "The attack surface is well-mapped ahead...",
+  "Your JWT tokens are freshly forged...",
+  "The dependency tree reveals interesting packages...",
+  "Claude analyzes the code with focused precision..."
 ];
 
 // =====================================================================
@@ -374,10 +374,10 @@ function drawWagon(wx, wy) {
     ctx.fillStyle = '#553300';
     ctx.fillRect(Math.floor(wcx - 1), Math.floor(wcy - 1), 2, 2);
   }
-  // Purple flag
-  ctx.fillStyle = '#AA00AA';
+  // Red flag (security/hacker theme)
+  ctx.fillStyle = '#FF0000';
   ctx.fillRect(Math.floor(wx + 14), Math.floor(wy - 22), 1, -7);
-  ctx.fillStyle = '#FF55FF';
+  ctx.fillStyle = '#FF5555';
   ctx.fillRect(Math.floor(wx + 15), Math.floor(wy - 29), 6, 4);
 }
 
@@ -492,8 +492,8 @@ function drawEventOverlay(time) {
 
   var t = (time || 0) * 0.001; // seconds
 
-  // --- PROTOCOL STORM: dark sky, lightning, rain ---
-  if (currentEventTitle.indexOf('Protocol Storm') !== -1) {
+  // --- SCOPE STORM: dark sky, lightning, rain ---
+  if (currentEventTitle.indexOf('Scope Storm') !== -1) {
     // Darken sky
     ctx.fillStyle = 'rgba(0,0,50,0.45)';
     ctx.fillRect(0, 0, W, 110);
@@ -529,8 +529,8 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- FELLOW OPERATOR: person standing by campfire ---
-  if (currentEventTitle.indexOf('Fellow Operator') !== -1) {
+  // --- SECURITY SCOUT: person standing by campfire ---
+  if (currentEventTitle.indexOf('Security Scout') !== -1) {
     var px = 200, py = 142;
     // Person body
     ctx.fillStyle = '#AA5500';
@@ -563,8 +563,8 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- SESSION STATE RIVER: rough rapids with white water ---
-  if (currentEventTitle.indexOf('Session State') !== -1) {
+  // --- VULNERABILITY RIVER: rough rapids with white water ---
+  if (currentEventTitle.indexOf('Vulnerability River') !== -1) {
     // Extra turbulence on the river
     ctx.fillStyle = '#55FFFF';
     for (var i = 0; i < 20; i++) {
@@ -582,8 +582,42 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- RUNAWAY PROCESS: red sky, smoke, warning ---
-  if (currentEventTitle.indexOf('Runaway Process') !== -1) {
+  // --- INJECTION STORM: dark sky, red-tinged rain of payloads ---
+  if (currentEventTitle.indexOf('Injection Storm') !== -1) {
+    // Darken sky with red tint
+    ctx.fillStyle = 'rgba(50,0,0,0.35)';
+    ctx.fillRect(0, 0, W, 110);
+    // Lightning flash (periodic)
+    var flashPhase = Math.sin(t * 2.1) + Math.sin(t * 2.7);
+    if (flashPhase > 1.6) {
+      ctx.fillStyle = 'rgba(255,100,100,0.3)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = '#FF5555';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      var lx = 120 + Math.sin(t * 1.8) * 80;
+      ctx.moveTo(lx, 10);
+      ctx.lineTo(lx - 8, 40);
+      ctx.lineTo(lx + 5, 40);
+      ctx.lineTo(lx - 2, 70);
+      ctx.stroke();
+    }
+    // Red-tinted rain (payloads)
+    ctx.strokeStyle = '#FF5555';
+    ctx.lineWidth = 1;
+    for (var i = 0; i < 35; i++) {
+      var rx = (i * 9.1 + t * 70) % W;
+      var ry = (i * 12.3 + t * 100) % 110;
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(rx), Math.floor(ry));
+      ctx.lineTo(Math.floor(rx - 1), Math.floor(ry + 4));
+      ctx.stroke();
+    }
+    return;
+  }
+
+  // --- AUTH BYPASS GONE WRONG: red sky, smoke, warning ---
+  if (currentEventTitle.indexOf('Auth Bypass Gone Wrong') !== -1) {
     // Red danger tint
     ctx.fillStyle = 'rgba(170,0,0,0.25)';
     ctx.fillRect(0, 0, W, H);
@@ -619,91 +653,30 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- RPC RIVER: deep blue, fog/mist over water ---
-  if (currentEventTitle.indexOf('RPC River') !== -1) {
-    // Fog layers drifting over the river
-    ctx.fillStyle = 'rgba(85,85,255,0.12)';
-    for (var i = 0; i < 6; i++) {
-      var fogX = (i * 60 + t * 12 + Math.sin(i) * 20) % (W + 40) - 20;
-      var fogY = 145 + Math.sin(t * 0.5 + i * 1.1) * 5;
-      ctx.beginPath();
-      ctx.arc(fogX, fogY, 20 + i * 3, 0, Math.PI * 2);
-      ctx.fill();
+  // --- PROOF-BY-EXPLOITATION PIONEER: person at checkpoint ---
+  if (currentEventTitle.indexOf('Proof-by-Exploitation') !== -1) {
+    var px = 200, py = 142;
+    // Person body
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(px, py - 12, 4, 8);
+    ctx.fillStyle = '#FFAA00';
+    ctx.fillRect(px, py - 15, 4, 3);
+    ctx.fillRect(px - 1, py - 4, 2, 5);
+    ctx.fillRect(px + 3, py - 4, 2, 5);
+    // Hat
+    ctx.fillStyle = '#555555';
+    ctx.fillRect(px - 1, py - 17, 6, 2);
+    ctx.fillRect(px, py - 19, 4, 2);
+    // Terminal/laptop nearby
+    ctx.fillStyle = '#333333';
+    ctx.fillRect(px + 10, py - 8, 10, 7);
+    ctx.fillStyle = '#55FF55';
+    ctx.fillRect(px + 11, py - 7, 8, 5);
+    // Blinking cursor on screen
+    if (Math.sin(t * 4) > 0) {
+      ctx.fillStyle = '#55FF55';
+      ctx.fillRect(px + 13, py - 5, 2, 1);
     }
-    ctx.fillStyle = 'rgba(170,170,255,0.08)';
-    for (var i = 0; i < 8; i++) {
-      var fogX = (i * 45 + t * 8) % (W + 30) - 15;
-      var fogY = 150 + Math.sin(t * 0.3 + i * 0.8) * 8;
-      ctx.beginPath();
-      ctx.arc(fogX, fogY, 15 + i * 2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // Deeper water tint
-    ctx.fillStyle = 'rgba(0,0,85,0.2)';
-    ctx.fillRect(0, 155, W, 18);
-    return;
-  }
-
-  // --- SPRING OF CLEAN ARCHITECTURE: sunny, flowers, rainbow ---
-  if (currentEventTitle.indexOf('Spring') !== -1) {
-    // Bright sun
-    ctx.fillStyle = '#FFFF55';
-    ctx.beginPath();
-    ctx.arc(260, 30, 12, 0, Math.PI * 2);
-    ctx.fill();
-    // Sun rays
-    ctx.strokeStyle = '#FFFF55';
-    ctx.lineWidth = 1;
-    for (var i = 0; i < 8; i++) {
-      var angle = i * Math.PI / 4 + t * 0.3;
-      ctx.beginPath();
-      ctx.moveTo(260 + Math.cos(angle) * 14, 30 + Math.sin(angle) * 14);
-      ctx.lineTo(260 + Math.cos(angle) * 20, 30 + Math.sin(angle) * 20);
-      ctx.stroke();
-    }
-    // Flowers on ground
-    var flowerColors = ['#FF5555', '#FFFF55', '#FF55FF', '#55FFFF', '#55FF55'];
-    for (var i = 0; i < 12; i++) {
-      var fx = (i * 27 + 10) % W;
-      var fy = 135 + (i * 7) % 20;
-      ctx.fillStyle = '#00AA00';
-      ctx.fillRect(fx + 1, fy, 1, 4); // stem
-      ctx.fillStyle = flowerColors[i % flowerColors.length];
-      ctx.fillRect(fx, fy - 1, 3, 2); // petals
-      ctx.fillStyle = '#FFFF55';
-      ctx.fillRect(fx + 1, fy - 1, 1, 1); // center
-    }
-    // Rainbow arc
-    var rainbowColors = ['#FF5555', '#FFAA00', '#FFFF55', '#55FF55', '#5555FF', '#AA00AA'];
-    for (var rc = 0; rc < rainbowColors.length; rc++) {
-      ctx.strokeStyle = rainbowColors[rc];
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(160, 110, 70 + rc * 3, Math.PI * 1.1, Math.PI * 1.9);
-      ctx.stroke();
-    }
-    ctx.lineWidth = 1;
-    return;
-  }
-
-  // --- MESSAGE CHUNKING FOG: heavy fog obscuring everything ---
-  if (currentEventTitle.indexOf('Chunking Fog') !== -1) {
-    // Dense fog layers
-    for (var layer = 0; layer < 3; layer++) {
-      var alpha = 0.15 + layer * 0.08;
-      ctx.fillStyle = 'rgba(170,170,170,' + alpha.toFixed(2) + ')';
-      for (var i = 0; i < 10; i++) {
-        var fogX = (i * 35 + t * (6 + layer * 4) + layer * 50) % (W + 60) - 30;
-        var fogY = 60 + layer * 30 + Math.sin(t * 0.4 + i * 0.9 + layer) * 10;
-        var fogR = 18 + layer * 8 + Math.sin(t * 0.3 + i) * 5;
-        ctx.beginPath();
-        ctx.arc(fogX, fogY, fogR, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    // Fog below obscuring ground details
-    ctx.fillStyle = 'rgba(170,170,170,0.25)';
-    ctx.fillRect(0, 110, W, 60);
     return;
   }
 }
@@ -1162,7 +1135,7 @@ function renderTitleScreen() {
   setTextPanel(
     '<div style="text-align:center; padding-top:20px;">' +
     '<div style="color:#FFFF55; font-size:16px; letter-spacing:2px;">THE CODEREGON TRAIL</div>' +
-    '<div style="color:#AAAAAA; margin-top:8px;">The Gateway Trail - OpenClaw Edition</div>' +
+    '<div style="color:#AAAAAA; margin-top:8px;">The Exploit Trail - A Shannon Learning Adventure</div>' +
     '<div style="margin-top:30px;" class="blink">Press SPACE BAR to begin</div>' +
     '</div>'
   );
@@ -1187,10 +1160,10 @@ function renderSetupScreen() {
     '<div style="padding:8px 20px;">' +
     '<div style="color:#55FFFF; margin-bottom:10px;">Your party of key concepts:</div>' +
     '<div style="margin-left:16px;">' +
-    '<div style="color:#55FF55;">1. Gateway Control Plane    <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">2. Channel Plugins          <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">3. Route Resolution         <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">4. Session Persistence      <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">1. Reconnaissance              <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">2. Exploitation                <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">3. Browser Automation          <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">4. Proof-by-Exploit            <span style="color:#FF5555">' + hearts + '</span></div>' +
     '</div>' +
     '<div style="color:#55FFFF; margin-top:14px; margin-bottom:6px;">What is your profession?</div>' +
     '<div style="margin-left:16px;">' + profsHtml + '</div>' +
@@ -1320,10 +1293,6 @@ function renderDeathScreen() {
   if (techDebtDeath) {
     var techDebtMsgs = [
       'You have died of tech debt dysentery.',
-      // 'You have died of refactoring dysentery.',
-      // 'You have died of unresolved TODOs.',
-      // 'You have died of scope creep.',
-      // 'You have died of dependency bloat.',
     ];
     deathMsg = techDebtMsgs[Math.floor(Math.random() * techDebtMsgs.length)];
     techDebtDeath = false;
@@ -1358,7 +1327,7 @@ function renderWinScreen() {
   var survivors = partyHealth.filter(function(h) { return h > 0; }).length;
   var pctScore = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 100;
 
-  var conceptNames = ['Gateway Control Plane', 'Channel Plugins', 'Route Resolution', 'Session Persistence'];
+  var conceptNames = ['Reconnaissance', 'Exploitation', 'Browser Automation', 'Proof-by-Exploit'];
 
   var masteryHtml = '';
   var weakestName = '';
@@ -1386,7 +1355,7 @@ function renderWinScreen() {
     '<div style="padding:8px 16px;">' +
     '<div style="color:#FFFF55; text-align:center; font-size:16px;">\u2605 YOU MADE IT TO RESPONSE FRONTIER! \u2605</div>' +
     '<div style="margin-top:10px; color:#AAAAAA;">' +
-    '<div>  Framework:    <span style="color:#55FFFF;">OpenClaw (The Gateway Trail)</span></div>' +
+    '<div>  Framework:    <span style="color:#55FFFF;">Shannon (The Exploit Trail)</span></div>' +
     '<div>  Survivors:    <span style="color:#55FF55;">' + survivors + '/' + partyHealth.length + '</span></div>' +
     '<div>  Quiz Score:   <span style="color:#FFFF55;">' + score + '/' + totalQuestions + ' (' + pctScore + '%)</span></div>' +
     '<div>  Best Streak:  <span style="color:#FF55FF;">' + bestStreak + '</span></div>' +

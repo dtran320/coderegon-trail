@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Coderegon Trail - OpenClaw Edition</title>
+<title>The Coderegon Trail - Laravel Edition</title>
 <style>
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 html, body {
@@ -75,7 +75,7 @@ html, body {
 }
 .shake { animation: shake 0.5s ease-in-out; }
 .code-box {
-  background: #000;
+  background: #272822;
   border: 1px solid #555555;
   padding: 6px 8px;
   margin: 6px 0;
@@ -85,10 +85,10 @@ html, body {
   font-size: 12px;
   line-height: 1.3;
   white-space: pre;
-  color: #55FF55;
+  color: #f8f8f2;
 }
 .code-box::-webkit-scrollbar { width: 6px; height: 6px; }
-.code-box::-webkit-scrollbar-track { background: #000; }
+.code-box::-webkit-scrollbar-track { background: #272822; }
 .code-box::-webkit-scrollbar-thumb { background: #555555; }
 .choice-item { cursor: pointer; padding: 2px 4px; }
 .choice-item:hover { color: #FFFF55; }
@@ -135,7 +135,7 @@ html, body {
 // =====================================================================
 // TRAIL DATA
 // =====================================================================
-const TRAIL_DATA={"framework":"openclaw","trailName":"The Gateway Trail","stops":[{"name":"Channel Outpost","subtitle":"Message Arrives","concept":"Channel Plugins","landmarkType":"town","code":{"file":"extensions/whatsapp/src/plugin.ts","content":"// extensions/whatsapp/src/plugin.ts (conceptual)\nimport { ChannelPlugin } from '@openclaw/types'\n\nexport const whatsappPlugin: ChannelPlugin = {\n  config: {\n    listAccountIds(cfg) {\n      return cfg.whatsapp?.accounts?.map(a => a.id) ?? []\n    },\n    async isConfigured(account) {\n      return !!account.phoneNumber\n    },\n    resolveAccount(cfg, id) {\n      return cfg.whatsapp.accounts.find(a => a.id === id)\n    },\n  },\n  gateway: {\n    async startAccount({ account, gateway }) {\n      const sock = makeWASocket({ auth: account.auth })\n      sock.ev.on('messages.upsert', async ({ messages }) => {\n        for (const msg of messages) {\n          await gateway.handleInbound({\n            channel: 'whatsapp',\n            peer: msg.key.remoteJid,\n            text: msg.message?.conversation,\n            accountId: account.id,\n          })\n        }\n      })\n    },\n    async stopAccount({ account }) {\n      // Graceful disconnect\n    },\n  },\n}","language":"typescript"},"narration":"Every journey starts at a channel outpost. OpenClaw connects to thirteen different messaging platforms. Each has a channel plugin following the same interface. Here's the WhatsApp plugin using Baileys to listen for messages. When a message arrives, it normalizes it into a common format and hands it to the gateway."},{"name":"Normalization Pass","subtitle":"Common Message Format","concept":"Channel Plugins","landmarkType":"camp","code":{"file":"src/channels/plugins/types.ts","content":"// src/channels/plugins/types.ts (simplified)\nexport interface ChannelPlugin {\n  config: {\n    listAccountIds(cfg: Config): string[]\n    isConfigured(account: AccountConfig): Promise<boolean>\n    resolveAccount(cfg: Config, id: string): AccountConfig\n  }\n  gateway?: {\n    startAccount(opts: StartAccountOpts): Promise<void>\n    stopAccount(opts: StopAccountOpts): Promise<void>\n  }\n}\n\n// The normalized inbound message shape:\ninterface InboundMessage {\n  channel: string\n  accountId: string\n  peer: RoutePeer\n  text: string\n  threadId?: string\n  attachments?: Media[]\n  guildId?: string\n}","language":"typescript"},"narration":"At the Normalization Pass, chaos becomes order. Every messaging platform has its own format. The ChannelPlugin interface forces them all into one shape. The gateway never needs to know whether you messaged from WhatsApp or Telegram."},{"name":"Route Resolution Fork","subtitle":"Finding the Right Agent","concept":"Route Resolution","landmarkType":"mountain","code":{"file":"src/routing/resolve-route.ts","content":"// src/routing/resolve-route.ts (simplified)\nexport function resolveAgentRoute({\n  cfg, channel, accountId, peer, guildId, teamId,\n}: ResolveRouteInput): ResolvedRoute {\n\n  for (const agent of cfg.agents.list) {\n    const routing = agent.routing\n\n    // 1. Exact peer match (highest priority)\n    const peerMatch = routing.peer?.find(\n      b => b.peer === peer.id && b.channel === channel\n    )\n    if (peerMatch) return { agentId: agent.id, matchedBy: 'peer' }\n\n    // 2. Guild/server match\n    const guildMatch = routing.guild?.find(\n      b => b.guildId === guildId && b.channel === channel\n    )\n    if (guildMatch) return { agentId: agent.id, matchedBy: 'guild' }\n\n    // 3. Account-level match\n    const accountMatch = routing.account?.find(\n      b => b.accountId === accountId && b.channel === channel\n    )\n    if (accountMatch) return { agentId: agent.id, matchedBy: 'account' }\n  }\n\n  return { agentId: cfg.agents.default, matchedBy: 'default' }\n}","language":"typescript"},"narration":"Here's where the trail forks. The resolver checks priority order: specific peer binding, then guild/server, then account, then default. One gateway can serve different agents to different people."},{"name":"Session Persistence Camp","subtitle":"Loading Conversation State","concept":"Session Persistence","landmarkType":"camp","code":{"file":"src/sessions/session-utils.ts","content":"// src/sessions/session-utils.ts (simplified)\nimport { readFile, writeFile, mkdir } from 'fs/promises'\n\nconst SESSIONS_DIR = '~/.openclaw/sessions'\n\nexport async function loadSessionEntry(\n  agentId: string,\n  sessionKey: string,\n): Promise<SessionEntry> {\n  const path = `${SESSIONS_DIR}/${agentId}/${sessionKey}.json`\n\n  try {\n    const raw = await readFile(path, 'utf-8')\n    return JSON.parse(raw)\n  } catch {\n    return {\n      sessionKey,\n      agentId,\n      transcript: [],\n      metadata: {\n        model: 'anthropic/claude-opus-4-6',\n        thinkingLevel: 'medium',\n        tokensUsed: 0,\n        createdAt: Date.now(),\n      },\n    }\n  }\n}","language":"typescript"},"narration":"Sessions are just JSON files on disk. Each agent-plus-peer combination gets its own file. If the file doesn't exist, a fresh session starts with sensible defaults. Zero database dependencies, easy backup."},{"name":"Gateway Control Ridge","subtitle":"The WebSocket Command Center","concept":"Gateway Control Plane","landmarkType":"mountain","code":{"file":"src/gateway/server-chat.ts","content":"// src/gateway/server-chat.ts (simplified)\nexport function createChatRunRegistry(gateway: GatewayServer) {\n\n  async function handleChatSend(\n    sessionEntry: SessionEntry,\n    message: InboundMessage,\n  ) {\n    sessionEntry.transcript.push({\n      role: 'user',\n      content: message.text,\n      timestamp: Date.now(),\n    })\n\n    const agentRpc = gateway.acp.getClient(sessionEntry.agentId)\n    const stream = await agentRpc.call('chat.send', {\n      sessionId: sessionEntry.sessionKey,\n      messages: sessionEntry.transcript,\n      tools: sessionEntry.metadata.enabledTools,\n      model: sessionEntry.metadata.model,\n    })\n\n    for await (const chunk of stream) {\n      if (chunk.type === 'text') {\n        gateway.broadcast('chat.stream', { text: chunk.text })\n      } else if (chunk.type === 'tool_use') {\n        const result = await executeTool(chunk.tool, chunk.input)\n        agentRpc.sendToolResult(chunk.id, result)\n      }\n    }\n    await saveSession(sessionEntry)\n  }\n\n  return { handleChatSend }\n}","language":"typescript"},"narration":"The gateway server accepts WebSocket connections from channels, the CLI, and native apps. The streaming loop handles text and tool calls differently. Text streams in real time; tool calls get executed on the gateway and results feed back."},{"name":"Agent RPC Rapids","subtitle":"Talking to the AI","concept":"Gateway Control Plane","landmarkType":"river","code":{"file":"src/acp/client.ts","content":"// src/acp/client.ts (simplified)\nexport function createAcpClient(agentId: string, wsUrl: string) {\n  const ws = new WebSocket(wsUrl)\n\n  async function* call(\n    method: string,\n    params: ChatSendParams,\n  ): AsyncGenerator<AgentChunk> {\n    const requestId = crypto.randomUUID()\n\n    ws.send(JSON.stringify({\n      jsonrpc: '2.0',\n      id: requestId,\n      method,\n      params,\n    }))\n\n    while (true) {\n      const msg = await nextMessage(ws, requestId)\n      if (msg.type === 'done') break\n      yield msg\n    }\n  }\n\n  function sendToolResult(toolCallId: string, result: ToolResult) {\n    ws.send(JSON.stringify({\n      jsonrpc: '2.0',\n      method: 'tool.result',\n      params: { toolCallId, result },\n    }))\n  }\n\n  return { call, sendToolResult }\n}","language":"typescript"},"narration":"Now we cross the RPC Rapids. The gateway and agent communicate over JSON-RPC. The agent decides what to do, but the gateway controls what actually happens on your machine. Security through architecture."},{"name":"Tool Execution Gorge","subtitle":"Running Commands on the Host","concept":"Gateway Control Plane","landmarkType":"forest","code":{"file":"src/agents/bash-tools.exec.ts","content":"// src/agents/bash-tools.exec.ts (simplified)\nexport async function executeBashTool(\n  input: { command: string },\n  context: ToolContext,\n): Promise<ToolResult> {\n  const { command } = input\n  const { sessionEntry, securityPolicy } = context\n\n  if (!securityPolicy.allowBash) {\n    return { error: 'Bash execution not permitted' }\n  }\n\n  const pty = spawn('bash', ['-c', command], {\n    cwd: sessionEntry.metadata.workingDir,\n    env: { ...process.env, ...sessionEntry.metadata.env },\n    timeout: 120_000,\n  })\n\n  let stdout = ''\n  pty.onData(data => { stdout += data })\n  const exitCode = await pty.wait()\n\n  return {\n    stdout: stdout.slice(0, 100_000),\n    exitCode,\n  }\n}","language":"typescript"},"narration":"Deep in Tool Execution Gorge, the agent's intentions become real actions. Security check first, then a real PTY with a two-minute timeout. Bash is just one tool \u2014 same pattern for browser control, canvas, and device actions."},{"name":"Response Delivery Frontier","subtitle":"Back Through the Channel","concept":"Channel Plugins","landmarkType":"town","code":{"file":"src/gateway/server-channels.ts","content":"// src/gateway/server-channels.ts (simplified)\nexport function createChannelManager(gateway: GatewayServer) {\n\n  async function deliverResponse(\n    sessionEntry: SessionEntry,\n    response: AgentResponse,\n  ) {\n    const { channel, peer, accountId } = sessionEntry.routing\n    const plugin = gateway.channels.get(channel)\n\n    const formatted = formatForChannel(channel, response.text, {\n      maxLength: getChannelLimit(channel),\n    })\n\n    for (const chunk of formatted) {\n      await plugin.send({ accountId, peer, text: chunk })\n    }\n\n    sessionEntry.transcript.push({\n      role: 'assistant',\n      content: response.text,\n      timestamp: Date.now(),\n    })\n    await saveSession(sessionEntry)\n\n    gateway.broadcast('chat.response', { text: response.text })\n  }\n\n  return { deliverResponse }\n}","language":"typescript"},"narration":"You made it! The response travels back through the same channel. Formatted for each platform's limits, chunked automatically, saved to the transcript. Message in, intelligence applied, response out. Your wagon has arrived."}],"events":[{"type":"weather","trigger":"after_stop","triggerStop":1,"title":"Protocol Storm!","text":"A storm of messages hits your gateway \u2014 WhatsApp sends phone numbers, Discord sends snowflake IDs, Slack sends workspace tokens. How do you weather this storm?","choices":[{"text":"Define a common interface that all channel plugins must implement","correct":true,"explanation":"OpenClaw's ChannelPlugin interface forces every platform into the same shape. New channels can be added without touching gateway code."},{"text":"Write a giant switch statement in the gateway for each platform","correct":false,"explanation":"That would make the gateway a tangled mess. Every new channel means modifying core code."},{"text":"Only support one messaging platform to keep things simple","correct":false,"explanation":"Multi-channel support is core to OpenClaw's value. The trick is clean abstraction through the plugin interface."}],"concept":"Channel Plugins","difficulty":"easy"},{"type":"encounter","trigger":"after_stop","triggerStop":2,"title":"A Fellow Operator Appears","text":"A seasoned operator says: 'I run three agents \u2014 personal on WhatsApp, work on Slack, social bot on Discord. One gateway.' How does it know which agent handles which message?","choices":[{"text":"Route bindings in the config map channels, peers, and guilds to agents","correct":true,"explanation":"Config bindings map at multiple levels. Priority: peer, guild, team, account, channel, then default."},{"text":"Each agent runs its own separate gateway on a different port","correct":false,"explanation":"One gateway, multiple agents. Separate gateways would mean separate configs and connections."},{"text":"The user specifies which agent to use in every message","correct":false,"explanation":"Routing is automatic and invisible. The gateway figures it out from the config bindings."}],"concept":"Route Resolution","difficulty":"easy"},{"type":"river","trigger":"after_stop","triggerStop":3,"title":"The Session State River","text":"You've reached the boundary between stateless request handling and persistent memory. Your assistant needs to remember last week's conversation across a restart. How do you cross?","choices":[{"text":"Store sessions as JSON files on disk, loaded on demand per key","correct":true,"explanation":"Each session is a JSON file at a predictable path. No database needed. The file system IS the persistence layer."},{"text":"Keep all sessions in memory with a Redis cache","correct":false,"explanation":"In-memory state is lost on restart. Redis adds an external dependency. OpenClaw is local-first."},{"text":"Store history in the AI model's context and let it remember","correct":false,"explanation":"Context windows are limited and expensive. The persistence layer is separate from inference."}],"concept":"Session Persistence","difficulty":"medium"},{"type":"misfortune","trigger":"after_stop","triggerStop":5,"title":"Runaway Process!","text":"The AI agent ran a shell command that's an infinite loop consuming 100% CPU. Your gateway is grinding to a halt!","choices":[{"text":"Tool execution needs timeouts and session security policies should gate commands","correct":true,"explanation":"Bash tools have a two-minute timeout, and security policies control what's allowed. The gateway is the security boundary."},{"text":"The agent should be smarter and never request dangerous commands","correct":false,"explanation":"Never rely on the AI as the security boundary. Defense in depth means the gateway enforces limits."},{"text":"Run all tools in the agent's process so only it crashes","correct":false,"explanation":"Tools run on the gateway because they need local machine access. The separation is a feature."}],"concept":"Gateway Control Plane","difficulty":"medium"},{"type":"river","trigger":"after_stop","triggerStop":5,"title":"The RPC River","text":"The deepest river \u2014 the boundary between gateway and agent runtime. The agent needs a browser screenshot but runs in a different process. How?","choices":[{"text":"JSON-RPC over WebSocket: agent requests, gateway executes locally","correct":true,"explanation":"The agent streams tool_use blocks, the gateway intercepts and executes. The agent could run remotely."},{"text":"The agent directly imports and calls the browser module","correct":false,"explanation":"Separate processes can't call each other's code. The RPC boundary IS the security model."},{"text":"The agent writes commands to a shared file the gateway watches","correct":false,"explanation":"File watching is slow and unreliable. WebSocket RPC gives real-time bidirectional streaming."}],"concept":"Gateway Control Plane","difficulty":"hard"},{"type":"fortune","trigger":"after_stop","triggerStop":6,"title":"Spring of Clean Architecture","text":"Your understanding of the control plane is solid! Friendly contributors join your camp and share plugin templates.","choices":[],"concept":"Channel Plugins","difficulty":"easy"},{"type":"weather","trigger":"after_stop","triggerStop":6,"title":"Message Chunking Fog","text":"Dense fog. Your assistant wrote 3000 words but WhatsApp only allows 4096 characters. The user sees a truncated response. What went wrong?","choices":[{"text":"The formatter should chunk messages based on each channel's limit","correct":true,"explanation":"WhatsApp: 4096, Discord: 2000, Slack: 40000. The delivery layer splits into properly-sized chunks."},{"text":"Tell the AI to always write short responses","correct":false,"explanation":"You can't enforce output length on LLMs. The delivery layer handles formatting."},{"text":"Switch to a channel with no message limits","correct":false,"explanation":"Multi-channel means meeting users where they are. Every channel must work correctly."}],"concept":"Channel Plugins","difficulty":"easy"}],"partyMembers":[{"name":"Gateway Control Plane","icon":"gateway","maxHealth":3},{"name":"Channel Plugins","icon":"channel","maxHealth":3},{"name":"Route Resolution","icon":"route","maxHealth":3},{"name":"Session Persistence","icon":"session","maxHealth":3}],"deathMessages":["You have died of unhandled WebSocket disconnections.","You have died of missing default routes.","You have drowned in the RPC River.","You have died of session bloat.","You have died of a runaway bash command.","You have died of unhandled plugin exceptions.","You have died of API rate limits.","You have died of dependency conflicts.","You have died of expired sessions.","You have died of Discord snowflake avalanche.","You have died of invalid routing config."]};
+const TRAIL_DATA={"framework": "laravel", "trailName": "The Artisan Trail", "stops": [{"name": "Bootstrap Base", "subtitle": "The Entry Point", "concept": "Service Container", "landmarkType": "town", "code": {"file": "public/index.php", "content": "// public/index.php\n<?php\n\nuse Illuminate\\Http\\Request;\n\ndefine('LARAVEL_START', microtime(true));\n\n// Register the Composer autoloader\nrequire __DIR__.'/../vendor/autoload.php';\n\n// Bootstrap the application from the container\n$app = require_once __DIR__.'/../bootstrap/app.php';\n\n// Resolve the HTTP kernel from the container\n$kernel = $app->make(\n    Illuminate\\Contracts\\Http\\Kernel::class\n);\n\n// Handle the incoming request through the kernel\n$response = $kernel->handle(\n    $request = Request::capture()\n);\n\n$response->send();\n\n$kernel->terminate($request, $response);", "language": "php"}, "narration": "Every Laravel journey starts right here in public slash index dot php. This tiny file does something powerful. It boots the Composer autoloader, then creates the application instance from the bootstrap file. The kernel is resolved from the service container — not instantiated directly. That distinction matters. The request gets captured, pushed through the kernel, and the response fires back. Four steps: boot, handle, send, terminate."}, {"name": "Service Provider Pass", "subtitle": "Wiring the Container", "concept": "Service Container", "landmarkType": "mountain", "code": {"file": "app/Providers/AppServiceProvider.php", "content": "// app/Providers/AppServiceProvider.php\n<?php\n\nnamespace App\\Providers;\n\nuse App\\Services\\PaymentGateway;\nuse App\\Services\\StripePaymentGateway;\nuse App\\Contracts\\PaymentProcessor;\nuse Illuminate\\Support\\ServiceProvider;\n\nclass AppServiceProvider extends ServiceProvider\n{\n    public function register(): void\n    {\n        // Bind an interface to a concrete implementation\n        $this->app->bind(\n            PaymentProcessor::class,\n            StripePaymentGateway::class\n        );\n\n        // Singleton: resolved once, reused everywhere\n        $this->app->singleton(\n            PaymentGateway::class,\n            fn ($app) => new PaymentGateway(\n                config('services.stripe.secret')\n            )\n        );\n    }\n\n    public function boot(): void\n    {\n        // Runs after ALL providers are registered\n    }\n}", "language": "php"}, "narration": "Welcome to Service Provider Pass — the backbone of Laravel's architecture. Service providers wire the entire application together before any request is handled. The register method binds interfaces to concrete classes. When anything asks for PaymentProcessor, the container gives it StripePaymentGateway. The singleton binding means one instance is shared everywhere. Notice boot runs after all providers register. That two-phase design prevents dependency ordering headaches."}, {"name": "Middleware Mountains", "subtitle": "The Filter Stack", "concept": "Middleware Pipeline", "landmarkType": "mountain", "code": {"file": "app/Http/Middleware/EnsureUserIsSubscribed.php", "content": "// app/Http/Middleware/EnsureUserIsSubscribed.php\n<?php\n\nnamespace App\\Http\\Middleware;\n\nuse Closure;\nuse Illuminate\\Http\\Request;\nuse Symfony\\Component\\HttpFoundation\\Response;\n\nclass EnsureUserIsSubscribed\n{\n    public function handle(\n        Request $request,\n        Closure $next\n    ): Response {\n        if (! $request->user()?->subscribed()) {\n            return redirect('/billing');\n        }\n\n        // Pass request to the next middleware in the stack\n        $response = $next($request);\n\n        // After-middleware: runs on the way back out\n        $response->headers->set(\n            'X-Subscription-Status', 'active'\n        );\n\n        return $response;\n    }\n}", "language": "php"}, "narration": "You have climbed into the Middleware Mountains. Every request passes through a stack of middleware layers — like checkpoints on a mountain trail. This one checks if the user has an active subscription. No subscription? Redirected to billing. Notice the dollar-sign next call. That hands the request to the next middleware. Code after that call runs on the way back out. That is the onion model: request goes in through each layer, response comes back through them in reverse."}, {"name": "Router Ravine", "subtitle": "Mapping URLs to Actions", "concept": "Middleware Pipeline", "landmarkType": "camp", "code": {"file": "routes/web.php", "content": "// routes/web.php\n<?php\n\nuse App\\Http\\Controllers\\PostController;\nuse App\\Http\\Controllers\\CommentController;\nuse Illuminate\\Support\\Facades\\Route;\n\nRoute::get('/', fn () => view('welcome'));\n\n// Resource routes generate 7 RESTful endpoints\nRoute::resource('posts', PostController::class);\n\n// Route groups share middleware and prefixes\nRoute::middleware(['auth', 'verified'])->group(function () {\n\n    Route::prefix('dashboard')->group(function () {\n        Route::get('/', fn () => view('dashboard'))\n            ->name('dashboard');\n\n        Route::get('/analytics', fn () => view('analytics'))\n            ->name('dashboard.analytics');\n    });\n\n    // Nested resource: /posts/{post}/comments\n    Route::resource('posts.comments', CommentController::class)\n        ->shallow();\n});", "language": "php"}, "narration": "Down in Router Ravine, URLs find their destinations. One line — Route resource posts — generates seven RESTful endpoints: index, create, store, show, edit, update, destroy. Route groups let you stack middleware and prefixes without repeating yourself. Everything inside the auth group requires a logged-in user. The nested resource creates URLs like posts slash one slash comments. Laravel's router turns URL design into a declarative, readable spec."}, {"name": "Controller Canyon", "subtitle": "Handling the Request", "concept": "Eloquent ORM", "landmarkType": "desert", "code": {"file": "app/Http/Controllers/PostController.php", "content": "// app/Http/Controllers/PostController.php\n<?php\n\nnamespace App\\Http\\Controllers;\n\nuse App\\Http\\Requests\\StorePostRequest;\nuse App\\Models\\Post;\nuse Illuminate\\Http\\RedirectResponse;\nuse Illuminate\\View\\View;\n\nclass PostController extends Controller\n{\n    public function index(): View\n    {\n        $posts = Post::with('author')\n            ->published()\n            ->latest()\n            ->paginate(15);\n\n        return view('posts.index', compact('posts'));\n    }\n\n    public function store(StorePostRequest $request): RedirectResponse\n    {\n        // Validation already passed — $request->validated()\n        $post = $request->user()->posts()->create(\n            $request->validated()\n        );\n\n        return redirect()\n            ->route('posts.show', $post)\n            ->with('success', 'Post created!');\n    }\n}", "language": "php"}, "narration": "Welcome to Controller Canyon, where requests meet business logic. The index method eager-loads authors with the with call to avoid N plus one queries. That published scope is a custom query scope — you will see it on the model at the next stop. The store method accepts a StorePostRequest instead of a plain Request. That is a Form Request — validation rules live in their own class. If validation fails, Laravel automatically redirects back with errors. The controller never touches validation logic directly."}, {"name": "Eloquent Oasis", "subtitle": "The Data Layer", "concept": "Eloquent ORM", "landmarkType": "river", "code": {"file": "app/Models/Post.php", "content": "// app/Models/Post.php\n<?php\n\nnamespace App\\Models;\n\nuse Illuminate\\Database\\Eloquent\\Model;\nuse Illuminate\\Database\\Eloquent\\Relations\\BelongsTo;\nuse Illuminate\\Database\\Eloquent\\Relations\\HasMany;\nuse Illuminate\\Database\\Eloquent\\Builder;\n\nclass Post extends Model\n{\n    protected $fillable = ['title', 'body', 'published_at'];\n\n    protected $casts = [\n        'published_at' => 'datetime',\n    ];\n\n    public function author(): BelongsTo\n    {\n        return $this->belongsTo(User::class, 'user_id');\n    }\n\n    public function comments(): HasMany\n    {\n        return $this->hasMany(Comment::class);\n    }\n\n    public function scopePublished(Builder $query): void\n    {\n        $query->whereNotNull('published_at')\n              ->where('published_at', '<=', now());\n    }\n}", "language": "php"}, "narration": "You have reached Eloquent Oasis — where data flows like water. Each model maps to a database table by convention: Post maps to posts. The fillable array is your mass assignment guard. Without it, attackers could inject unexpected fields into your database. Casts automatically convert published_at to a Carbon datetime object. Relationships read like English: a post belongs to an author, has many comments. That scopePublished method is the custom scope the controller used. Eloquent chains these into complex queries from simple, readable pieces."}, {"name": "Blade Valley", "subtitle": "Rendering the View", "concept": "Blade Templates", "landmarkType": "forest", "code": {"file": "resources/views/posts/index.blade.php", "content": "{{-- resources/views/posts/index.blade.php --}}\n<x-app-layout>\n    <x-slot name=\"header\">\n        <h2>All Posts</h2>\n    </x-slot>\n\n    <div class=\"max-w-4xl mx-auto py-8\">\n        @forelse($posts as $post)\n            <x-post-card :post=\"$post\">\n                <x-slot name=\"meta\">\n                    By {{ $post->author->name }}\n                    &middot;\n                    {{ $post->published_at->diffForHumans() }}\n                </x-slot>\n            </x-post-card>\n        @empty\n            <p>No posts yet. Be the first to write one!</p>\n        @endforelse\n\n        <div class=\"mt-6\">\n            {{ $posts->links() }}\n        </div>\n    </div>\n</x-app-layout>", "language": "php"}, "narration": "Blade Valley is where data becomes HTML. The x-app-layout tag is a Blade component — a reusable layout with named slots. The header slot injects that h2 into a specific place in the layout. The forelse directive loops through posts but handles empty collections gracefully. The x-post-card component receives the post as a prop, just like a frontend framework. Notice diffForHumans on the timestamp — Carbon makes dates say things like two hours ago. And posts links renders pagination automatically. Blade mixes PHP power with template elegance."}, {"name": "Response Frontier", "subtitle": "Delivering the Result", "concept": "Blade Templates", "landmarkType": "town", "code": {"file": "app/Http/Resources/PostResource.php", "content": "// app/Http/Resources/PostResource.php\n<?php\n\nnamespace App\\Http\\Resources;\n\nuse Illuminate\\Http\\Request;\nuse Illuminate\\Http\\Resources\\Json\\JsonResource;\n\nclass PostResource extends JsonResource\n{\n    public function toArray(Request $request): array\n    {\n        return [\n            'id'           => $this->id,\n            'title'        => $this->title,\n            'excerpt'      => str($this->body)->limit(200),\n            'author'       => [\n                'name'   => $this->author->name,\n                'avatar' => $this->author->avatar_url,\n            ],\n            'published_at' => $this->published_at?->toIso8601String(),\n            'comments_count' => $this->whenCounted('comments'),\n            'links' => [\n                'self' => route('posts.show', $this),\n            ],\n        ];\n    }\n}", "language": "php"}, "narration": "You made it to Response Frontier! Laravel can return views, redirects, or structured JSON — and API Resources handle the JSON path beautifully. This PostResource transforms an Eloquent model into a clean API response. It controls exactly which fields are exposed. The whenCounted method conditionally includes the comment count only if it was loaded. The links section follows REST conventions with a self URL. Whether you build with Blade or JSON resources, Laravel gives you a dedicated layer for shaping the response. Your wagon has arrived at the frontier."}], "events": [{"type": "weather", "trigger": "after_stop", "triggerStop": 1, "title": "Dependency Injection Storm!", "text": "A storm of tightly coupled classes is battering your application. Your controller directly instantiates a StripePaymentGateway with the new keyword. When you try to write tests, you cannot swap in a mock payment provider.", "choices": [{"text": "Type-hint the PaymentProcessor interface in the constructor and let the container inject it", "correct": true, "explanation": "Exactly. By type-hinting an interface, the service container resolves the correct implementation automatically. In tests, you can bind a mock to that interface. The container is the storm shelter — it decouples your classes from their concrete dependencies."}, {"text": "Make StripePaymentGateway a global singleton using a static method", "correct": false, "explanation": "Static singletons are the opposite of dependency injection. They create hidden global state, make testing painful, and tightly couple every caller to the concrete class. The container's singleton binding achieves the same reuse without the coupling."}, {"text": "Pass the API key directly into each controller method as a parameter", "correct": false, "explanation": "That pushes configuration into your controller actions, violating separation of concerns. Service providers exist to wire configuration to classes in one place, not scatter it across your controllers."}], "concept": "Service Container", "difficulty": "easy"}, {"type": "river", "trigger": "after_stop", "triggerStop": 2, "title": "The CSRF River Crossing", "text": "You have reached a dangerous river. Your form submission keeps getting rejected with a 419 Page Expired error. The form posts to a route protected by the web middleware group, but something is missing from your HTML form.", "choices": [{"text": "Add the @csrf Blade directive inside the form to include a hidden CSRF token field", "correct": true, "explanation": "Laravel's VerifyCsrfToken middleware checks every POST request for a valid token. The at-csrf directive renders a hidden input with the session's token. Without it, the middleware rejects the request as a potential cross-site forgery attack. This is a security essential."}, {"text": "Disable the VerifyCsrfToken middleware for that route to stop the errors", "correct": false, "explanation": "That removes a critical security protection. CSRF tokens prevent malicious sites from submitting forms on behalf of your users. Disabling the check opens your application to cross-site request forgery attacks."}, {"text": "Switch the form from POST to GET to avoid the middleware check", "correct": false, "explanation": "GET requests bypass CSRF checks, but they should never mutate data. Putting create or update operations on GET routes violates HTTP semantics and exposes data in URLs, browser history, and server logs."}], "concept": "Middleware Pipeline", "difficulty": "medium"}, {"type": "encounter", "trigger": "after_stop", "triggerStop": 3, "title": "A Route Model Binding Expert Appears", "text": "A fellow traveler shows you their controller method: it accepts a Post type-hint in the parameter, yet they never wrote a query to find the post by ID. 'Laravel does it for me,' they say with a grin. What is this pattern called?", "choices": [{"text": "Route model binding — Laravel automatically resolves Eloquent models from route parameters", "correct": true, "explanation": "When you type-hint an Eloquent model in a controller method and the route has a matching parameter like {post}, Laravel queries the database automatically. If the record is not found, it returns a 404. Zero boilerplate for common lookups."}, {"text": "Lazy loading — the model is loaded only when its properties are accessed", "correct": false, "explanation": "Lazy loading is about deferring relationship queries, not resolving route parameters. Route model binding happens eagerly at the routing layer, before your controller code even runs."}, {"text": "Service location — the controller pulls the model from a service registry", "correct": false, "explanation": "Service location uses the container to resolve services. Route model binding is a routing feature that maps URL segments directly to database records. Different mechanism, different purpose."}], "concept": "Eloquent ORM", "difficulty": "easy"}, {"type": "misfortune", "trigger": "after_stop", "triggerStop": 4, "title": "Mass Assignment Attack!", "text": "Disaster strikes! An attacker sent an extra is_admin field in a POST request, and your User model accepted it because the fillable property was not configured. They just made themselves an administrator.", "choices": [{"text": "Always define $fillable on your models to whitelist which fields can be mass-assigned", "correct": true, "explanation": "The fillable array is your guard against mass assignment. Only fields listed in fillable can be set via create or update with request data. Alternatively, use guarded to blacklist fields. Never leave both empty — that opens every column to external input."}, {"text": "Validate the request data before passing it to the model — validation alone prevents this", "correct": false, "explanation": "Validation checks data format and rules, but it does not prevent extra fields from reaching the model. An attacker can pass validated fields plus additional unexpected ones. Fillable is the model-level defense that validation cannot replace."}, {"text": "Use raw SQL queries instead of Eloquent to avoid the issue entirely", "correct": false, "explanation": "Raw queries bypass Eloquent's protections but also lose all its benefits: relationships, scopes, casts, events. The real fix is a one-line fillable array, not abandoning the ORM."}], "concept": "Eloquent ORM", "difficulty": "medium"}, {"type": "fortune", "trigger": "after_stop", "triggerStop": 5, "title": "Spring of Eager Loading", "text": "Your understanding of Eloquent relationships is impressive! You discovered the with method and eliminated every N plus one query in your application. Your database thanks you with a burst of clean performance.", "choices": [], "concept": "Eloquent ORM", "difficulty": "easy"}, {"type": "weather", "trigger": "after_stop", "triggerStop": 6, "title": "The XSS Fog", "text": "A dense fog of user-generated content rolls into your templates. A user submitted a comment containing a script tag, and it is executing JavaScript in every visitor's browser. Your Blade template renders comment content using unescaped output.", "choices": [{"text": "Use double curly braces {{ }} which auto-escape HTML entities — never use {!! !!} for user input", "correct": true, "explanation": "Blade's double curly braces run output through htmlspecialchars automatically, converting angle brackets and quotes into harmless entities. The exclamation syntax bypasses escaping and should only be used for trusted, pre-sanitized content. Auto-escaping is your first defense against cross-site scripting."}, {"text": "Sanitize the input when the comment is submitted so it is safe to render raw", "correct": false, "explanation": "Input sanitization is good defense in depth, but it should never be your only protection. Escaping at render time is the standard practice because data can enter from many paths. Always escape output, sanitize input as a bonus layer."}, {"text": "Wrap the output in a div with a content security policy attribute", "correct": false, "explanation": "Content Security Policy is a response header, not an HTML attribute on individual elements. While CSP helps, it is not a substitute for proper output escaping. The double curly brace syntax is the correct Blade-level fix."}], "concept": "Blade Templates", "difficulty": "hard"}, {"type": "encounter", "trigger": "after_stop", "triggerStop": 1, "title": "A Blade Template Guide Appears", "text": "A fellow traveler shows you Blade syntax. 'Blade has @if, @foreach, @extends, @section, and @yield. But unlike raw PHP templates, Blade compiles to cached PHP files.' What is the main advantage of Blade over writing raw PHP in views?", "choices": [{"text": "Blade provides clean, readable directives while auto-escaping output by default — it compiles to PHP for zero runtime overhead", "correct": true, "explanation": "Blade templates compile to plain PHP files and are cached. There's no performance penalty. The directives like @if and @foreach are cleaner than PHP tags, and the double-curly-brace syntax auto-escapes to prevent XSS. You get readability and security for free."}, {"text": "Blade is faster than PHP because it uses a custom template engine written in C", "correct": false, "explanation": "Blade compiles to PHP — it IS PHP under the hood. There's no separate engine. The advantage is developer experience (clean syntax, auto-escaping), not runtime performance."}, {"text": "Blade prevents developers from using PHP logic in templates, enforcing strict separation", "correct": false, "explanation": "Blade actually allows raw PHP with @php directive. It doesn't enforce separation — it encourages it through convenient directives. You can still write bad code in Blade, but the clean syntax nudges you toward good practices."}], "concept": "Blade Templates", "difficulty": "easy"}, {"type": "weather", "trigger": "after_stop", "triggerStop": 2, "title": "Database Seeder Storm!", "text": "A storm hits your development environment. You need to test with realistic data, but manually creating records through the UI takes hours. A teammate mentions database seeders and factories. What is the standard Laravel approach to populating test data?", "choices": [{"text": "Use model factories with Faker to define how models should look, then call them from database seeders", "correct": true, "explanation": "Factories define the blueprint for generating model instances: Post::factory()->count(50)->create(). Seeders orchestrate which factories to run. Together, they populate your database with realistic fake data in seconds. Run php artisan db:seed to execute them all."}, {"text": "Write raw SQL INSERT statements in a migration file", "correct": false, "explanation": "Migrations are for schema changes (adding tables, columns), not for test data. Mixing seed data into migrations makes them unrepeatable and pollutes the migration history. Seeders are the dedicated tool for data population."}, {"text": "Export a production database dump and import it into development", "correct": false, "explanation": "Production data often contains sensitive information (passwords, emails, payment details). Using it in development risks data breaches and violates privacy regulations. Factories generate safe, fake data that mimics production patterns without real user data."}], "concept": "Eloquent ORM", "difficulty": "easy"}, {"type": "encounter", "trigger": "after_stop", "triggerStop": 3, "title": "An Eloquent Relationships Expert Appears", "text": "A fellow traveler asks: 'Your User hasMany Posts, and each Post belongsTo a User. But what if you need a many-to-many relationship — like posts having multiple tags and tags belonging to multiple posts?' What does Laravel use for this?", "choices": [{"text": "A belongsToMany relationship with a pivot table — Laravel manages the intermediate table automatically", "correct": true, "explanation": "belongsToMany on both models connects them through a pivot table (post_tag by convention). Laravel handles the JOIN queries, and you can attach/detach/sync related IDs. The pivot table can even have its own columns (like created_at) accessible through the withPivot method."}, {"text": "Create a separate Tag model with a post_id foreign key, like a hasMany relationship", "correct": false, "explanation": "A foreign key on Tag only allows each tag to belong to one post. Many-to-many requires a pivot table with two foreign keys (post_id and tag_id). The belongsToMany relationship is specifically designed for this pattern."}, {"text": "Store tag IDs as a JSON array in the posts table to avoid an extra table", "correct": false, "explanation": "JSON arrays can't be queried efficiently, can't enforce foreign key constraints, and can't be indexed like normal relationships. A pivot table is the standard relational approach, and Eloquent makes it effortless with belongsToMany."}], "concept": "Eloquent ORM", "difficulty": "easy"}, {"type": "river", "trigger": "after_stop", "triggerStop": 4, "title": "The Query Scope River", "text": "Your controller has Post::where('status', 'published')->where('published_at', '<=', now()) repeated in eight different methods. When the business rule changes, you'd need to update all eight places. How do you cross this river?", "choices": [{"text": "Define a query scope on the model: scopePublished — then call Post::published() anywhere", "correct": true, "explanation": "Local scopes encapsulate query constraints into chainable methods. scopePublished($query) returns $query->where('status', 'published')->where('published_at', '<=', now()). Now Post::published()->latest()->get() reads like a sentence. Change the business rule in one place, every caller updates."}, {"text": "Create a helper function that runs the raw SQL query directly", "correct": false, "explanation": "Raw SQL bypasses Eloquent's query builder, loses chainability, and makes the code vulnerable to SQL injection if not parameterized. Scopes work within the query builder and compose naturally with other Eloquent methods."}, {"text": "Store the result of the query in a static property so it only runs once", "correct": false, "explanation": "Static caching freezes the result at the first call. New published posts would never appear until the process restarts. Scopes run fresh queries each time, ensuring current data. Cache at the HTTP layer if needed, not at the query layer."}], "concept": "Eloquent ORM", "difficulty": "medium"}, {"type": "misfortune", "trigger": "after_stop", "triggerStop": 4, "title": "Validation Bypass!", "text": "A security incident: users are creating posts with future dates and extremely long titles that break the layout. Your controller stores the request data directly with $request->all() without any validation.", "choices": [{"text": "Create a Form Request class with rules for each field — Laravel validates automatically before the controller method runs", "correct": true, "explanation": "Form Requests (php artisan make:request StorePostRequest) define validation rules in a rules() method. Type-hint it in the controller, and Laravel validates the request before your code runs. Invalid requests automatically redirect back with errors. The controller stays clean."}, {"text": "Add if-statements in the controller to check each field manually", "correct": false, "explanation": "Manual validation is verbose, error-prone, and gets duplicated across controllers. Form Requests centralize rules, are reusable, and integrate with Laravel's error bag system. They also handle authorization via the authorize() method."}, {"text": "Set column constraints in the database migration to reject invalid data", "correct": false, "explanation": "Database constraints catch errors at the last possible moment with unhelpful SQL error messages. Validation should happen at the request level, giving users clear error messages and preventing invalid data from reaching the database at all."}], "concept": "Blade Templates", "difficulty": "medium"}, {"type": "misfortune", "trigger": "after_stop", "triggerStop": 5, "title": "Service Provider Confusion!", "text": "Your application behaves differently in production than in development. A class that was working perfectly in dev throws 'Target is not instantiable' in production. You discover the service provider's register method calls $this->app->environment() to conditionally bind classes, but in production the environment isn't set yet during registration.", "choices": [{"text": "Move environment-dependent logic from register() to boot() — register should only bind classes, boot runs after all providers are registered", "correct": true, "explanation": "The register method runs before the application is fully bootstrapped. It should only contain $this->app->bind() and $this->app->singleton() calls. Environment checks, event listeners, route loading, and anything that depends on other services belongs in boot(), which runs after all providers are registered."}, {"text": "Set the APP_ENV environment variable earlier in the bootstrap process", "correct": false, "explanation": "Changing bootstrap order is fragile and breaks the provider contract. Laravel's two-phase design (register then boot) exists precisely so providers don't depend on order. Put conditional logic in boot() where the full application is available."}, {"text": "Remove the service provider and use the container's auto-resolution instead", "correct": false, "explanation": "Auto-resolution works for concrete classes but not for interface bindings, singletons, or conditional logic. Service providers are the designated place for wiring the container. The fix is using the right method (boot), not abandoning providers."}], "concept": "Service Container", "difficulty": "hard"}, {"type": "river", "trigger": "after_stop", "triggerStop": 6, "title": "The Queue Job River", "text": "Your app sends a welcome email on user registration. The email takes 3 seconds to send via SMTP, blocking the response. During traffic spikes, users stare at a loading screen while emails queue up in the PHP process. How do you cross?", "choices": [{"text": "Dispatch the email as a queued job — it runs in a background worker process so the HTTP response returns immediately", "correct": true, "explanation": "Laravel's queue system lets you dispatch(new SendWelcomeEmail($user)). The job is serialized and pushed to a queue (Redis, SQS, database). A separate worker process picks it up and sends the email asynchronously. The user gets an instant response. If the email fails, the queue retries it automatically."}, {"text": "Use PHP's register_shutdown_function to send the email after the response is sent", "correct": false, "explanation": "Shutdown functions run in the same PHP process, still blocking the web server worker. The process can't handle new requests until the email finishes. A queue worker is a separate process — it doesn't affect web server capacity."}, {"text": "Send emails via JavaScript on the client side using an SMTP library", "correct": false, "explanation": "Client-side email sending exposes your SMTP credentials to the browser. Anyone could inspect the source and find your email server password. Server-side queued processing is secure and reliable."}], "concept": "Service Container", "difficulty": "hard"}, {"triggerStop": 3, "type": "misfortune", "title": "Facade Confusion!", "text": "A new developer sees Cache::get('key') in the codebase but can’t find a Cache class anywhere in the project. 'Where does this class come from? How can I test code that uses it?' they ask.", "choices": [{"text": "Facades are static-looking proxies to services in the container — Cache:: resolves to the cache manager behind the scenes. Use Cache::shouldReceive() in tests", "correct": true, "explanation": "Facades aren’t truly static. Cache::get() calls app('cache')->get() under the hood. The static syntax is syntactic sugar for container resolution. For testing, Facades provide shouldReceive() which swaps the real service for a mock automatically."}, {"text": "Cache is a PHP built-in class that Laravel extends with additional methods", "correct": false, "explanation": "PHP has no built-in Cache class. Laravel’s Cache Facade is defined in Illuminate\\Support\\Facades\\Cache. It’s an alias that proxies method calls to the cache service in the container."}, {"text": "Facades are anti-patterns that should be replaced with dependency injection everywhere", "correct": false, "explanation": "Facades and DI both resolve from the same container. Facades are syntactic convenience. In controllers, DI via constructor type-hinting is often cleaner. But in helpers and quick scripts, Facades are perfectly appropriate."}], "concept": "Service Container", "difficulty": "hard"}, {"triggerStop": 5, "type": "weather", "title": "The N+1 Whiteout!", "text": "A blizzard of SQL queries hits your app. Your API returns 50 posts with their authors and comments. The controller uses Post::all() and the resource accesses $this->author->name and $this->comments->count(). Laravel fires 101 queries.", "choices": [{"text": "Use withCount('comments') and with('author') to eager-load — or use $preventLazyLoading in development to catch these automatically", "correct": true, "explanation": "Post::with('author')->withCount('comments')->get() loads everything in 2-3 queries. In AppServiceProvider::boot(), calling Model::preventLazyLoading(!app()->isProduction()) catches N+1 bugs before they reach production."}, {"text": "Paginate the results to limit the query count per page", "correct": false, "explanation": "Pagination reduces posts per page but doesn’t fix the N+1 pattern. Even 10 posts with lazy-loaded relations fires 21 queries. Eager loading is the correct fix regardless of pagination."}, {"text": "Cache the entire API response so the queries only run once per cache period", "correct": false, "explanation": "Caching hides the problem on subsequent requests but the first request still fires 101 queries. Fix the query pattern first with eager loading, then add caching as an optimization layer."}], "concept": "Eloquent ORM", "difficulty": "hard"}], "partyMembers": [{"name": "Service Container", "icon": "container", "maxHealth": 3}, {"name": "Middleware Pipeline", "icon": "middleware", "maxHealth": 3}, {"name": "Eloquent ORM", "icon": "eloquent", "maxHealth": 3}, {"name": "Blade Templates", "icon": "blade", "maxHealth": 3}], "deathMessages": ["Lost in the service container — binding not found.", "Died of mass assignment vulnerability. The is_admin field was wide open.", "The Artisan command ran but nobody was listening.", "Drowned crossing the CSRF river. Token expired three days ago.", "Killed by an N plus one query avalanche. Should have eager loaded.", "Died of middleware starvation. The request never reached the controller.", "Your Blade template rendered unescaped user input. Script injection consumed the page.", "Buried under an avalanche of unpinned Composer dependencies."]};
 
 // =====================================================================
 // GAME STATE
@@ -187,21 +187,21 @@ let currentEventType = '';  // event type for canvas overlay
 let currentEventTitle = ''; // event title for canvas overlay
 
 const travelFlavors = [
-  "The WebSocket connection is strong today...",
-  "Packets flow smoothly across the middleware...",
-  "Your JSON payloads are well-formed...",
-  "The config files look clean and tidy...",
-  "A gentle breeze carries API responses...",
-  "The route resolver hums along quietly...",
-  "Session files persist without corruption...",
-  "The gateway handles traffic with grace...",
-  "Your TypeScript types provide comfort on the trail...",
-  "The event loop is calm and responsive...",
-  "A hawk circles overhead, watching your throughput...",
-  "The trail ahead is well-documented...",
+  "The service container resolves bindings smoothly today...",
+  "Eloquent queries flow like water across the prairie...",
+  "Your middleware stack stands strong against the wind...",
+  "The Blade compiler hums along in the background...",
+  "A gentle breeze carries well-formed HTTP responses...",
+  "The route resolver matches URLs with quiet confidence...",
+  "Session files persist without corruption on disk...",
+  "Artisan commands echo through the terminal hills...",
+  "Your PHP type hints provide comfort on the trail...",
+  "The event dispatcher fires listeners responsibly...",
+  "A hawk circles overhead, eyeing your query performance...",
+  "The trail ahead is well-documented by the Laravel community...",
   "Your error handling is robust today...",
-  "The authentication tokens are fresh...",
-  "Your dependency tree looks healthy..."
+  "The CSRF tokens are fresh and properly rotated...",
+  "Your Composer dependencies look healthy and pinned..."
 ];
 
 // =====================================================================
@@ -374,10 +374,10 @@ function drawWagon(wx, wy) {
     ctx.fillStyle = '#553300';
     ctx.fillRect(Math.floor(wcx - 1), Math.floor(wcy - 1), 2, 2);
   }
-  // Purple flag
-  ctx.fillStyle = '#AA00AA';
+  // Red-orange flag (Laravel brand color)
+  ctx.fillStyle = '#CC2200';
   ctx.fillRect(Math.floor(wx + 14), Math.floor(wy - 22), 1, -7);
-  ctx.fillStyle = '#FF55FF';
+  ctx.fillStyle = '#FF2D20';
   ctx.fillRect(Math.floor(wx + 15), Math.floor(wy - 29), 6, 4);
 }
 
@@ -435,8 +435,8 @@ function drawLandmark(type, x, baseY) {
       ctx.fillRect(Math.floor(x + 18), Math.floor(baseY - 2), 8, 2);
       break;
     case 'mountain':
-      drawMountain(x - 20, 60, 50, '#AA00AA', true);
-      drawMountain(x + 10, 45, 40, '#FF55FF', true);
+      drawMountain(x - 20, 60, 50, '#FF2D20', true);
+      drawMountain(x + 10, 45, 40, '#FF5555', true);
       break;
     case 'river':
       ctx.fillStyle = '#AA5500';
@@ -460,6 +460,26 @@ function drawLandmark(type, x, baseY) {
       for (let i = 0; i < 6; i++) {
         drawTree(x + i * 7, baseY, 14 + (i % 3) * 3);
       }
+      break;
+    case 'desert':
+      // Cactus
+      ctx.fillStyle = '#00AA00';
+      ctx.fillRect(Math.floor(x + 5), Math.floor(baseY - 20), 4, 20);
+      ctx.fillRect(Math.floor(x + 1), Math.floor(baseY - 16), 4, 4);
+      ctx.fillRect(Math.floor(x + 1), Math.floor(baseY - 16), 1, 8);
+      ctx.fillRect(Math.floor(x + 9), Math.floor(baseY - 14), 4, 4);
+      ctx.fillRect(Math.floor(x + 12), Math.floor(baseY - 14), 1, 8);
+      // Second cactus
+      ctx.fillRect(Math.floor(x + 22), Math.floor(baseY - 14), 3, 14);
+      ctx.fillRect(Math.floor(x + 19), Math.floor(baseY - 10), 3, 3);
+      ctx.fillRect(Math.floor(x + 19), Math.floor(baseY - 10), 1, 6);
+      // Sand dune
+      ctx.fillStyle = '#FFAA00';
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(x - 10), Math.floor(baseY));
+      ctx.quadraticCurveTo(Math.floor(x + 15), Math.floor(baseY - 6), Math.floor(x + 40), Math.floor(baseY));
+      ctx.closePath();
+      ctx.fill();
       break;
   }
 }
@@ -492,8 +512,8 @@ function drawEventOverlay(time) {
 
   var t = (time || 0) * 0.001; // seconds
 
-  // --- PROTOCOL STORM: dark sky, lightning, rain ---
-  if (currentEventTitle.indexOf('Protocol Storm') !== -1) {
+  // --- DEPENDENCY INJECTION STORM: dark sky, lightning, rain ---
+  if (currentEventTitle.indexOf('Dependency Injection Storm') !== -1) {
     // Darken sky
     ctx.fillStyle = 'rgba(0,0,50,0.45)';
     ctx.fillRect(0, 0, W, 110);
@@ -529,8 +549,27 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- FELLOW OPERATOR: person standing by campfire ---
-  if (currentEventTitle.indexOf('Fellow Operator') !== -1) {
+  // --- CSRF RIVER CROSSING: rough rapids with white water ---
+  if (currentEventTitle.indexOf('CSRF River') !== -1) {
+    // Extra turbulence on the river
+    ctx.fillStyle = '#55FFFF';
+    for (var i = 0; i < 20; i++) {
+      var sx = (i * 17 + t * 40) % W;
+      var sy = 157 + Math.sin((i * 3 + t * 5)) * 3;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), 4, 2);
+    }
+    // Floating logs / debris
+    ctx.fillStyle = '#AA5500';
+    for (var i = 0; i < 3; i++) {
+      var logX = (i * 110 + t * 25) % W;
+      var logY = 159 + Math.sin(t * 2 + i) * 2;
+      ctx.fillRect(Math.floor(logX), Math.floor(logY), 8, 2);
+    }
+    return;
+  }
+
+  // --- ROUTE MODEL BINDING EXPERT: person standing by campfire ---
+  if (currentEventTitle.indexOf('Route Model Binding') !== -1) {
     var px = 200, py = 142;
     // Person body
     ctx.fillStyle = '#AA5500';
@@ -563,27 +602,8 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- SESSION STATE RIVER: rough rapids with white water ---
-  if (currentEventTitle.indexOf('Session State') !== -1) {
-    // Extra turbulence on the river
-    ctx.fillStyle = '#55FFFF';
-    for (var i = 0; i < 20; i++) {
-      var sx = (i * 17 + t * 40) % W;
-      var sy = 157 + Math.sin((i * 3 + t * 5)) * 3;
-      ctx.fillRect(Math.floor(sx), Math.floor(sy), 4, 2);
-    }
-    // Floating logs / debris
-    ctx.fillStyle = '#AA5500';
-    for (var i = 0; i < 3; i++) {
-      var logX = (i * 110 + t * 25) % W;
-      var logY = 159 + Math.sin(t * 2 + i) * 2;
-      ctx.fillRect(Math.floor(logX), Math.floor(logY), 8, 2);
-    }
-    return;
-  }
-
-  // --- RUNAWAY PROCESS: red sky, smoke, warning ---
-  if (currentEventTitle.indexOf('Runaway Process') !== -1) {
+  // --- MASS ASSIGNMENT ATTACK: red sky, smoke, warning ---
+  if (currentEventTitle.indexOf('Mass Assignment') !== -1) {
     // Red danger tint
     ctx.fillStyle = 'rgba(170,0,0,0.25)';
     ctx.fillRect(0, 0, W, H);
@@ -619,32 +639,7 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- RPC RIVER: deep blue, fog/mist over water ---
-  if (currentEventTitle.indexOf('RPC River') !== -1) {
-    // Fog layers drifting over the river
-    ctx.fillStyle = 'rgba(85,85,255,0.12)';
-    for (var i = 0; i < 6; i++) {
-      var fogX = (i * 60 + t * 12 + Math.sin(i) * 20) % (W + 40) - 20;
-      var fogY = 145 + Math.sin(t * 0.5 + i * 1.1) * 5;
-      ctx.beginPath();
-      ctx.arc(fogX, fogY, 20 + i * 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.fillStyle = 'rgba(170,170,255,0.08)';
-    for (var i = 0; i < 8; i++) {
-      var fogX = (i * 45 + t * 8) % (W + 30) - 15;
-      var fogY = 150 + Math.sin(t * 0.3 + i * 0.8) * 8;
-      ctx.beginPath();
-      ctx.arc(fogX, fogY, 15 + i * 2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // Deeper water tint
-    ctx.fillStyle = 'rgba(0,0,85,0.2)';
-    ctx.fillRect(0, 155, W, 18);
-    return;
-  }
-
-  // --- SPRING OF CLEAN ARCHITECTURE: sunny, flowers, rainbow ---
+  // --- SPRING OF EAGER LOADING: sunny, flowers, rainbow ---
   if (currentEventTitle.indexOf('Spring') !== -1) {
     // Bright sun
     ctx.fillStyle = '#FFFF55';
@@ -674,7 +669,7 @@ function drawEventOverlay(time) {
       ctx.fillRect(fx + 1, fy - 1, 1, 1); // center
     }
     // Rainbow arc
-    var rainbowColors = ['#FF5555', '#FFAA00', '#FFFF55', '#55FF55', '#5555FF', '#AA00AA'];
+    var rainbowColors = ['#FF5555', '#FFAA00', '#FFFF55', '#55FF55', '#5555FF', '#FF2D20'];
     for (var rc = 0; rc < rainbowColors.length; rc++) {
       ctx.strokeStyle = rainbowColors[rc];
       ctx.lineWidth = 2;
@@ -686,8 +681,8 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- MESSAGE CHUNKING FOG: heavy fog obscuring everything ---
-  if (currentEventTitle.indexOf('Chunking Fog') !== -1) {
+  // --- THE XSS FOG: heavy fog obscuring everything ---
+  if (currentEventTitle.indexOf('XSS Fog') !== -1) {
     // Dense fog layers
     for (var layer = 0; layer < 3; layer++) {
       var alpha = 0.15 + layer * 0.08;
@@ -862,20 +857,20 @@ function renderCanvas(time) {
     drawPixelCloud(cx - 20, c.y, c.w, c.h);
   }
 
-  // Far mountains (parallax 0.3x) - DARK MAGENTA signature Oregon Trail
+  // Far mountains (parallax 0.3x) - LARAVEL RED-ORANGE signature
   const farOffset = scrollX * 0.3;
   for (const m of farMountains) {
     let mx = ((m.x - farOffset) % (W + 100));
     if (mx < -50) mx += W + 100;
-    drawMountain(mx - 25, m.h, m.w, '#AA00AA', false);
+    drawMountain(mx - 25, m.h, m.w, '#FF2D20', false);
   }
 
-  // Near mountains (parallax 0.4x) - LIGHT MAGENTA with snow caps
+  // Near mountains (parallax 0.4x) - LIGHTER RED-ORANGE with snow caps
   const nearOffset = scrollX * 0.4;
   for (const m of nearMountains) {
     let mx = ((m.x - nearOffset) % (W + 80));
     if (mx < -40) mx += W + 80;
-    drawMountain(mx - 20, m.h, m.w, '#FF55FF', m.snow);
+    drawMountain(mx - 20, m.h, m.w, '#FF5555', m.snow);
   }
 
   // Grass
@@ -1078,14 +1073,16 @@ function updateMusicIndicator() {
 }
 
 // =====================================================================
-// SYNTAX HIGHLIGHTING (EGA Colors)
+// SYNTAX HIGHLIGHTING (EGA Colors — PHP)
 // =====================================================================
-const TS_KEYWORDS = new Set([
-  'import', 'export', 'from', 'const', 'let', 'var', 'function', 'async',
-  'await', 'return', 'if', 'else', 'for', 'while', 'new', 'typeof', 'instanceof',
-  'interface', 'type', 'class', 'extends', 'implements', 'try', 'catch', 'throw',
-  'default', 'switch', 'case', 'break', 'continue', 'true', 'false', 'null',
-  'undefined', 'void', 'of', 'in'
+const PHP_KEYWORDS = new Set([
+  'use', 'namespace', 'class', 'extends', 'implements', 'interface', 'trait',
+  'function', 'fn', 'public', 'private', 'protected', 'static', 'abstract',
+  'final', 'const', 'return', 'if', 'else', 'elseif', 'foreach', 'for',
+  'while', 'do', 'switch', 'case', 'break', 'continue', 'default', 'match',
+  'new', 'throw', 'try', 'catch', 'finally', 'yield', 'true', 'false',
+  'null', 'void', 'array', 'string', 'int', 'float', 'bool', 'mixed',
+  'self', 'parent', 'readonly', 'enum', 'as'
 ]);
 
 function escHtml(s) {
@@ -1094,14 +1091,24 @@ function escHtml(s) {
 
 function highlightCode(code) {
   return code.split('\n').map(function(line) {
-    if (line.trim().startsWith('//')) {
-      return '<span style="color:#555555">' + escHtml(line) + '</span>';
+    // Full-line comments (// or # or Blade comments)
+    var trimmed = line.trim();
+    if (trimmed.startsWith('//') || trimmed.startsWith('#') || trimmed.startsWith('{{--')) {
+      return '<span style="color:#75715e">' + escHtml(line) + '</span>';
     }
     var result = '';
     var i = 0;
     while (i < line.length) {
-      // String literal
-      if (line[i] === "'" || line[i] === '"' || line[i] === '`') {
+      // PHP variable ($identifier)
+      if (line[i] === '$') {
+        var end = i + 1;
+        while (end < line.length && /[\w]/.test(line[end])) end++;
+        result += '<span style="color:#fd971f">' + escHtml(line.substring(i, end)) + '</span>';
+        i = end;
+        continue;
+      }
+      // String literal (single or double quotes)
+      if (line[i] === "'" || line[i] === '"') {
         var quote = line[i];
         var end = i + 1;
         while (end < line.length && line[end] !== quote) {
@@ -1109,38 +1116,75 @@ function highlightCode(code) {
           end++;
         }
         end = Math.min(end + 1, line.length);
-        result += '<span style="color:#FFFF55">' + escHtml(line.substring(i, end)) + '</span>';
+        result += '<span style="color:#e6db74">' + escHtml(line.substring(i, end)) + '</span>';
         i = end;
         continue;
       }
-      // Inline comment
+      // Inline comment (//)
       if (line[i] === '/' && i + 1 < line.length && line[i + 1] === '/') {
-        result += '<span style="color:#555555">' + escHtml(line.substring(i)) + '</span>';
+        result += '<span style="color:#75715e">' + escHtml(line.substring(i)) + '</span>';
         break;
+      }
+      // Hash comment (#)
+      if (line[i] === '#') {
+        result += '<span style="color:#75715e">' + escHtml(line.substring(i)) + '</span>';
+        break;
+      }
+      // Arrow operator -> and double colon ::
+      if (line[i] === '-' && i + 1 < line.length && line[i + 1] === '>') {
+        result += '<span style="color:#f8f8f2">-&gt;</span>';
+        i += 2;
+        continue;
+      }
+      if (line[i] === ':' && i + 1 < line.length && line[i + 1] === ':') {
+        result += '<span style="color:#f8f8f2">::</span>';
+        i += 2;
+        continue;
+      }
+      // Blade directives (@word)
+      if (line[i] === '@' && i + 1 < line.length && /[a-zA-Z]/.test(line[i + 1])) {
+        var end4 = i + 1;
+        while (end4 < line.length && /[\w]/.test(line[end4])) end4++;
+        result += '<span style="color:#f92672">' + escHtml(line.substring(i, end4)) + '</span>';
+        i = end4;
+        continue;
       }
       // Number
       if (/\d/.test(line[i]) && (i === 0 || !/\w/.test(line[i - 1]))) {
         var end2 = i;
         while (end2 < line.length && /[\d._]/.test(line[end2])) end2++;
-        result += '<span style="color:#FF55FF">' + escHtml(line.substring(i, end2)) + '</span>';
+        result += '<span style="color:#ae81ff">' + escHtml(line.substring(i, end2)) + '</span>';
         i = end2;
         continue;
       }
       // Identifier or keyword
-      if (/[a-zA-Z_$]/.test(line[i])) {
+      if (/[a-zA-Z_]/.test(line[i])) {
         var end3 = i;
-        while (end3 < line.length && /[\w$]/.test(line[end3])) end3++;
+        while (end3 < line.length && /[\w]/.test(line[end3])) end3++;
         var word = line.substring(i, end3);
-        if (TS_KEYWORDS.has(word)) {
-          result += '<span style="color:#55FFFF">' + escHtml(word) + '</span>';
+        if (PHP_KEYWORDS.has(word)) {
+          result += '<span style="color:#f92672">' + escHtml(word) + '</span>';
+        } else if (end3 < line.length && line[end3] === '(') {
+          result += '<span style="color:#a6e22e">' + escHtml(word) + '</span>';
         } else {
-          result += '<span style="color:#55FF55">' + escHtml(word) + '</span>';
+          result += '<span style="color:#f8f8f2">' + escHtml(word) + '</span>';
         }
         i = end3;
         continue;
       }
+      // Blade template syntax {{ }} and {!! !!}
+      if (line[i] === '{' && i + 1 < line.length && line[i + 1] === '{') {
+        result += '<span style="color:#66d9ef">' + escHtml('{{') + '</span>';
+        i += 2;
+        continue;
+      }
+      if (line[i] === '}' && i + 1 < line.length && line[i + 1] === '}') {
+        result += '<span style="color:#66d9ef">' + escHtml('}}') + '</span>';
+        i += 2;
+        continue;
+      }
       // Punctuation / operators
-      result += '<span style="color:#AAAAAA">' + escHtml(line[i]) + '</span>';
+      result += '<span style="color:#f8f8f2">' + escHtml(line[i]) + '</span>';
       i++;
     }
     return result;
@@ -1162,7 +1206,7 @@ function renderTitleScreen() {
   setTextPanel(
     '<div style="text-align:center; padding-top:20px;">' +
     '<div style="color:#FFFF55; font-size:16px; letter-spacing:2px;">THE CODEREGON TRAIL</div>' +
-    '<div style="color:#AAAAAA; margin-top:8px;">The Gateway Trail - OpenClaw Edition</div>' +
+    '<div style="color:#AAAAAA; margin-top:8px;">The Artisan Trail - Laravel Edition</div>' +
     '<div style="margin-top:30px;" class="blink">Press SPACE BAR to begin</div>' +
     '</div>'
   );
@@ -1187,10 +1231,10 @@ function renderSetupScreen() {
     '<div style="padding:8px 20px;">' +
     '<div style="color:#55FFFF; margin-bottom:10px;">Your party of key concepts:</div>' +
     '<div style="margin-left:16px;">' +
-    '<div style="color:#55FF55;">1. Gateway Control Plane    <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">2. Channel Plugins          <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">3. Route Resolution         <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">4. Session Persistence      <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">1. Service Container         <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">2. Middleware Pipeline        <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">3. Eloquent ORM              <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">4. Blade Templates           <span style="color:#FF5555">' + hearts + '</span></div>' +
     '</div>' +
     '<div style="color:#55FFFF; margin-top:14px; margin-bottom:6px;">What is your profession?</div>' +
     '<div style="margin-left:16px;">' + profsHtml + '</div>' +
@@ -1219,7 +1263,7 @@ function renderStopScreen() {
     '<div style="padding:4px 12px;">' +
     '<div style="color:#FFFF55; text-align:center; font-size:14px;">\u2550\u2550 ' + escHtml(stop.name) + ' \u2014 ' + escHtml(stop.subtitle) + ' \u2550\u2550</div>' +
     '<div style="color:#555555; text-align:center; font-size:11px; margin-bottom:4px;">[' + escHtml(stop.concept) + ']</div>' +
-    '<div style="border:1px solid #555555; padding:2px 4px; margin:4px 0 2px 0; font-size:11px; color:#AAAAAA;">\u250C\u2500 ' + escHtml(stop.code.file) + ' \u2500\u2500\u2500</div>' +
+    '<div style="border:1px solid #3e3d32; padding:2px 4px; margin:4px 0 2px 0; font-size:11px; color:#75715e;">\u250C\u2500 ' + escHtml(stop.code.file) + ' \u2500\u2500\u2500</div>' +
     '<div class="code-box">' + codeHtml + '</div>' +
     '<div style="color:#AAAAAA; margin:6px 0; line-height:1.4; font-size:13px;">' + escHtml(stop.narration) + '</div>' +
     '<div style="margin-top:8px;" id="stop-choices">' +
@@ -1252,6 +1296,13 @@ function renderEventScreen(event) {
     headerColor = '#55FF55';
   }
 
+  var diffBadge = '';
+  if (event.difficulty) {
+    var diffColors = { easy: '#55FF55', medium: '#FFFF55', hard: '#FF5555' };
+    var diffColor = diffColors[event.difficulty] || '#AAAAAA';
+    diffBadge = ' <span style="display:inline-block;padding:1px 6px;border:1px solid ' + diffColor + ';color:' + diffColor + ';font-size:10px;margin-left:8px;border-radius:2px;">' + event.difficulty.toUpperCase() + '</span>';
+  }
+
   var choicesHtml = '';
   if (event.choices.length > 0 && !eventAnswered) {
     var labels = ['A', 'B', 'C', 'D'];
@@ -1271,7 +1322,7 @@ function renderEventScreen(event) {
 
   setTextPanel(
     '<div style="padding:4px 12px;">' +
-    '<div style="color:' + headerColor + '; font-size:14px; text-align:center;">' + typeLabel + ' \u2014 ' + escHtml(event.title) + '</div>' +
+    '<div style="color:' + headerColor + '; font-size:14px; text-align:center;">' + typeLabel + ' \u2014 ' + escHtml(event.title) + diffBadge + '</div>' +
     '<div style="color:#FFFFFF; margin:8px 0; line-height:1.4;">' + escHtml(event.text) + '</div>' +
     '<div id="event-choices">' + choicesHtml + '</div>' +
     '<div id="event-result"></div>' +
@@ -1320,10 +1371,6 @@ function renderDeathScreen() {
   if (techDebtDeath) {
     var techDebtMsgs = [
       'You have died of tech debt dysentery.',
-      // 'You have died of refactoring dysentery.',
-      // 'You have died of unresolved TODOs.',
-      // 'You have died of scope creep.',
-      // 'You have died of dependency bloat.',
     ];
     deathMsg = techDebtMsgs[Math.floor(Math.random() * techDebtMsgs.length)];
     techDebtDeath = false;
@@ -1358,7 +1405,7 @@ function renderWinScreen() {
   var survivors = partyHealth.filter(function(h) { return h > 0; }).length;
   var pctScore = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 100;
 
-  var conceptNames = ['Gateway Control Plane', 'Channel Plugins', 'Route Resolution', 'Session Persistence'];
+  var conceptNames = ['Service Container', 'Middleware Pipeline', 'Eloquent ORM', 'Blade Templates'];
 
   var masteryHtml = '';
   var weakestName = '';
@@ -1386,7 +1433,7 @@ function renderWinScreen() {
     '<div style="padding:8px 16px;">' +
     '<div style="color:#FFFF55; text-align:center; font-size:16px;">\u2605 YOU MADE IT TO RESPONSE FRONTIER! \u2605</div>' +
     '<div style="margin-top:10px; color:#AAAAAA;">' +
-    '<div>  Framework:    <span style="color:#55FFFF;">OpenClaw (The Gateway Trail)</span></div>' +
+    '<div>  Framework:    <span style="color:#55FFFF;">Laravel (The Artisan Trail)</span></div>' +
     '<div>  Survivors:    <span style="color:#55FF55;">' + survivors + '/' + partyHealth.length + '</span></div>' +
     '<div>  Quiz Score:   <span style="color:#FFFF55;">' + score + '/' + totalQuestions + ' (' + pctScore + '%)</span></div>' +
     '<div>  Best Streak:  <span style="color:#FF55FF;">' + bestStreak + '</span></div>' +
@@ -1521,7 +1568,10 @@ function advanceFromTravel() {
 
   // Collect events for the current stop (triggerStop is 1-indexed relative to stop we just visited)
   // Events trigger BEFORE showing the stop
-  pendingEvents = TRAIL_DATA.events.filter(function(e) { return e.triggerStop === currentStop; });
+  var DIFFICULTY_TIERS = [['easy'],['easy','medium'],['medium','hard'],['hard']];
+  var allowedTiers = DIFFICULTY_TIERS[difficulty] || ['easy','medium','hard'];
+  var allStopEvents = TRAIL_DATA.events.filter(function(e) { return e.triggerStop === currentStop; });
+  pendingEvents = allStopEvents.filter(function(e) { return e.type === 'fortune' || !e.difficulty || allowedTiers.indexOf(e.difficulty) !== -1; });
   currentEventIndex = 0;
 
   if (pendingEvents.length > 0) {

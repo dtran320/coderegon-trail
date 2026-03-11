@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Coderegon Trail - OpenClaw Edition</title>
+<title>The Coderegon Trail - Superpowers Edition</title>
 <style>
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 html, body {
@@ -135,7 +135,7 @@ html, body {
 // =====================================================================
 // TRAIL DATA
 // =====================================================================
-const TRAIL_DATA={"framework":"openclaw","trailName":"The Gateway Trail","stops":[{"name":"Channel Outpost","subtitle":"Message Arrives","concept":"Channel Plugins","landmarkType":"town","code":{"file":"extensions/whatsapp/src/plugin.ts","content":"// extensions/whatsapp/src/plugin.ts (conceptual)\nimport { ChannelPlugin } from '@openclaw/types'\n\nexport const whatsappPlugin: ChannelPlugin = {\n  config: {\n    listAccountIds(cfg) {\n      return cfg.whatsapp?.accounts?.map(a => a.id) ?? []\n    },\n    async isConfigured(account) {\n      return !!account.phoneNumber\n    },\n    resolveAccount(cfg, id) {\n      return cfg.whatsapp.accounts.find(a => a.id === id)\n    },\n  },\n  gateway: {\n    async startAccount({ account, gateway }) {\n      const sock = makeWASocket({ auth: account.auth })\n      sock.ev.on('messages.upsert', async ({ messages }) => {\n        for (const msg of messages) {\n          await gateway.handleInbound({\n            channel: 'whatsapp',\n            peer: msg.key.remoteJid,\n            text: msg.message?.conversation,\n            accountId: account.id,\n          })\n        }\n      })\n    },\n    async stopAccount({ account }) {\n      // Graceful disconnect\n    },\n  },\n}","language":"typescript"},"narration":"Every journey starts at a channel outpost. OpenClaw connects to thirteen different messaging platforms. Each has a channel plugin following the same interface. Here's the WhatsApp plugin using Baileys to listen for messages. When a message arrives, it normalizes it into a common format and hands it to the gateway."},{"name":"Normalization Pass","subtitle":"Common Message Format","concept":"Channel Plugins","landmarkType":"camp","code":{"file":"src/channels/plugins/types.ts","content":"// src/channels/plugins/types.ts (simplified)\nexport interface ChannelPlugin {\n  config: {\n    listAccountIds(cfg: Config): string[]\n    isConfigured(account: AccountConfig): Promise<boolean>\n    resolveAccount(cfg: Config, id: string): AccountConfig\n  }\n  gateway?: {\n    startAccount(opts: StartAccountOpts): Promise<void>\n    stopAccount(opts: StopAccountOpts): Promise<void>\n  }\n}\n\n// The normalized inbound message shape:\ninterface InboundMessage {\n  channel: string\n  accountId: string\n  peer: RoutePeer\n  text: string\n  threadId?: string\n  attachments?: Media[]\n  guildId?: string\n}","language":"typescript"},"narration":"At the Normalization Pass, chaos becomes order. Every messaging platform has its own format. The ChannelPlugin interface forces them all into one shape. The gateway never needs to know whether you messaged from WhatsApp or Telegram."},{"name":"Route Resolution Fork","subtitle":"Finding the Right Agent","concept":"Route Resolution","landmarkType":"mountain","code":{"file":"src/routing/resolve-route.ts","content":"// src/routing/resolve-route.ts (simplified)\nexport function resolveAgentRoute({\n  cfg, channel, accountId, peer, guildId, teamId,\n}: ResolveRouteInput): ResolvedRoute {\n\n  for (const agent of cfg.agents.list) {\n    const routing = agent.routing\n\n    // 1. Exact peer match (highest priority)\n    const peerMatch = routing.peer?.find(\n      b => b.peer === peer.id && b.channel === channel\n    )\n    if (peerMatch) return { agentId: agent.id, matchedBy: 'peer' }\n\n    // 2. Guild/server match\n    const guildMatch = routing.guild?.find(\n      b => b.guildId === guildId && b.channel === channel\n    )\n    if (guildMatch) return { agentId: agent.id, matchedBy: 'guild' }\n\n    // 3. Account-level match\n    const accountMatch = routing.account?.find(\n      b => b.accountId === accountId && b.channel === channel\n    )\n    if (accountMatch) return { agentId: agent.id, matchedBy: 'account' }\n  }\n\n  return { agentId: cfg.agents.default, matchedBy: 'default' }\n}","language":"typescript"},"narration":"Here's where the trail forks. The resolver checks priority order: specific peer binding, then guild/server, then account, then default. One gateway can serve different agents to different people."},{"name":"Session Persistence Camp","subtitle":"Loading Conversation State","concept":"Session Persistence","landmarkType":"camp","code":{"file":"src/sessions/session-utils.ts","content":"// src/sessions/session-utils.ts (simplified)\nimport { readFile, writeFile, mkdir } from 'fs/promises'\n\nconst SESSIONS_DIR = '~/.openclaw/sessions'\n\nexport async function loadSessionEntry(\n  agentId: string,\n  sessionKey: string,\n): Promise<SessionEntry> {\n  const path = `${SESSIONS_DIR}/${agentId}/${sessionKey}.json`\n\n  try {\n    const raw = await readFile(path, 'utf-8')\n    return JSON.parse(raw)\n  } catch {\n    return {\n      sessionKey,\n      agentId,\n      transcript: [],\n      metadata: {\n        model: 'anthropic/claude-opus-4-6',\n        thinkingLevel: 'medium',\n        tokensUsed: 0,\n        createdAt: Date.now(),\n      },\n    }\n  }\n}","language":"typescript"},"narration":"Sessions are just JSON files on disk. Each agent-plus-peer combination gets its own file. If the file doesn't exist, a fresh session starts with sensible defaults. Zero database dependencies, easy backup."},{"name":"Gateway Control Ridge","subtitle":"The WebSocket Command Center","concept":"Gateway Control Plane","landmarkType":"mountain","code":{"file":"src/gateway/server-chat.ts","content":"// src/gateway/server-chat.ts (simplified)\nexport function createChatRunRegistry(gateway: GatewayServer) {\n\n  async function handleChatSend(\n    sessionEntry: SessionEntry,\n    message: InboundMessage,\n  ) {\n    sessionEntry.transcript.push({\n      role: 'user',\n      content: message.text,\n      timestamp: Date.now(),\n    })\n\n    const agentRpc = gateway.acp.getClient(sessionEntry.agentId)\n    const stream = await agentRpc.call('chat.send', {\n      sessionId: sessionEntry.sessionKey,\n      messages: sessionEntry.transcript,\n      tools: sessionEntry.metadata.enabledTools,\n      model: sessionEntry.metadata.model,\n    })\n\n    for await (const chunk of stream) {\n      if (chunk.type === 'text') {\n        gateway.broadcast('chat.stream', { text: chunk.text })\n      } else if (chunk.type === 'tool_use') {\n        const result = await executeTool(chunk.tool, chunk.input)\n        agentRpc.sendToolResult(chunk.id, result)\n      }\n    }\n    await saveSession(sessionEntry)\n  }\n\n  return { handleChatSend }\n}","language":"typescript"},"narration":"The gateway server accepts WebSocket connections from channels, the CLI, and native apps. The streaming loop handles text and tool calls differently. Text streams in real time; tool calls get executed on the gateway and results feed back."},{"name":"Agent RPC Rapids","subtitle":"Talking to the AI","concept":"Gateway Control Plane","landmarkType":"river","code":{"file":"src/acp/client.ts","content":"// src/acp/client.ts (simplified)\nexport function createAcpClient(agentId: string, wsUrl: string) {\n  const ws = new WebSocket(wsUrl)\n\n  async function* call(\n    method: string,\n    params: ChatSendParams,\n  ): AsyncGenerator<AgentChunk> {\n    const requestId = crypto.randomUUID()\n\n    ws.send(JSON.stringify({\n      jsonrpc: '2.0',\n      id: requestId,\n      method,\n      params,\n    }))\n\n    while (true) {\n      const msg = await nextMessage(ws, requestId)\n      if (msg.type === 'done') break\n      yield msg\n    }\n  }\n\n  function sendToolResult(toolCallId: string, result: ToolResult) {\n    ws.send(JSON.stringify({\n      jsonrpc: '2.0',\n      method: 'tool.result',\n      params: { toolCallId, result },\n    }))\n  }\n\n  return { call, sendToolResult }\n}","language":"typescript"},"narration":"Now we cross the RPC Rapids. The gateway and agent communicate over JSON-RPC. The agent decides what to do, but the gateway controls what actually happens on your machine. Security through architecture."},{"name":"Tool Execution Gorge","subtitle":"Running Commands on the Host","concept":"Gateway Control Plane","landmarkType":"forest","code":{"file":"src/agents/bash-tools.exec.ts","content":"// src/agents/bash-tools.exec.ts (simplified)\nexport async function executeBashTool(\n  input: { command: string },\n  context: ToolContext,\n): Promise<ToolResult> {\n  const { command } = input\n  const { sessionEntry, securityPolicy } = context\n\n  if (!securityPolicy.allowBash) {\n    return { error: 'Bash execution not permitted' }\n  }\n\n  const pty = spawn('bash', ['-c', command], {\n    cwd: sessionEntry.metadata.workingDir,\n    env: { ...process.env, ...sessionEntry.metadata.env },\n    timeout: 120_000,\n  })\n\n  let stdout = ''\n  pty.onData(data => { stdout += data })\n  const exitCode = await pty.wait()\n\n  return {\n    stdout: stdout.slice(0, 100_000),\n    exitCode,\n  }\n}","language":"typescript"},"narration":"Deep in Tool Execution Gorge, the agent's intentions become real actions. Security check first, then a real PTY with a two-minute timeout. Bash is just one tool \u2014 same pattern for browser control, canvas, and device actions."},{"name":"Response Delivery Frontier","subtitle":"Back Through the Channel","concept":"Channel Plugins","landmarkType":"town","code":{"file":"src/gateway/server-channels.ts","content":"// src/gateway/server-channels.ts (simplified)\nexport function createChannelManager(gateway: GatewayServer) {\n\n  async function deliverResponse(\n    sessionEntry: SessionEntry,\n    response: AgentResponse,\n  ) {\n    const { channel, peer, accountId } = sessionEntry.routing\n    const plugin = gateway.channels.get(channel)\n\n    const formatted = formatForChannel(channel, response.text, {\n      maxLength: getChannelLimit(channel),\n    })\n\n    for (const chunk of formatted) {\n      await plugin.send({ accountId, peer, text: chunk })\n    }\n\n    sessionEntry.transcript.push({\n      role: 'assistant',\n      content: response.text,\n      timestamp: Date.now(),\n    })\n    await saveSession(sessionEntry)\n\n    gateway.broadcast('chat.response', { text: response.text })\n  }\n\n  return { deliverResponse }\n}","language":"typescript"},"narration":"You made it! The response travels back through the same channel. Formatted for each platform's limits, chunked automatically, saved to the transcript. Message in, intelligence applied, response out. Your wagon has arrived."}],"events":[{"type":"weather","trigger":"after_stop","triggerStop":1,"title":"Protocol Storm!","text":"A storm of messages hits your gateway \u2014 WhatsApp sends phone numbers, Discord sends snowflake IDs, Slack sends workspace tokens. How do you weather this storm?","choices":[{"text":"Define a common interface that all channel plugins must implement","correct":true,"explanation":"OpenClaw's ChannelPlugin interface forces every platform into the same shape. New channels can be added without touching gateway code."},{"text":"Write a giant switch statement in the gateway for each platform","correct":false,"explanation":"That would make the gateway a tangled mess. Every new channel means modifying core code."},{"text":"Only support one messaging platform to keep things simple","correct":false,"explanation":"Multi-channel support is core to OpenClaw's value. The trick is clean abstraction through the plugin interface."}],"concept":"Channel Plugins","difficulty":"easy"},{"type":"encounter","trigger":"after_stop","triggerStop":2,"title":"A Fellow Operator Appears","text":"A seasoned operator says: 'I run three agents \u2014 personal on WhatsApp, work on Slack, social bot on Discord. One gateway.' How does it know which agent handles which message?","choices":[{"text":"Route bindings in the config map channels, peers, and guilds to agents","correct":true,"explanation":"Config bindings map at multiple levels. Priority: peer, guild, team, account, channel, then default."},{"text":"Each agent runs its own separate gateway on a different port","correct":false,"explanation":"One gateway, multiple agents. Separate gateways would mean separate configs and connections."},{"text":"The user specifies which agent to use in every message","correct":false,"explanation":"Routing is automatic and invisible. The gateway figures it out from the config bindings."}],"concept":"Route Resolution","difficulty":"easy"},{"type":"river","trigger":"after_stop","triggerStop":3,"title":"The Session State River","text":"You've reached the boundary between stateless request handling and persistent memory. Your assistant needs to remember last week's conversation across a restart. How do you cross?","choices":[{"text":"Store sessions as JSON files on disk, loaded on demand per key","correct":true,"explanation":"Each session is a JSON file at a predictable path. No database needed. The file system IS the persistence layer."},{"text":"Keep all sessions in memory with a Redis cache","correct":false,"explanation":"In-memory state is lost on restart. Redis adds an external dependency. OpenClaw is local-first."},{"text":"Store history in the AI model's context and let it remember","correct":false,"explanation":"Context windows are limited and expensive. The persistence layer is separate from inference."}],"concept":"Session Persistence","difficulty":"medium"},{"type":"misfortune","trigger":"after_stop","triggerStop":5,"title":"Runaway Process!","text":"The AI agent ran a shell command that's an infinite loop consuming 100% CPU. Your gateway is grinding to a halt!","choices":[{"text":"Tool execution needs timeouts and session security policies should gate commands","correct":true,"explanation":"Bash tools have a two-minute timeout, and security policies control what's allowed. The gateway is the security boundary."},{"text":"The agent should be smarter and never request dangerous commands","correct":false,"explanation":"Never rely on the AI as the security boundary. Defense in depth means the gateway enforces limits."},{"text":"Run all tools in the agent's process so only it crashes","correct":false,"explanation":"Tools run on the gateway because they need local machine access. The separation is a feature."}],"concept":"Gateway Control Plane","difficulty":"medium"},{"type":"river","trigger":"after_stop","triggerStop":5,"title":"The RPC River","text":"The deepest river \u2014 the boundary between gateway and agent runtime. The agent needs a browser screenshot but runs in a different process. How?","choices":[{"text":"JSON-RPC over WebSocket: agent requests, gateway executes locally","correct":true,"explanation":"The agent streams tool_use blocks, the gateway intercepts and executes. The agent could run remotely."},{"text":"The agent directly imports and calls the browser module","correct":false,"explanation":"Separate processes can't call each other's code. The RPC boundary IS the security model."},{"text":"The agent writes commands to a shared file the gateway watches","correct":false,"explanation":"File watching is slow and unreliable. WebSocket RPC gives real-time bidirectional streaming."}],"concept":"Gateway Control Plane","difficulty":"hard"},{"type":"fortune","trigger":"after_stop","triggerStop":6,"title":"Spring of Clean Architecture","text":"Your understanding of the control plane is solid! Friendly contributors join your camp and share plugin templates.","choices":[],"concept":"Channel Plugins","difficulty":"easy"},{"type":"weather","trigger":"after_stop","triggerStop":6,"title":"Message Chunking Fog","text":"Dense fog. Your assistant wrote 3000 words but WhatsApp only allows 4096 characters. The user sees a truncated response. What went wrong?","choices":[{"text":"The formatter should chunk messages based on each channel's limit","correct":true,"explanation":"WhatsApp: 4096, Discord: 2000, Slack: 40000. The delivery layer splits into properly-sized chunks."},{"text":"Tell the AI to always write short responses","correct":false,"explanation":"You can't enforce output length on LLMs. The delivery layer handles formatting."},{"text":"Switch to a channel with no message limits","correct":false,"explanation":"Multi-channel means meeting users where they are. Every channel must work correctly."}],"concept":"Channel Plugins","difficulty":"easy"}],"partyMembers":[{"name":"Gateway Control Plane","icon":"gateway","maxHealth":3},{"name":"Channel Plugins","icon":"channel","maxHealth":3},{"name":"Route Resolution","icon":"route","maxHealth":3},{"name":"Session Persistence","icon":"session","maxHealth":3}],"deathMessages":["You have died of unhandled WebSocket disconnections.","You have died of missing default routes.","You have drowned in the RPC River.","You have died of session bloat.","You have died of a runaway bash command.","You have died of unhandled plugin exceptions.","You have died of API rate limits.","You have died of dependency conflicts.","You have died of expired sessions.","You have died of Discord snowflake avalanche.","You have died of invalid routing config."]};
+const TRAIL_DATA={"framework":"superpowers","trailName":"The Superpowers Trail","stops":[{"name":"Independence, MO","subtitle":"Session Hook","concept":"Skills as Workflows","landmarkType":"town","code":{"file":"hooks/session-start.sh","content":"#!/bin/bash\n# hooks/session-start.sh\n# Injected into every new coding session automatically\n\nSUPERPOWERS_ROOT=\"$(cd \"$(dirname \"$0\")/..\" && pwd)\"\n\n# Load all skills into the agent's context\nfor skill in \"$SUPERPOWERS_ROOT\"/skills/*/SKILL.md; do\n  if [ -f \"$skill\" ]; then\n    echo \"## Skill: $(basename \"$(dirname \"$skill\")\")\"\n    cat \"$skill\"\n  fi\ndone\n\n# Inject methodology constraints\ncat \"$SUPERPOWERS_ROOT/CLAUDE.md\"\n\n# The agent now MUST follow the workflow.\n# No skill is optional. No step can be skipped.\n# The hook fires before the agent sees any user input.","language":"bash"},"narration":"Every journey starts at the session hook. Superpowers automatically injects skills into every new coding session. The agent never gets a choice to skip steps. Before it even sees your request, the methodology is already loaded and enforced."},{"name":"Chimney Rock","subtitle":"Brainstorming","concept":"Hard-Gate Enforcement","landmarkType":"mountain","code":{"file":"skills/brainstorming/SKILL.md","content":"# Brainstorming Skill\n\n## HARD GATE: No code may be written until this phase completes.\n\n### Flow:\n1. Ask clarifying questions about the user's goal\n2. Propose 2-3 approaches with tradeoffs\n3. User selects preferred approach\n4. Write a design spec document:\n   - Problem statement\n   - Chosen approach with rationale\n   - Key decisions and constraints\n   - File paths that will be modified\n5. User approves the spec\n\n### Gate Rule:\nIF spec is not approved:\n  BLOCK all downstream skills\n  RETURN to step 1\n\n# The agent CANNOT proceed to planning or coding\n# until the user explicitly approves the design.","language":"markdown"},"narration":"Here at Chimney Rock stands the hardest gate on the trail: brainstorming. No code gets written until you have a design spec approved by the user. This prevents the classic mistake of solving the wrong problem. Ideas are cheap, rewrites are expensive."},{"name":"Fort Laramie","subtitle":"Workspace Isolation","concept":"Subagent-Driven Dev","landmarkType":"camp","code":{"file":"skills/worktree/SKILL.md","content":"# Worktree Skill\n\n## Create isolated workspace for non-destructive development\n\n### Steps:\n1. Create a new git branch from current HEAD:\n   git checkout -b feat/<feature-name>\n\n2. Create a git worktree:\n   git worktree add .worktrees/<feature-name> feat/<feature-name>\n\n3. Change working directory to the worktree:\n   cd .worktrees/<feature-name>\n\n4. All changes happen here, never on main.\n\n### Safety guarantees:\n- Main branch is NEVER modified directly\n- Each feature gets its own isolated copy\n- Multiple features can develop in parallel\n- Failed experiments are discarded, not reverted\n- git worktree remove cleans up completely","language":"markdown"},"narration":"Fort Laramie is where you set up camp safely. A git worktree gives you an isolated copy of the codebase. You can experiment freely without touching main. If things go wrong, just remove the worktree. No merge conflicts, no reverts, no damage."},{"name":"Independence Rock","subtitle":"Implementation Planning","concept":"Hard-Gate Enforcement","landmarkType":"mountain","code":{"file":"skills/implementation-plan/SKILL.md","content":"# Implementation Plan Skill\n\n## Decompose the approved spec into executable tasks\n\n### Plan document format:\nFor EACH task:\n  - Task number and title\n  - Exact file paths to create or modify\n  - Complete code to write (not pseudocode)\n  - Test file path and test code\n  - Acceptance criteria\n\n### Example task:\nTask 1: Add validation middleware\n  File: src/middleware/validate.ts\n  Code:\n    export function validate(schema: Schema) {\n      return (req: Request, res: Response, next: Next) => {\n        const result = schema.safeParse(req.body)\n        if (!result.success) return res.status(400).json(result.error)\n        next()\n      }\n    }\n  Test: tests/middleware/validate.test.ts\n  Criteria: Returns 400 for invalid input\n\n### Rule: Plans must be detailed enough for a\n### junior engineer (or fresh subagent) to execute\n### without asking ANY clarifying questions.","language":"markdown"},"narration":"At Independence Rock, you carve your plan into stone. Every task gets exact file paths and complete code. No pseudocode, no handwaving. The plan must be so clear that a subagent with zero context can execute it without asking a single question."},{"name":"South Pass","subtitle":"Subagent-Driven Development","concept":"Subagent-Driven Dev","landmarkType":"river","code":{"file":"skills/subagent/SKILL.md","content":"# Subagent Dispatch Skill\n\n## Execute each task with a fresh subagent\n\n### For each task in the implementation plan:\n1. Spawn a NEW subagent (fresh context, no pollution)\n2. Provide the subagent with:\n   - The specific task from the plan\n   - Relevant file contents (read before dispatch)\n   - The design spec for reference\n3. Subagent executes the task\n4. TWO-STAGE REVIEW:\n   Stage 1 - Spec compliance:\n     \"Does this match what was planned?\"\n   Stage 2 - Code quality:\n     \"Is this code correct, safe, and clean?\"\n5. If review fails -> fix or re-dispatch\n\n### Why fresh subagents?\n- No context pollution between tasks\n- Each agent has full attention on ONE task\n- Review catches what implementation misses\n- Parallel execution when tasks are independent","language":"markdown"},"narration":"South Pass is where the real work happens. Each task gets its own fresh subagent, a clean mind with no baggage from previous tasks. Two-stage review catches both spec drift and code quality issues. The subagent builds, the reviewer verifies."},{"name":"Fort Bridger","subtitle":"Test-Driven Development","concept":"TDD Discipline","landmarkType":"camp","code":{"file":"skills/tdd/SKILL.md","content":"# TDD Skill\n\n## RED-GREEN-REFACTOR cycle\n\n### Step 1: RED - Write the failing test FIRST\n  Write a test that describes the expected behavior.\n  Run the test. It MUST fail.\n  If it passes, your test is wrong.\n\n### Step 2: GREEN - Write minimal code to pass\n  Write the smallest amount of code that makes\n  the test pass. No more, no less.\n  Run the test. It MUST pass now.\n\n### Step 3: REFACTOR - Clean up\n  Improve the code without changing behavior.\n  Run tests again. Still passing? Good.\n\n### HARD RULE:\n  If implementation code exists BEFORE the test:\n    DELETE the implementation.\n    Start over at Step 1.\n\n  \"If you didn't watch it fail,\n   you don't know it tests the right thing.\"","language":"markdown"},"narration":"Fort Bridger enforces the TDD discipline. RED, GREEN, REFACTOR. Write the test first, watch it fail, then write just enough code to pass. If you wrote code before the test, delete it. You must see the test fail to know it actually tests what you think it does."},{"name":"The Dalles","subtitle":"Code Review Gate","concept":"Hard-Gate Enforcement","landmarkType":"forest","code":{"file":"skills/code-review/SKILL.md","content":"# Code Review Skill\n\n## Two-stage review gate before merge\n\n### Stage 1: Spec Compliance Review\n  Reviewer agent checks:\n  - Does the code match the design spec?\n  - Are all planned tasks completed?\n  - Were any requirements missed?\n  - Were any unplanned changes introduced?\n  Verdict: PASS / FAIL with specific issues\n\n### Stage 2: Code Quality Audit\n  Reviewer agent checks:\n  - Correctness: edge cases, error handling\n  - Security: injection, auth, data exposure\n  - Performance: N+1 queries, unbounded loops\n  - Style: naming, structure, conventions\n  Severity: CRITICAL / WARNING / INFO\n\n### Gate Rule:\n  IF any CRITICAL issues -> BLOCK merge\n  IF any FAIL in spec compliance -> BLOCK merge\n  Warnings are logged but don't block","language":"markdown"},"narration":"The Dalles is the final gate before the promised land. Two separate reviews: first checking if the code matches the spec, then auditing code quality. Spec compliance and code quality are different failure modes. Separating them catches issues that a single review would miss."},{"name":"Oregon City","subtitle":"Branch Completion","concept":"Skills as Workflows","landmarkType":"town","code":{"file":"skills/branch-complete/SKILL.md","content":"# Branch Completion Skill\n\n## Finalize the feature branch\n\n### Steps:\n1. Run full test suite:\n   All tests must pass. Zero tolerance.\n\n2. Present options to user:\n   a) MERGE - Merge branch into main\n   b) PR    - Create a pull request for team review\n   c) KEEP  - Keep branch for more work\n   d) DISCARD - Delete branch and worktree\n\n3. On MERGE or PR:\n   - Squash commits with descriptive message\n   - Clean up the worktree\n   - Return to main branch\n\n4. On DISCARD:\n   - git worktree remove .worktrees/<feature>\n   - git branch -D feat/<feature>\n\n### The cycle completes.\n### From brainstorm to merge, every step was tracked,\n### reviewed, and verified. No shortcuts taken.","language":"markdown"},"narration":"You made it to Oregon City! Tests pass, reviews clear, the branch is ready. Merge it, PR it, keep it, or discard it. The journey is complete. From brainstorming through implementation to merge, every step was enforced, reviewed, and verified. That is the Superpowers methodology."}],"events":[{"type":"weather","trigger":"after_stop","triggerStop":1,"title":"Hook Storm!","text":"A storm of new coding sessions hits your machine \u2014 VS Code, Cursor, terminal agents, all spinning up at once. How do you ensure every single one follows the methodology?","choices":[{"text":"Inject skills at session start so the agent always follows the methodology; removes the choice to skip steps","correct":true,"explanation":"The session hook fires before the agent sees any user input. Skills are loaded automatically, not on demand. The agent never gets the option to skip the process."},{"text":"Load skills on demand when the agent needs them for faster startup","correct":false,"explanation":"On-demand loading means the agent can choose to skip steps. The whole point is removing that choice. The hook ensures compliance before the agent even starts thinking."},{"text":"Let users manually type commands to activate each skill","correct":false,"explanation":"Manual activation means steps get skipped under time pressure. Superpowers automates compliance so discipline doesn't depend on human willpower."}],"concept":"Skills as Workflows","difficulty":"easy"},{"type":"river","trigger":"after_stop","triggerStop":2,"title":"The Design Gate Crossing!","text":"You've reached the deepest crossing on the trail. Your agent is eager to start coding, but there's a gate blocking the path. What is a 'hard gate' in Superpowers?","choices":[{"text":"A mandatory checkpoint that blocks all code writing until the prerequisite (like design approval) is met","correct":true,"explanation":"Hard gates are non-negotiable. The brainstorming skill literally cannot be bypassed. No approved spec means no planning, no coding, no nothing. The gate enforces discipline at the system level."},{"text":"A firewall that prevents unauthorized network access","correct":false,"explanation":"Hard gates are about workflow enforcement, not network security. They block premature coding, not network traffic."},{"text":"A git branch protection rule on the main branch","correct":false,"explanation":"Branch protection is a git feature. Hard gates are a Superpowers concept that enforces workflow order. They operate at the skill level, not the git level."}],"concept":"Hard-Gate Enforcement","difficulty":"medium"},{"type":"encounter","trigger":"after_stop","triggerStop":4,"title":"A Planning Pioneer appears!","text":"A grizzled pioneer approaches your wagon: 'I've seen agents write beautiful code for the wrong feature. Twice this week.' Why should implementation plans include exact file paths and complete code?","choices":[{"text":"Eliminates ambiguity; subagents with zero context can execute without guessing","correct":true,"explanation":"Fresh subagents have no memory of previous discussions. Exact file paths and complete code mean zero interpretation needed. The plan IS the specification. No guessing, no drift."},{"text":"It's faster to copy-paste complete code than to think about it","correct":false,"explanation":"Speed isn't the point. Clarity is. A vague plan forces the subagent to make assumptions, and assumptions cause the wrong feature to get built."},{"text":"Plans should be kept vague so the implementer has creative freedom","correct":false,"explanation":"Creative freedom in implementation leads to spec drift. The design phase is where creativity happens. Implementation should be mechanical execution of a clear plan."}],"concept":"Hard-Gate Enforcement","difficulty":"medium"},{"type":"weather","trigger":"after_stop","triggerStop":5,"title":"Subagent Storm!","text":"Dark clouds gather as subagents spin up across your codebase. Task 3 is building on assumptions from Task 1, and the code is starting to drift from the spec. Why use a fresh subagent per task?","choices":[{"text":"Prevents context pollution; each agent has fresh perspective and the two-stage review catches issues","correct":true,"explanation":"Context pollution is real. An agent that just finished Task 1 carries biases and assumptions into Task 2. Fresh agents read the plan literally. Two-stage review catches any drift that slips through."},{"text":"One agent doing everything is too slow to finish on time","correct":false,"explanation":"Performance isn't the primary reason. A single agent is actually faster for sequential tasks. The benefit is isolation and accountability, not speed."},{"text":"Subagents are cheaper because they use smaller context windows","correct":false,"explanation":"Cost isn't the driver. Fresh context prevents the agent from making assumptions based on prior tasks. Each task gets undivided, unbiased attention."}],"concept":"Subagent-Driven Dev","difficulty":"hard"},{"type":"misfortune","trigger":"after_stop","triggerStop":6,"title":"TDD Failure!","text":"Disaster on the trail! A subagent got excited and wrote the implementation before writing any tests. The code looks correct, but you can't verify the test actually tests the right thing. What happens next?","choices":[{"text":"Delete the implementation and start over; the skill enforces test-first so you can verify the test tests the right thing","correct":true,"explanation":"If you didn't watch the test fail, you don't know it catches the bug. The test might pass for the wrong reason. Delete the code, write the test, watch it fail, THEN implement. No exceptions."},{"text":"The code is reviewed anyway so it's fine to keep it","correct":false,"explanation":"Review can catch code quality issues but can't verify that tests are meaningful. A passing test written after the code might test nothing useful. The RED step exists for a reason."},{"text":"Write the tests after the implementation since the behavior is already defined","correct":false,"explanation":"Tests written after implementation tend to test what the code does, not what it should do. They pass by definition and catch nothing. The failing test DEFINES the requirement."}],"concept":"TDD Discipline","difficulty":"hard"},{"type":"encounter","trigger":"after_stop","triggerStop":7,"title":"Review Gate Pioneer!","text":"A fellow traveler at the code review gate asks: 'Why do you run TWO separate reviews instead of one thorough review? Seems like extra work.' What's your answer?","choices":[{"text":"Separates 'did it match the spec' from 'is the code good' \u2014 different failure modes caught differently","correct":true,"explanation":"Spec compliance asks 'did we build the right thing?' Code quality asks 'did we build it right?' These are orthogonal concerns. A single reviewer tends to focus on one and miss the other."},{"text":"Two reviews are always better than one because more eyes find more bugs","correct":false,"explanation":"More reviews aren't automatically better. The key insight is that spec compliance and code quality are DIFFERENT skills. Two unfocused reviews are worse than two focused ones."},{"text":"One reviewer can't understand both the spec and the code at the same time","correct":false,"explanation":"A single reviewer CAN understand both. The issue is attention focus. When checking spec compliance, you look at WHAT was built. When checking quality, you look at HOW it was built. Mixing them dilutes both."}],"concept":"Hard-Gate Enforcement","difficulty":"medium"}],"partyMembers":[{"name":"Hard-Gate Enforcement","icon":"server","maxHealth":3},{"name":"Subagent-Driven Dev","icon":"router","maxHealth":3},{"name":"TDD Discipline","icon":"data","maxHealth":3},{"name":"Skills as Workflows","icon":"layout","maxHealth":3}],"deathMessages":["Died of skipping the brainstorming phase. The code solved the wrong problem.","Lost in an infinite subagent loop. Nobody reviewed the reviewer.","Drowned in merge conflicts. The worktree diverged too far from main.","Killed by writing code before the test. TDD was not optional.","Your plan was too vague. The subagent implemented the wrong feature.","Starved waiting for design approval. The spec was never good enough.","Died of rationalization. 'This is too simple to need a plan' were the last words.","Buried under 14 unfinished skills. Process without progress."]};
 
 // =====================================================================
 // GAME STATE
@@ -187,21 +187,21 @@ let currentEventType = '';  // event type for canvas overlay
 let currentEventTitle = ''; // event title for canvas overlay
 
 const travelFlavors = [
-  "The WebSocket connection is strong today...",
-  "Packets flow smoothly across the middleware...",
-  "Your JSON payloads are well-formed...",
-  "The config files look clean and tidy...",
-  "A gentle breeze carries API responses...",
-  "The route resolver hums along quietly...",
-  "Session files persist without corruption...",
-  "The gateway handles traffic with grace...",
-  "Your TypeScript types provide comfort on the trail...",
-  "The event loop is calm and responsive...",
-  "A hawk circles overhead, watching your throughput...",
-  "The trail ahead is well-documented...",
-  "Your error handling is robust today...",
-  "The authentication tokens are fresh...",
-  "Your dependency tree looks healthy..."
+  "The session hook loads your skills quietly...",
+  "Your design spec is crisp and approved...",
+  "The worktree isolates your changes perfectly...",
+  "Subagents spin up with fresh context...",
+  "The implementation plan is crystal clear...",
+  "Tests fail first, then pass. As intended...",
+  "The code review gate stands firm...",
+  "Your methodology holds steady on the trail...",
+  "A gentle breeze carries well-structured commits...",
+  "The TDD cycle hums along smoothly...",
+  "Branch isolation keeps main branch pristine...",
+  "The spec compliance check finds no drift...",
+  "Your skills enforce discipline without complaint...",
+  "Fresh subagents bring fresh perspective...",
+  "The hard gates hold. No shortcuts today..."
 ];
 
 // =====================================================================
@@ -492,8 +492,8 @@ function drawEventOverlay(time) {
 
   var t = (time || 0) * 0.001; // seconds
 
-  // --- PROTOCOL STORM: dark sky, lightning, rain ---
-  if (currentEventTitle.indexOf('Protocol Storm') !== -1) {
+  // --- HOOK STORM: dark sky, lightning, rain ---
+  if (currentEventTitle.indexOf('Hook Storm') !== -1) {
     // Darken sky
     ctx.fillStyle = 'rgba(0,0,50,0.45)';
     ctx.fillRect(0, 0, W, 110);
@@ -529,8 +529,27 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- FELLOW OPERATOR: person standing by campfire ---
-  if (currentEventTitle.indexOf('Fellow Operator') !== -1) {
+  // --- DESIGN GATE CROSSING: rough rapids with white water ---
+  if (currentEventTitle.indexOf('Design Gate') !== -1) {
+    // Extra turbulence on the river
+    ctx.fillStyle = '#55FFFF';
+    for (var i = 0; i < 20; i++) {
+      var sx = (i * 17 + t * 40) % W;
+      var sy = 157 + Math.sin((i * 3 + t * 5)) * 3;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), 4, 2);
+    }
+    // Floating logs / debris
+    ctx.fillStyle = '#AA5500';
+    for (var i = 0; i < 3; i++) {
+      var logX = (i * 110 + t * 25) % W;
+      var logY = 159 + Math.sin(t * 2 + i) * 2;
+      ctx.fillRect(Math.floor(logX), Math.floor(logY), 8, 2);
+    }
+    return;
+  }
+
+  // --- PLANNING PIONEER: person standing by campfire ---
+  if (currentEventTitle.indexOf('Planning Pioneer') !== -1) {
     var px = 200, py = 142;
     // Person body
     ctx.fillStyle = '#AA5500';
@@ -563,27 +582,44 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- SESSION STATE RIVER: rough rapids with white water ---
-  if (currentEventTitle.indexOf('Session State') !== -1) {
-    // Extra turbulence on the river
-    ctx.fillStyle = '#55FFFF';
-    for (var i = 0; i < 20; i++) {
-      var sx = (i * 17 + t * 40) % W;
-      var sy = 157 + Math.sin((i * 3 + t * 5)) * 3;
-      ctx.fillRect(Math.floor(sx), Math.floor(sy), 4, 2);
+  // --- SUBAGENT STORM: dark clouds, multiple lightning, wind ---
+  if (currentEventTitle.indexOf('Subagent Storm') !== -1) {
+    // Darken sky more
+    ctx.fillStyle = 'rgba(0,0,50,0.55)';
+    ctx.fillRect(0, 0, W, 110);
+    // Multiple lightning bolts
+    for (var bolt = 0; bolt < 3; bolt++) {
+      var flashPhase = Math.sin(t * (1.7 + bolt * 0.9)) + Math.sin(t * (3.1 + bolt * 1.3));
+      if (flashPhase > 1.5) {
+        ctx.strokeStyle = '#FFFF55';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        var lx = 50 + bolt * 90 + Math.sin(t * 2.3 + bolt) * 30;
+        ctx.moveTo(lx, 5);
+        ctx.lineTo(lx - 4, 25);
+        ctx.lineTo(lx + 6, 30);
+        ctx.lineTo(lx - 2, 55);
+        ctx.lineTo(lx + 8, 58);
+        ctx.lineTo(lx + 1, 85);
+        ctx.stroke();
+      }
     }
-    // Floating logs / debris
-    ctx.fillStyle = '#AA5500';
-    for (var i = 0; i < 3; i++) {
-      var logX = (i * 110 + t * 25) % W;
-      var logY = 159 + Math.sin(t * 2 + i) * 2;
-      ctx.fillRect(Math.floor(logX), Math.floor(logY), 8, 2);
+    // Heavy rain
+    ctx.strokeStyle = '#5555FF';
+    ctx.lineWidth = 1;
+    for (var i = 0; i < 60; i++) {
+      var rx = (i * 5.7 + t * 100) % W;
+      var ry = (i * 11.3 + t * 150) % 110;
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(rx), Math.floor(ry));
+      ctx.lineTo(Math.floor(rx - 2), Math.floor(ry + 6));
+      ctx.stroke();
     }
     return;
   }
 
-  // --- RUNAWAY PROCESS: red sky, smoke, warning ---
-  if (currentEventTitle.indexOf('Runaway Process') !== -1) {
+  // --- TDD FAILURE: red sky, smoke, warning ---
+  if (currentEventTitle.indexOf('TDD Failure') !== -1) {
     // Red danger tint
     ctx.fillStyle = 'rgba(170,0,0,0.25)';
     ctx.fillRect(0, 0, W, H);
@@ -619,91 +655,31 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- RPC RIVER: deep blue, fog/mist over water ---
-  if (currentEventTitle.indexOf('RPC River') !== -1) {
-    // Fog layers drifting over the river
-    ctx.fillStyle = 'rgba(85,85,255,0.12)';
-    for (var i = 0; i < 6; i++) {
-      var fogX = (i * 60 + t * 12 + Math.sin(i) * 20) % (W + 40) - 20;
-      var fogY = 145 + Math.sin(t * 0.5 + i * 1.1) * 5;
-      ctx.beginPath();
-      ctx.arc(fogX, fogY, 20 + i * 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.fillStyle = 'rgba(170,170,255,0.08)';
-    for (var i = 0; i < 8; i++) {
-      var fogX = (i * 45 + t * 8) % (W + 30) - 15;
-      var fogY = 150 + Math.sin(t * 0.3 + i * 0.8) * 8;
-      ctx.beginPath();
-      ctx.arc(fogX, fogY, 15 + i * 2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // Deeper water tint
-    ctx.fillStyle = 'rgba(0,0,85,0.2)';
-    ctx.fillRect(0, 155, W, 18);
-    return;
-  }
-
-  // --- SPRING OF CLEAN ARCHITECTURE: sunny, flowers, rainbow ---
-  if (currentEventTitle.indexOf('Spring') !== -1) {
-    // Bright sun
+  // --- REVIEW GATE PIONEER: person standing by gate structure ---
+  if (currentEventTitle.indexOf('Review Gate Pioneer') !== -1) {
+    var px = 200, py = 142;
+    // Person body
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(px, py - 12, 4, 8);
+    ctx.fillStyle = '#FFAA00';
+    ctx.fillRect(px, py - 15, 4, 3);
+    ctx.fillRect(px - 1, py - 4, 2, 5);
+    ctx.fillRect(px + 3, py - 4, 2, 5);
+    // Hat
+    ctx.fillStyle = '#555555';
+    ctx.fillRect(px - 1, py - 17, 6, 2);
+    ctx.fillRect(px, py - 19, 4, 2);
+    // Gate structure
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(210, py - 20, 3, 22);
+    ctx.fillRect(225, py - 20, 3, 22);
+    ctx.fillRect(210, py - 22, 18, 3);
+    // Gate sign
     ctx.fillStyle = '#FFFF55';
-    ctx.beginPath();
-    ctx.arc(260, 30, 12, 0, Math.PI * 2);
-    ctx.fill();
-    // Sun rays
-    ctx.strokeStyle = '#FFFF55';
-    ctx.lineWidth = 1;
-    for (var i = 0; i < 8; i++) {
-      var angle = i * Math.PI / 4 + t * 0.3;
-      ctx.beginPath();
-      ctx.moveTo(260 + Math.cos(angle) * 14, 30 + Math.sin(angle) * 14);
-      ctx.lineTo(260 + Math.cos(angle) * 20, 30 + Math.sin(angle) * 20);
-      ctx.stroke();
-    }
-    // Flowers on ground
-    var flowerColors = ['#FF5555', '#FFFF55', '#FF55FF', '#55FFFF', '#55FF55'];
-    for (var i = 0; i < 12; i++) {
-      var fx = (i * 27 + 10) % W;
-      var fy = 135 + (i * 7) % 20;
-      ctx.fillStyle = '#00AA00';
-      ctx.fillRect(fx + 1, fy, 1, 4); // stem
-      ctx.fillStyle = flowerColors[i % flowerColors.length];
-      ctx.fillRect(fx, fy - 1, 3, 2); // petals
-      ctx.fillStyle = '#FFFF55';
-      ctx.fillRect(fx + 1, fy - 1, 1, 1); // center
-    }
-    // Rainbow arc
-    var rainbowColors = ['#FF5555', '#FFAA00', '#FFFF55', '#55FF55', '#5555FF', '#AA00AA'];
-    for (var rc = 0; rc < rainbowColors.length; rc++) {
-      ctx.strokeStyle = rainbowColors[rc];
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(160, 110, 70 + rc * 3, Math.PI * 1.1, Math.PI * 1.9);
-      ctx.stroke();
-    }
-    ctx.lineWidth = 1;
-    return;
-  }
-
-  // --- MESSAGE CHUNKING FOG: heavy fog obscuring everything ---
-  if (currentEventTitle.indexOf('Chunking Fog') !== -1) {
-    // Dense fog layers
-    for (var layer = 0; layer < 3; layer++) {
-      var alpha = 0.15 + layer * 0.08;
-      ctx.fillStyle = 'rgba(170,170,170,' + alpha.toFixed(2) + ')';
-      for (var i = 0; i < 10; i++) {
-        var fogX = (i * 35 + t * (6 + layer * 4) + layer * 50) % (W + 60) - 30;
-        var fogY = 60 + layer * 30 + Math.sin(t * 0.4 + i * 0.9 + layer) * 10;
-        var fogR = 18 + layer * 8 + Math.sin(t * 0.3 + i) * 5;
-        ctx.beginPath();
-        ctx.arc(fogX, fogY, fogR, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    // Fog below obscuring ground details
-    ctx.fillStyle = 'rgba(170,170,170,0.25)';
-    ctx.fillRect(0, 110, W, 60);
+    ctx.fillRect(214, py - 18, 10, 6);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(216, py - 16, 2, 2);
+    ctx.fillRect(220, py - 16, 2, 2);
     return;
   }
 }
@@ -1085,7 +1061,8 @@ const TS_KEYWORDS = new Set([
   'await', 'return', 'if', 'else', 'for', 'while', 'new', 'typeof', 'instanceof',
   'interface', 'type', 'class', 'extends', 'implements', 'try', 'catch', 'throw',
   'default', 'switch', 'case', 'break', 'continue', 'true', 'false', 'null',
-  'undefined', 'void', 'of', 'in'
+  'undefined', 'void', 'of', 'in', 'do', 'then', 'fi', 'done', 'echo', 'cat',
+  'cd', 'pwd', 'set', 'git', 'IF', 'BLOCK', 'RETURN'
 ]);
 
 function escHtml(s) {
@@ -1094,7 +1071,7 @@ function escHtml(s) {
 
 function highlightCode(code) {
   return code.split('\n').map(function(line) {
-    if (line.trim().startsWith('//')) {
+    if (line.trim().startsWith('//') || line.trim().startsWith('#')) {
       return '<span style="color:#555555">' + escHtml(line) + '</span>';
     }
     var result = '';
@@ -1115,6 +1092,10 @@ function highlightCode(code) {
       }
       // Inline comment
       if (line[i] === '/' && i + 1 < line.length && line[i + 1] === '/') {
+        result += '<span style="color:#555555">' + escHtml(line.substring(i)) + '</span>';
+        break;
+      }
+      if (line[i] === '#') {
         result += '<span style="color:#555555">' + escHtml(line.substring(i)) + '</span>';
         break;
       }
@@ -1162,7 +1143,7 @@ function renderTitleScreen() {
   setTextPanel(
     '<div style="text-align:center; padding-top:20px;">' +
     '<div style="color:#FFFF55; font-size:16px; letter-spacing:2px;">THE CODEREGON TRAIL</div>' +
-    '<div style="color:#AAAAAA; margin-top:8px;">The Gateway Trail - OpenClaw Edition</div>' +
+    '<div style="color:#AAAAAA; margin-top:8px;">The Superpowers Trail - A Superpowers Learning Adventure</div>' +
     '<div style="margin-top:30px;" class="blink">Press SPACE BAR to begin</div>' +
     '</div>'
   );
@@ -1187,10 +1168,10 @@ function renderSetupScreen() {
     '<div style="padding:8px 20px;">' +
     '<div style="color:#55FFFF; margin-bottom:10px;">Your party of key concepts:</div>' +
     '<div style="margin-left:16px;">' +
-    '<div style="color:#55FF55;">1. Gateway Control Plane    <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">2. Channel Plugins          <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">3. Route Resolution         <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">4. Session Persistence      <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">1. Hard-Gate Enforcement     <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">2. Subagent-Driven Dev       <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">3. TDD Discipline            <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">4. Skills as Workflows       <span style="color:#FF5555">' + hearts + '</span></div>' +
     '</div>' +
     '<div style="color:#55FFFF; margin-top:14px; margin-bottom:6px;">What is your profession?</div>' +
     '<div style="margin-left:16px;">' + profsHtml + '</div>' +
@@ -1320,10 +1301,6 @@ function renderDeathScreen() {
   if (techDebtDeath) {
     var techDebtMsgs = [
       'You have died of tech debt dysentery.',
-      // 'You have died of refactoring dysentery.',
-      // 'You have died of unresolved TODOs.',
-      // 'You have died of scope creep.',
-      // 'You have died of dependency bloat.',
     ];
     deathMsg = techDebtMsgs[Math.floor(Math.random() * techDebtMsgs.length)];
     techDebtDeath = false;
@@ -1358,7 +1335,7 @@ function renderWinScreen() {
   var survivors = partyHealth.filter(function(h) { return h > 0; }).length;
   var pctScore = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 100;
 
-  var conceptNames = ['Gateway Control Plane', 'Channel Plugins', 'Route Resolution', 'Session Persistence'];
+  var conceptNames = ['Hard-Gate Enforcement', 'Subagent-Driven Dev', 'TDD Discipline', 'Skills as Workflows'];
 
   var masteryHtml = '';
   var weakestName = '';
@@ -1384,9 +1361,9 @@ function renderWinScreen() {
 
   setTextPanel(
     '<div style="padding:8px 16px;">' +
-    '<div style="color:#FFFF55; text-align:center; font-size:16px;">\u2605 YOU MADE IT TO RESPONSE FRONTIER! \u2605</div>' +
+    '<div style="color:#FFFF55; text-align:center; font-size:16px;">\u2605 YOU MADE IT TO OREGON CITY! \u2605</div>' +
     '<div style="margin-top:10px; color:#AAAAAA;">' +
-    '<div>  Framework:    <span style="color:#55FFFF;">OpenClaw (The Gateway Trail)</span></div>' +
+    '<div>  Framework:    <span style="color:#55FFFF;">Superpowers (The Superpowers Trail)</span></div>' +
     '<div>  Survivors:    <span style="color:#55FF55;">' + survivors + '/' + partyHealth.length + '</span></div>' +
     '<div>  Quiz Score:   <span style="color:#FFFF55;">' + score + '/' + totalQuestions + ' (' + pctScore + '%)</span></div>' +
     '<div>  Best Streak:  <span style="color:#FF55FF;">' + bestStreak + '</span></div>' +

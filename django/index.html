@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Coderegon Trail - OpenClaw Edition</title>
+<title>The Coderegon Trail - Django Edition</title>
 <style>
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 html, body {
@@ -75,7 +75,7 @@ html, body {
 }
 .shake { animation: shake 0.5s ease-in-out; }
 .code-box {
-  background: #000;
+  background: #272822;
   border: 1px solid #555555;
   padding: 6px 8px;
   margin: 6px 0;
@@ -85,10 +85,10 @@ html, body {
   font-size: 12px;
   line-height: 1.3;
   white-space: pre;
-  color: #55FF55;
+  color: #f8f8f2;
 }
 .code-box::-webkit-scrollbar { width: 6px; height: 6px; }
-.code-box::-webkit-scrollbar-track { background: #000; }
+.code-box::-webkit-scrollbar-track { background: #272822; }
 .code-box::-webkit-scrollbar-thumb { background: #555555; }
 .choice-item { cursor: pointer; padding: 2px 4px; }
 .choice-item:hover { color: #FFFF55; }
@@ -135,7 +135,7 @@ html, body {
 // =====================================================================
 // TRAIL DATA
 // =====================================================================
-const TRAIL_DATA={"framework":"openclaw","trailName":"The Gateway Trail","stops":[{"name":"Channel Outpost","subtitle":"Message Arrives","concept":"Channel Plugins","landmarkType":"town","code":{"file":"extensions/whatsapp/src/plugin.ts","content":"// extensions/whatsapp/src/plugin.ts (conceptual)\nimport { ChannelPlugin } from '@openclaw/types'\n\nexport const whatsappPlugin: ChannelPlugin = {\n  config: {\n    listAccountIds(cfg) {\n      return cfg.whatsapp?.accounts?.map(a => a.id) ?? []\n    },\n    async isConfigured(account) {\n      return !!account.phoneNumber\n    },\n    resolveAccount(cfg, id) {\n      return cfg.whatsapp.accounts.find(a => a.id === id)\n    },\n  },\n  gateway: {\n    async startAccount({ account, gateway }) {\n      const sock = makeWASocket({ auth: account.auth })\n      sock.ev.on('messages.upsert', async ({ messages }) => {\n        for (const msg of messages) {\n          await gateway.handleInbound({\n            channel: 'whatsapp',\n            peer: msg.key.remoteJid,\n            text: msg.message?.conversation,\n            accountId: account.id,\n          })\n        }\n      })\n    },\n    async stopAccount({ account }) {\n      // Graceful disconnect\n    },\n  },\n}","language":"typescript"},"narration":"Every journey starts at a channel outpost. OpenClaw connects to thirteen different messaging platforms. Each has a channel plugin following the same interface. Here's the WhatsApp plugin using Baileys to listen for messages. When a message arrives, it normalizes it into a common format and hands it to the gateway."},{"name":"Normalization Pass","subtitle":"Common Message Format","concept":"Channel Plugins","landmarkType":"camp","code":{"file":"src/channels/plugins/types.ts","content":"// src/channels/plugins/types.ts (simplified)\nexport interface ChannelPlugin {\n  config: {\n    listAccountIds(cfg: Config): string[]\n    isConfigured(account: AccountConfig): Promise<boolean>\n    resolveAccount(cfg: Config, id: string): AccountConfig\n  }\n  gateway?: {\n    startAccount(opts: StartAccountOpts): Promise<void>\n    stopAccount(opts: StopAccountOpts): Promise<void>\n  }\n}\n\n// The normalized inbound message shape:\ninterface InboundMessage {\n  channel: string\n  accountId: string\n  peer: RoutePeer\n  text: string\n  threadId?: string\n  attachments?: Media[]\n  guildId?: string\n}","language":"typescript"},"narration":"At the Normalization Pass, chaos becomes order. Every messaging platform has its own format. The ChannelPlugin interface forces them all into one shape. The gateway never needs to know whether you messaged from WhatsApp or Telegram."},{"name":"Route Resolution Fork","subtitle":"Finding the Right Agent","concept":"Route Resolution","landmarkType":"mountain","code":{"file":"src/routing/resolve-route.ts","content":"// src/routing/resolve-route.ts (simplified)\nexport function resolveAgentRoute({\n  cfg, channel, accountId, peer, guildId, teamId,\n}: ResolveRouteInput): ResolvedRoute {\n\n  for (const agent of cfg.agents.list) {\n    const routing = agent.routing\n\n    // 1. Exact peer match (highest priority)\n    const peerMatch = routing.peer?.find(\n      b => b.peer === peer.id && b.channel === channel\n    )\n    if (peerMatch) return { agentId: agent.id, matchedBy: 'peer' }\n\n    // 2. Guild/server match\n    const guildMatch = routing.guild?.find(\n      b => b.guildId === guildId && b.channel === channel\n    )\n    if (guildMatch) return { agentId: agent.id, matchedBy: 'guild' }\n\n    // 3. Account-level match\n    const accountMatch = routing.account?.find(\n      b => b.accountId === accountId && b.channel === channel\n    )\n    if (accountMatch) return { agentId: agent.id, matchedBy: 'account' }\n  }\n\n  return { agentId: cfg.agents.default, matchedBy: 'default' }\n}","language":"typescript"},"narration":"Here's where the trail forks. The resolver checks priority order: specific peer binding, then guild/server, then account, then default. One gateway can serve different agents to different people."},{"name":"Session Persistence Camp","subtitle":"Loading Conversation State","concept":"Session Persistence","landmarkType":"camp","code":{"file":"src/sessions/session-utils.ts","content":"// src/sessions/session-utils.ts (simplified)\nimport { readFile, writeFile, mkdir } from 'fs/promises'\n\nconst SESSIONS_DIR = '~/.openclaw/sessions'\n\nexport async function loadSessionEntry(\n  agentId: string,\n  sessionKey: string,\n): Promise<SessionEntry> {\n  const path = `${SESSIONS_DIR}/${agentId}/${sessionKey}.json`\n\n  try {\n    const raw = await readFile(path, 'utf-8')\n    return JSON.parse(raw)\n  } catch {\n    return {\n      sessionKey,\n      agentId,\n      transcript: [],\n      metadata: {\n        model: 'anthropic/claude-opus-4-6',\n        thinkingLevel: 'medium',\n        tokensUsed: 0,\n        createdAt: Date.now(),\n      },\n    }\n  }\n}","language":"typescript"},"narration":"Sessions are just JSON files on disk. Each agent-plus-peer combination gets its own file. If the file doesn't exist, a fresh session starts with sensible defaults. Zero database dependencies, easy backup."},{"name":"Gateway Control Ridge","subtitle":"The WebSocket Command Center","concept":"Gateway Control Plane","landmarkType":"mountain","code":{"file":"src/gateway/server-chat.ts","content":"// src/gateway/server-chat.ts (simplified)\nexport function createChatRunRegistry(gateway: GatewayServer) {\n\n  async function handleChatSend(\n    sessionEntry: SessionEntry,\n    message: InboundMessage,\n  ) {\n    sessionEntry.transcript.push({\n      role: 'user',\n      content: message.text,\n      timestamp: Date.now(),\n    })\n\n    const agentRpc = gateway.acp.getClient(sessionEntry.agentId)\n    const stream = await agentRpc.call('chat.send', {\n      sessionId: sessionEntry.sessionKey,\n      messages: sessionEntry.transcript,\n      tools: sessionEntry.metadata.enabledTools,\n      model: sessionEntry.metadata.model,\n    })\n\n    for await (const chunk of stream) {\n      if (chunk.type === 'text') {\n        gateway.broadcast('chat.stream', { text: chunk.text })\n      } else if (chunk.type === 'tool_use') {\n        const result = await executeTool(chunk.tool, chunk.input)\n        agentRpc.sendToolResult(chunk.id, result)\n      }\n    }\n    await saveSession(sessionEntry)\n  }\n\n  return { handleChatSend }\n}","language":"typescript"},"narration":"The gateway server accepts WebSocket connections from channels, the CLI, and native apps. The streaming loop handles text and tool calls differently. Text streams in real time; tool calls get executed on the gateway and results feed back."},{"name":"Agent RPC Rapids","subtitle":"Talking to the AI","concept":"Gateway Control Plane","landmarkType":"river","code":{"file":"src/acp/client.ts","content":"// src/acp/client.ts (simplified)\nexport function createAcpClient(agentId: string, wsUrl: string) {\n  const ws = new WebSocket(wsUrl)\n\n  async function* call(\n    method: string,\n    params: ChatSendParams,\n  ): AsyncGenerator<AgentChunk> {\n    const requestId = crypto.randomUUID()\n\n    ws.send(JSON.stringify({\n      jsonrpc: '2.0',\n      id: requestId,\n      method,\n      params,\n    }))\n\n    while (true) {\n      const msg = await nextMessage(ws, requestId)\n      if (msg.type === 'done') break\n      yield msg\n    }\n  }\n\n  function sendToolResult(toolCallId: string, result: ToolResult) {\n    ws.send(JSON.stringify({\n      jsonrpc: '2.0',\n      method: 'tool.result',\n      params: { toolCallId, result },\n    }))\n  }\n\n  return { call, sendToolResult }\n}","language":"typescript"},"narration":"Now we cross the RPC Rapids. The gateway and agent communicate over JSON-RPC. The agent decides what to do, but the gateway controls what actually happens on your machine. Security through architecture."},{"name":"Tool Execution Gorge","subtitle":"Running Commands on the Host","concept":"Gateway Control Plane","landmarkType":"forest","code":{"file":"src/agents/bash-tools.exec.ts","content":"// src/agents/bash-tools.exec.ts (simplified)\nexport async function executeBashTool(\n  input: { command: string },\n  context: ToolContext,\n): Promise<ToolResult> {\n  const { command } = input\n  const { sessionEntry, securityPolicy } = context\n\n  if (!securityPolicy.allowBash) {\n    return { error: 'Bash execution not permitted' }\n  }\n\n  const pty = spawn('bash', ['-c', command], {\n    cwd: sessionEntry.metadata.workingDir,\n    env: { ...process.env, ...sessionEntry.metadata.env },\n    timeout: 120_000,\n  })\n\n  let stdout = ''\n  pty.onData(data => { stdout += data })\n  const exitCode = await pty.wait()\n\n  return {\n    stdout: stdout.slice(0, 100_000),\n    exitCode,\n  }\n}","language":"typescript"},"narration":"Deep in Tool Execution Gorge, the agent's intentions become real actions. Security check first, then a real PTY with a two-minute timeout. Bash is just one tool \u2014 same pattern for browser control, canvas, and device actions."},{"name":"Response Delivery Frontier","subtitle":"Back Through the Channel","concept":"Channel Plugins","landmarkType":"town","code":{"file":"src/gateway/server-channels.ts","content":"// src/gateway/server-channels.ts (simplified)\nexport function createChannelManager(gateway: GatewayServer) {\n\n  async function deliverResponse(\n    sessionEntry: SessionEntry,\n    response: AgentResponse,\n  ) {\n    const { channel, peer, accountId } = sessionEntry.routing\n    const plugin = gateway.channels.get(channel)\n\n    const formatted = formatForChannel(channel, response.text, {\n      maxLength: getChannelLimit(channel),\n    })\n\n    for (const chunk of formatted) {\n      await plugin.send({ accountId, peer, text: chunk })\n    }\n\n    sessionEntry.transcript.push({\n      role: 'assistant',\n      content: response.text,\n      timestamp: Date.now(),\n    })\n    await saveSession(sessionEntry)\n\n    gateway.broadcast('chat.response', { text: response.text })\n  }\n\n  return { deliverResponse }\n}","language":"typescript"},"narration":"You made it! The response travels back through the same channel. Formatted for each platform's limits, chunked automatically, saved to the transcript. Message in, intelligence applied, response out. Your wagon has arrived."}],"events":[{"type":"weather","trigger":"after_stop","triggerStop":1,"title":"Protocol Storm!","text":"A storm of messages hits your gateway \u2014 WhatsApp sends phone numbers, Discord sends snowflake IDs, Slack sends workspace tokens. How do you weather this storm?","choices":[{"text":"Define a common interface that all channel plugins must implement","correct":true,"explanation":"OpenClaw's ChannelPlugin interface forces every platform into the same shape. New channels can be added without touching gateway code."},{"text":"Write a giant switch statement in the gateway for each platform","correct":false,"explanation":"That would make the gateway a tangled mess. Every new channel means modifying core code."},{"text":"Only support one messaging platform to keep things simple","correct":false,"explanation":"Multi-channel support is core to OpenClaw's value. The trick is clean abstraction through the plugin interface."}],"concept":"Channel Plugins","difficulty":"easy"},{"type":"encounter","trigger":"after_stop","triggerStop":2,"title":"A Fellow Operator Appears","text":"A seasoned operator says: 'I run three agents \u2014 personal on WhatsApp, work on Slack, social bot on Discord. One gateway.' How does it know which agent handles which message?","choices":[{"text":"Route bindings in the config map channels, peers, and guilds to agents","correct":true,"explanation":"Config bindings map at multiple levels. Priority: peer, guild, team, account, channel, then default."},{"text":"Each agent runs its own separate gateway on a different port","correct":false,"explanation":"One gateway, multiple agents. Separate gateways would mean separate configs and connections."},{"text":"The user specifies which agent to use in every message","correct":false,"explanation":"Routing is automatic and invisible. The gateway figures it out from the config bindings."}],"concept":"Route Resolution","difficulty":"easy"},{"type":"river","trigger":"after_stop","triggerStop":3,"title":"The Session State River","text":"You've reached the boundary between stateless request handling and persistent memory. Your assistant needs to remember last week's conversation across a restart. How do you cross?","choices":[{"text":"Store sessions as JSON files on disk, loaded on demand per key","correct":true,"explanation":"Each session is a JSON file at a predictable path. No database needed. The file system IS the persistence layer."},{"text":"Keep all sessions in memory with a Redis cache","correct":false,"explanation":"In-memory state is lost on restart. Redis adds an external dependency. OpenClaw is local-first."},{"text":"Store history in the AI model's context and let it remember","correct":false,"explanation":"Context windows are limited and expensive. The persistence layer is separate from inference."}],"concept":"Session Persistence","difficulty":"medium"},{"type":"misfortune","trigger":"after_stop","triggerStop":5,"title":"Runaway Process!","text":"The AI agent ran a shell command that's an infinite loop consuming 100% CPU. Your gateway is grinding to a halt!","choices":[{"text":"Tool execution needs timeouts and session security policies should gate commands","correct":true,"explanation":"Bash tools have a two-minute timeout, and security policies control what's allowed. The gateway is the security boundary."},{"text":"The agent should be smarter and never request dangerous commands","correct":false,"explanation":"Never rely on the AI as the security boundary. Defense in depth means the gateway enforces limits."},{"text":"Run all tools in the agent's process so only it crashes","correct":false,"explanation":"Tools run on the gateway because they need local machine access. The separation is a feature."}],"concept":"Gateway Control Plane","difficulty":"medium"},{"type":"river","trigger":"after_stop","triggerStop":5,"title":"The RPC River","text":"The deepest river \u2014 the boundary between gateway and agent runtime. The agent needs a browser screenshot but runs in a different process. How?","choices":[{"text":"JSON-RPC over WebSocket: agent requests, gateway executes locally","correct":true,"explanation":"The agent streams tool_use blocks, the gateway intercepts and executes. The agent could run remotely."},{"text":"The agent directly imports and calls the browser module","correct":false,"explanation":"Separate processes can't call each other's code. The RPC boundary IS the security model."},{"text":"The agent writes commands to a shared file the gateway watches","correct":false,"explanation":"File watching is slow and unreliable. WebSocket RPC gives real-time bidirectional streaming."}],"concept":"Gateway Control Plane","difficulty":"hard"},{"type":"fortune","trigger":"after_stop","triggerStop":6,"title":"Spring of Clean Architecture","text":"Your understanding of the control plane is solid! Friendly contributors join your camp and share plugin templates.","choices":[],"concept":"Channel Plugins","difficulty":"easy"},{"type":"weather","trigger":"after_stop","triggerStop":6,"title":"Message Chunking Fog","text":"Dense fog. Your assistant wrote 3000 words but WhatsApp only allows 4096 characters. The user sees a truncated response. What went wrong?","choices":[{"text":"The formatter should chunk messages based on each channel's limit","correct":true,"explanation":"WhatsApp: 4096, Discord: 2000, Slack: 40000. The delivery layer splits into properly-sized chunks."},{"text":"Tell the AI to always write short responses","correct":false,"explanation":"You can't enforce output length on LLMs. The delivery layer handles formatting."},{"text":"Switch to a channel with no message limits","correct":false,"explanation":"Multi-channel means meeting users where they are. Every channel must work correctly."}],"concept":"Channel Plugins","difficulty":"easy"}],"partyMembers":[{"name":"Gateway Control Plane","icon":"gateway","maxHealth":3},{"name":"Channel Plugins","icon":"channel","maxHealth":3},{"name":"Route Resolution","icon":"route","maxHealth":3},{"name":"Session Persistence","icon":"session","maxHealth":3}],"deathMessages":["You have died of unhandled WebSocket disconnections.","You have died of missing default routes.","You have drowned in the RPC River.","You have died of session bloat.","You have died of a runaway bash command.","You have died of unhandled plugin exceptions.","You have died of API rate limits.","You have died of dependency conflicts.","You have died of expired sessions.","You have died of Discord snowflake avalanche.","You have died of invalid routing config."]};
+const TRAIL_DATA={"framework": "django", "trailName": "The WSGI Wagon Trail", "stops": [{"name": "WSGI Outpost", "subtitle": "The Entry Point", "concept": "WSGI Application", "landmarkType": "town", "code": {"file": "myproject/wsgi.py:1-18", "content": "# myproject/wsgi.py\nimport os\nfrom django.core.wsgi import get_wsgi_application\n\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'myproject.settings')\n\napplication = get_wsgi_application()\n\n# What get_wsgi_application() does under the hood:\n# 1. Reads DJANGO_SETTINGS_MODULE from environment\n# 2. Calls django.setup() — imports all apps, runs AppConfig.ready()\n# 3. Returns a WSGIHandler instance\n#\n# The WSGIHandler is a callable:\n#   def __call__(self, environ, start_response):\n#       request = WSGIRequest(environ)\n#       response = self.get_response(request)\n#       return response", "language": "python"}, "narration": "Every Django journey begins at the WSGI Outpost. This tiny file is what your web server — Gunicorn, uWSGI, or the dev server — actually calls. It sets the settings module, then hands back a WSGIHandler. That handler is the gateway into Django. When a request arrives, it wraps the raw WSGI environ dict into a friendly WSGIRequest object. One environment variable controls everything: DJANGO_SETTINGS_MODULE. Get that wrong, and the wagon never leaves town."}, {"name": "Middleware Mountains", "subtitle": "The Request Stack", "concept": "Middleware Pipeline", "landmarkType": "mountain", "code": {"file": "myproject/settings.py:40-62", "content": "# myproject/settings.py\nMIDDLEWARE = [\n    'django.middleware.security.SecurityMiddleware',\n    'django.contrib.sessions.middleware.SessionMiddleware',\n    'django.middleware.common.CommonMiddleware',\n    'django.middleware.csrf.CsrfViewMiddleware',\n    'django.contrib.auth.middleware.AuthenticationMiddleware',\n    'django.contrib.messages.middleware.MessageMiddleware',\n    'django.middleware.clickjacking.XFrameOptionsMiddleware',\n]\n\n# Each middleware is a class with hooks:\n# class SecurityMiddleware:\n#     def __init__(self, get_response):\n#         self.get_response = get_response\n#\n#     def __call__(self, request):\n#         # Pre-view logic (runs top-down)\n#         response = self.get_response(request)\n#         # Post-view logic (runs bottom-up)\n#         return response", "language": "python"}, "narration": "Welcome to Middleware Mountains. This ordered list is the backbone of Django's request processing. Each middleware wraps the next one like Russian nesting dolls. On the way in, they run top to bottom — security first, then sessions, then CSRF protection. On the way out, they run in reverse. Order matters enormously here. Put AuthenticationMiddleware before SessionMiddleware and your users will never be logged in. The middleware stack is Django's immune system."}, {"name": "URLconf Crossroads", "subtitle": "Path Resolution", "concept": "URL Routing", "landmarkType": "camp", "code": {"file": "myproject/urls.py:1-22", "content": "# myproject/urls.py\nfrom django.contrib import admin\nfrom django.urls import path, include\n\nurlpatterns = [\n    path('admin/', admin.site.urls),\n    path('api/', include('api.urls')),\n    path('blog/', include('blog.urls')),\n]\n\n# blog/urls.py\nfrom django.urls import path\nfrom . import views\n\napp_name = 'blog'\n\nurlpatterns = [\n    path('', views.post_list, name='post-list'),\n    path('<int:pk>/', views.post_detail, name='post-detail'),\n    path('<slug:slug>/', views.post_by_slug, name='post-slug'),\n    path('<int:pk>/comment/', views.add_comment, name='add-comment'),\n]", "language": "python"}, "narration": "You've reached the URLconf Crossroads. Django resolves URLs by walking through urlpatterns top to bottom until something matches. The include function is the key — it delegates to app-level URL files, keeping things modular. Angle brackets define path converters: int colon pk captures a number, slug colon slug captures a URL-safe string. The name argument is crucial — it lets you reverse URLs in templates and views without hardcoding paths. If nothing matches, Django raises a 404."}, {"name": "View Vista", "subtitle": "Request Handlers", "concept": "Views and Request Handling", "landmarkType": "forest", "code": {"file": "blog/views.py:1-25", "content": "# blog/views.py\nfrom django.shortcuts import render, get_object_or_404\nfrom django.views.generic import ListView, DetailView\nfrom django.http import Http404\nfrom .models import Post, Comment\n\n# Function-based view — explicit and flexible\ndef post_detail(request, pk):\n    post = get_object_or_404(Post, pk=pk, status='published')\n    comments = post.comments.filter(active=True)\n    return render(request, 'blog/post_detail.html', {\n        'post': post,\n        'comments': comments,\n    })\n\n# Class-based view — DRY for common patterns\nclass PostListView(ListView):\n    model = Post\n    queryset = Post.objects.filter(status='published')\n    template_name = 'blog/post_list.html'\n    context_object_name = 'posts'\n    paginate_by = 10\n    ordering = ['-publish_date']", "language": "python"}, "narration": "Welcome to View Vista, where requests become responses. Django gives you two styles. Function-based views are explicit — you see every step, from fetching the object to picking the template. Class-based views like ListView handle boilerplate automatically — pagination, queryset filtering, and template selection all come free. The get_object_or_404 shortcut is Django magic: it either finds your object or raises a 404 with zero extra code. Most Django developers use both styles depending on complexity."}, {"name": "ORM Oasis", "subtitle": "Data Access Layer", "concept": "ORM QuerySets", "landmarkType": "desert", "code": {"file": "blog/models.py:1-25", "content": "# blog/models.py\nfrom django.db import models\nfrom django.contrib.auth.models import User\nfrom django.utils import timezone\n\nclass Post(models.Model):\n    title = models.CharField(max_length=200)\n    slug = models.SlugField(max_length=200, unique_for_date='publish_date')\n    author = models.ForeignKey(User, on_delete=models.CASCADE,\n                               related_name='blog_posts')\n    body = models.TextField()\n    publish_date = models.DateTimeField(default=timezone.now)\n    status = models.CharField(max_length=10,\n                              choices=[('draft', 'Draft'), ('published', 'Published')],\n                              default='draft')\n\n    class Meta:\n        ordering = ['-publish_date']\n        indexes = [models.Index(fields=['-publish_date'])]\n\n    def __str__(self):\n        return self.title\n\n    # QuerySet usage:\n    # Post.objects.filter(status='published', author__username='alice')\n    # Returns SQL: SELECT * FROM blog_post WHERE status='published'\n    #              AND author_id IN (SELECT id FROM auth_user WHERE username='alice')", "language": "python"}, "narration": "You've reached the ORM Oasis — Django's most powerful feature. Each model class maps to a database table. Fields like CharField and ForeignKey define both the Python API and the database schema. The double-underscore syntax in QuerySets is where it gets interesting — author double-underscore username lets you traverse relationships without writing joins. Django builds the SQL for you. The Meta class controls ordering, indexes, and constraints. And that on_delete parameter on ForeignKey? It's not optional. Django forces you to think about data integrity from day one."}, {"name": "Template Territory", "subtitle": "Rendering HTML", "concept": "Template Engine", "landmarkType": "camp", "code": {"file": "templates/blog/post_detail.html:1-22", "content": "{% extends \"base.html\" %}\n{% load humanize %}\n\n{% block title %}{{ post.title }}{% endblock %}\n\n{% block content %}\n<article>\n    <h1>{{ post.title }}</h1>\n    <p class=\"meta\">\n        By {{ post.author.get_full_name }} |\n        {{ post.publish_date|naturaltime }}\n    </p>\n    {{ post.body|linebreaks }}\n</article>\n\n{% for comment in comments %}\n    <div class=\"comment\">\n        <strong>{{ comment.name }}</strong>\n        <p>{{ comment.body|truncatewords:50 }}</p>\n    </div>\n{% empty %}\n    <p>No comments yet.</p>\n{% endfor %}\n{% endblock %}", "language": "html"}, "narration": "Welcome to Template Territory. That extends tag on line one is everything — it says this template inherits from base dot html. The block tags define regions that child templates can override. Filters after the pipe symbol transform data: naturaltime turns a datetime into 'two hours ago,' linebreaks converts newlines to HTML paragraphs. The for-empty pattern is classic Django — it handles the empty list case right in the loop. Templates are deliberately limited in power. No arbitrary Python allowed. That's a feature, not a bug — it keeps business logic in views where it belongs."}, {"name": "Context Canyon", "subtitle": "Assembling the Data", "concept": "Context Processors", "landmarkType": "river", "code": {"file": "myproject/settings.py:55-75", "content": "# myproject/settings.py\nTEMPLATES = [{\n    'BACKEND': 'django.template.backends.django.DjangoTemplates',\n    'DIRS': [BASE_DIR / 'templates'],\n    'APP_DIRS': True,\n    'OPTIONS': {\n        'context_processors': [\n            'django.template.context_processors.debug',\n            'django.template.context_processors.request',\n            'django.contrib.auth.context_processors.auth',\n            'django.contrib.messages.context_processors.messages',\n            'blog.context_processors.site_settings',\n        ],\n    },\n}]\n\n# blog/context_processors.py\nfrom .models import Category\n\ndef site_settings(request):\n    \"\"\"Inject site-wide data into every template context.\"\"\"\n    return {\n        'categories': Category.objects.filter(active=True),\n        'site_name': 'My Django Blog',\n        'current_year': request.META.get('SERVER_NAME', ''),\n    }", "language": "python"}, "narration": "Now we cross Context Canyon — the bridge between your data and your templates. Context processors run on every single request that uses a template. They inject variables that are available everywhere without passing them explicitly. The auth processor gives you the user object. The messages processor provides flash messages. Your custom processor here adds categories and the site name to every page. Be careful though — a context processor that runs an expensive query will slow down every page load. This is global state, so use it wisely."}, {"name": "Response Frontier", "subtitle": "Sending the Reply", "concept": "HTTP Responses", "landmarkType": "town", "code": {"file": "blog/views.py:30-55", "content": "# blog/views.py\nfrom django.http import (\n    HttpResponse, JsonResponse, StreamingHttpResponse,\n    HttpResponseRedirect,\n)\nfrom django.template.loader import render_to_string\n\ndef post_api(request, pk):\n    \"\"\"JSON API endpoint.\"\"\"\n    post = get_object_or_404(Post, pk=pk, status='published')\n    return JsonResponse({\n        'title': post.title,\n        'body': post.body,\n        'author': post.author.username,\n        'published': post.publish_date.isoformat(),\n    })\n\ndef export_posts(request):\n    \"\"\"Stream large CSV export without loading all into memory.\"\"\"\n    def generate_rows():\n        yield 'title,author,date\\n'\n        for post in Post.objects.filter(status='published').iterator():\n            yield f'{post.title},{post.author.username},{post.publish_date}\\n'\n\n    response = StreamingHttpResponse(generate_rows(), content_type='text/csv')\n    response['Content-Disposition'] = 'attachment; filename=\"posts.csv\"'\n    return response", "language": "python"}, "narration": "You made it to the Response Frontier! Every view must return an HttpResponse — that's Django's one unbreakable rule. JsonResponse handles API endpoints, automatically serializing dicts to JSON and setting the content type. StreamingHttpResponse is the power tool — it yields chunks instead of building the whole response in memory. Perfect for large exports. Notice the iterator call on the QuerySet — it fetches rows one at a time instead of loading thousands into memory. The response travels back up through the middleware stack in reverse, picking up headers and cookies along the way. Your wagon has arrived."}], "events": [{"type": "weather", "trigger": "after_stop", "triggerStop": 1, "title": "Middleware Ordering Storm!", "text": "A violent storm hits your wagon train. Your Django app is throwing 403 Forbidden on every POST request, even from logged-in users. You recently reordered the MIDDLEWARE list to 'clean it up.' What went wrong?", "choices": [{"text": "CsrfViewMiddleware must come after SessionMiddleware because CSRF validation depends on the session", "correct": true, "explanation": "Exactly right. CsrfViewMiddleware reads the CSRF token from the session cookie, which SessionMiddleware sets up. If CSRF runs first, there's no session to read from — so every POST fails validation. Middleware order is a dependency chain, not just a list."}, {"text": "You need to add the csrf_exempt decorator to every view", "correct": false, "explanation": "That would disable CSRF protection entirely, leaving your app vulnerable to cross-site request forgery attacks. The real fix is getting the middleware order right so CSRF works correctly with the session."}, {"text": "You should switch from CSRF tokens to a custom authentication header", "correct": false, "explanation": "CSRF protection and authentication are different concerns. CSRF prevents other sites from submitting forms as your users. Replacing it with a custom header would break standard HTML form submissions and leave you writing security code that Django already provides."}], "concept": "Middleware Pipeline", "difficulty": "medium"}, {"type": "encounter", "trigger": "after_stop", "triggerStop": 2, "title": "A Django Elder Appears", "text": "A wise traveler shows you two templates. The first has <a href='/blog/42/'>. The second has <a href='{% url \"blog:post-detail\" pk=post.pk %}'>. 'One of these will break when you change your URL patterns,' the elder says. Which approach is better and why?", "choices": [{"text": "The url template tag with named routes — it generates URLs dynamically so they never go stale", "correct": true, "explanation": "Spot on. The url tag resolves the named route at render time. If you change the URL pattern from blog slash to articles slash, every link updates automatically. Hardcoded paths silently break and you won't know until a user hits a 404."}, {"text": "The hardcoded path — it's simpler and there's no performance overhead from URL resolution", "correct": false, "explanation": "URL resolution is extremely fast — Django caches the URL patterns. The tiny performance difference is meaningless compared to the maintenance nightmare of finding and updating every hardcoded URL when patterns change."}, {"text": "It doesn't matter — Django automatically redirects old URLs to new ones", "correct": false, "explanation": "Django does not automatically redirect old URLs. You would need to manually add redirect rules. Named URL reversal avoids the problem entirely because links are always generated from the current URL configuration."}], "concept": "URL Routing", "difficulty": "easy"}, {"type": "river", "trigger": "after_stop", "triggerStop": 3, "title": "The View Architecture River", "text": "You've reached a wide river. Your blog app needs a view that lists posts, supports pagination, filters by category, and handles both GET and POST for a search form. The current function-based view is 60 lines long. How do you cross?", "choices": [{"text": "Refactor to a ListView with get_queryset and get_context_data overrides", "correct": true, "explanation": "ListView handles pagination, template selection, and context naming automatically. Override get_queryset to add your category filter, and get_context_data to inject the search form. You go from 60 lines to about 15, and gain built-in edge case handling like invalid page numbers."}, {"text": "Keep the function-based view but split it into smaller helper functions", "correct": false, "explanation": "Splitting into helpers reduces line count but you're still reimplementing pagination, 404 handling for bad page numbers, and template context assembly that ListView provides for free. You're writing code that Django already wrote and tested."}, {"text": "Use a Django REST Framework ViewSet instead", "correct": false, "explanation": "DRF ViewSets are designed for API endpoints returning JSON, not HTML pages with templates. You'd need a serializer, lose template rendering, and add a whole dependency for something Django's generic views handle natively."}], "concept": "Template Engine", "difficulty": "medium"}, {"type": "misfortune", "trigger": "after_stop", "triggerStop": 4, "title": "N+1 Query Plague!", "text": "Disaster! Your blog listing page is making 101 database queries — one for the list of 100 posts, and one more per post to fetch each author's name. Page load times have tripled. The Django Debug Toolbar is screaming. How do you cure this plague?", "choices": [{"text": "Use select_related on the ForeignKey to author — it joins the tables in a single query", "correct": true, "explanation": "select_related performs a SQL JOIN and fetches the related author in the same query as the post. One hundred and one queries become one. Use select_related for ForeignKey and OneToOneField relationships. For ManyToManyField, use prefetch_related instead — it does a separate query but caches the results."}, {"text": "Cache the author names in a dictionary and look them up in Python", "correct": false, "explanation": "You'd still need to fetch all the authors — that's a separate query. And you'd be reimplementing what select_related does automatically at the database level, where JOINs are far more efficient than Python dictionary lookups."}, {"text": "Add an author_name CharField to the Post model to avoid the join entirely", "correct": false, "explanation": "Denormalizing data creates maintenance nightmares. When an author changes their name, you'd need to update every post. This violates database normalization for no good reason when select_related solves it in one line."}], "concept": "ORM QuerySets", "difficulty": "easy"}, {"type": "fortune", "trigger": "after_stop", "triggerStop": 5, "title": "A Cache of Custom Tags", "text": "Your understanding of Django's template system is impressive! You discovered a cache of well-written custom template tags left by a previous traveler. Your templates are cleaner and your health is restored.", "choices": [], "concept": "Template Engine", "difficulty": "easy"}, {"type": "misfortune", "trigger": "after_stop", "triggerStop": 6, "title": "Context Processor Stampede!", "text": "Panic on the trail! Every page on your site takes three seconds to load. You added a context processor that runs Category.objects.all() and fetches recent posts, comments, and user stats. It runs on EVERY request — including your JSON API endpoints that don't even use templates. How do you fix this?", "choices": [{"text": "Use lazy evaluation — wrap expensive queries in SimpleLazyObject so they only execute if the template actually accesses them", "correct": true, "explanation": "SimpleLazyObject defers the database query until the variable is actually used in a template. API views that return JSON never touch the context variables, so the queries never run. You get the convenience of global context without the performance cost on pages that don't need it."}, {"text": "Move all the data fetching into each view's get_context_data method", "correct": false, "explanation": "That works but defeats the purpose of context processors — sharing data across many templates. You'd duplicate the same queries in dozens of views. Lazy evaluation gives you both convenience and performance."}, {"text": "Add caching with a five-minute timeout to the context processor", "correct": false, "explanation": "Caching helps but adds complexity — you need cache invalidation when categories change, and stale data might confuse users. Lazy evaluation is simpler and more correct: if a page doesn't need the data, the query simply never runs."}], "concept": "ORM QuerySets", "difficulty": "hard"}, {"type": "encounter", "trigger": "after_stop", "triggerStop": 1, "title": "A Django Guide Appears", "text": "A friendly guide meets your wagon. 'Django follows the MVT pattern — Model, View, Template. But newcomers from other frameworks get confused. In Django, what does the View do compared to MVC frameworks?'", "choices": [{"text": "The View handles request logic and picks which template to render — it's like the Controller in MVC", "correct": true, "explanation": "Exactly. Django's View is the controller. It receives the request, queries the model, and passes data to the template. Django's Template is the view layer. The naming is different from MVC, but the separation of concerns is the same."}, {"text": "The View is the HTML template that the user sees in the browser", "correct": false, "explanation": "That's the Template in Django. The naming confusion comes from MVC where 'view' means the visual layer. In Django, views are Python functions or classes that handle request logic."}, {"text": "The View is the database model that defines the data structure", "correct": false, "explanation": "That's the Model. The View sits between the Model and the Template — it fetches data from models and passes it to templates for rendering."}], "concept": "Views and Request Handling", "difficulty": "easy"}, {"type": "weather", "trigger": "after_stop", "triggerStop": 2, "title": "Admin Configuration Storm!", "text": "A storm of admin requests hits your site. You registered your Post model with admin.site.register(Post) but the admin list shows only 'Post object (1)' for every entry. Users can't tell which post is which.", "choices": [{"text": "Add a __str__ method to the Post model that returns the title", "correct": true, "explanation": "Django's admin uses __str__ to display objects throughout the interface. Adding def __str__(self): return self.title gives every post a readable name. You can also customize the admin further with list_display, search_fields, and list_filter in a ModelAdmin class."}, {"text": "Override the admin template to show the title field directly", "correct": false, "explanation": "Overriding templates works but is far more complex than needed. The __str__ method is Django's standard way to give objects human-readable names, used everywhere — not just the admin."}, {"text": "Create a custom admin view that queries the title separately", "correct": false, "explanation": "A custom view for something this simple is massive overkill. Django's admin is designed to work with __str__ and ModelAdmin customization. One line in your model fixes this."}], "concept": "ORM QuerySets", "difficulty": "easy"}, {"type": "weather", "trigger": "after_stop", "triggerStop": 4, "title": "Migration Conflict!", "text": "Two developers on your team both created migrations for the same model at the same time. Django is refusing to migrate with an 'Inconsistent migration history' error. Both migrations depend on the same parent.", "choices": [{"text": "Create a merge migration using python manage.py makemigrations --merge", "correct": true, "explanation": "Django can automatically create a merge migration that combines the two branches. The merge migration depends on both conflicting migrations, resolving the diamond dependency. This is the standard workflow for teams with concurrent model changes."}, {"text": "Delete one of the migrations and re-run makemigrations", "correct": false, "explanation": "Deleting a migration that's already been applied to other developers' databases or staging environments will cause drift between the code and the actual schema. The merge command exists precisely to handle this situation safely."}, {"text": "Manually edit one migration to depend on the other", "correct": false, "explanation": "Manually rewriting migration dependencies is fragile and error-prone. If the migrations modify the same fields, you could create an invalid sequence. The --merge flag handles the dependency graph correctly."}], "concept": "ORM QuerySets", "difficulty": "medium"}, {"type": "encounter", "trigger": "after_stop", "triggerStop": 3, "title": "A Signals Expert Appears", "text": "A traveler shows you their code: when a new user registers, a Profile is automatically created using a post_save signal on the User model. 'Signals let models communicate without importing each other,' they explain. What is the main risk of overusing signals?", "choices": [{"text": "Signals create implicit control flow — it's hard to trace what happens when a model saves because listeners aren't visible in the calling code", "correct": true, "explanation": "Signals are powerful but invisible. When you call user.save(), there's no hint in that line of code that a Profile gets created, an email gets sent, or a cache gets invalidated. In large codebases, signal handlers become hidden side effects that make debugging extremely difficult."}, {"text": "Signals are slow because they use the database to send notifications between models", "correct": false, "explanation": "Signals are in-process Python function calls — they don't use the database at all. They're actually very fast. The concern isn't performance, it's maintainability and the hidden coupling they create."}, {"text": "Signals can only be used with built-in Django models, not custom ones", "correct": false, "explanation": "Signals work with any Django model, custom or built-in. You can even create your own custom signals. The concern is about code clarity, not capability limitations."}], "concept": "Middleware Pipeline", "difficulty": "medium"}, {"type": "misfortune", "trigger": "after_stop", "triggerStop": 5, "title": "Form Validation Bypass!", "text": "A security report comes in: users are submitting forms with empty required fields. Your form class has the correct field definitions, but the view is calling form.save() without checking anything first.", "choices": [{"text": "Always check form.is_valid() before accessing cleaned_data or calling save", "correct": true, "explanation": "is_valid() runs all field validators, the clean method, and populates cleaned_data with sanitized values. Without it, you're saving raw, unvalidated input. Django forms are designed with a two-step pattern: validate first with is_valid(), then use the cleaned data."}, {"text": "Add HTML5 required attributes to the form fields so the browser validates", "correct": false, "explanation": "Client-side validation is easily bypassed with browser dev tools or curl. Server-side validation with is_valid() is the real defense. HTML5 attributes are a nice UX addition, but they're not a security boundary."}, {"text": "Use a try-except around form.save() to catch validation errors", "correct": false, "explanation": "By the time save() is called, it's too late — unvalidated data may have already been written. The is_valid() method is the gatekeeper that must run before any data processing."}], "concept": "Views and Request Handling", "difficulty": "easy"}, {"type": "river", "trigger": "after_stop", "triggerStop": 6, "title": "The Complex Query River", "text": "You've reached a treacherous river. Your blog needs to find all posts that are either published by the current user OR published and in the 'news' category. A simple filter chain can't express OR conditions. How do you cross?", "choices": [{"text": "Use Q objects to combine conditions with the OR operator: Post.objects.filter(Q(author=user) | Q(status='published', category='news'))", "correct": true, "explanation": "Q objects let you build complex queries with AND, OR, and NOT operators. The pipe symbol means OR, the ampersand means AND, and the tilde means NOT. Without Q objects, Django's filter chain only supports AND conditions."}, {"text": "Run two separate queries and combine the results in Python with a set union", "correct": false, "explanation": "Two queries means two database round-trips, and combining in Python loses pagination, ordering, and database-level optimizations. Q objects generate a single SQL query with an OR clause — much more efficient."}, {"text": "Use raw SQL since Django's ORM can't handle OR conditions", "correct": false, "explanation": "Django's ORM handles OR conditions perfectly through Q objects. Raw SQL bypasses Django's protections and is harder to maintain. Q objects generate clean, efficient SQL while keeping your code Pythonic."}], "concept": "ORM QuerySets", "difficulty": "hard"}, {"type": "misfortune", "trigger": "after_stop", "triggerStop": 3, "title": "Database Connection Drought!", "text": "Your Django app is crashing under load with 'too many connections' errors. Each request opens a new database connection, and your PostgreSQL server has hit its max_connections limit. The database is refusing new connections.", "choices": [{"text": "Configure CONN_MAX_AGE in DATABASES settings to reuse connections across requests instead of opening a new one each time", "correct": true, "explanation": "By default, Django opens and closes a database connection for every request. Setting CONN_MAX_AGE to a value like 600 (seconds) keeps connections alive and reusable. For high-traffic apps, use a connection pooler like PgBouncer for even better connection management."}, {"text": "Increase max_connections on the PostgreSQL server to allow more simultaneous connections", "correct": false, "explanation": "Raising the limit is a temporary fix. Each connection consumes server memory, and under heavy load you'll hit the new limit too. The real solution is connection reuse so you need fewer connections in the first place."}, {"text": "Switch to SQLite which doesn't have connection limits", "correct": false, "explanation": "SQLite has no connection pooling and uses file-level locking — it can only handle one write at a time. It's great for development but completely unsuitable for production traffic. The fix is connection reuse, not a different database."}], "concept": "Middleware Pipeline", "difficulty": "hard"}, {"triggerStop": 4, "type": "misfortune", "title": "SQL Injection Attack!", "text": "A security scan reveals a critical vulnerability. One of your views constructs a SQL query by concatenating user input directly. An attacker sends a search term containing a DROP TABLE statement.", "choices": [{"text": "Never concatenate user input into SQL — use parameterized queries with raw() to separate code from data", "correct": true, "explanation": "Parameterized queries send the SQL structure and data separately. The database treats parameters as data, never as executable SQL. Django’s ORM does this automatically — raw() with parameters is the safe alternative."}, {"text": "Sanitize the search_term by removing dangerous SQL keywords like DROP, DELETE, and SELECT", "correct": false, "explanation": "Keyword blacklists are endlessly bypassable — attackers use case variations, Unicode tricks, and comment injection. Parameterized queries are bulletproof because they separate code from data."}, {"text": "Wrap the query in a try-except to catch any SQL errors from malicious input", "correct": false, "explanation": "Error handling doesn’t prevent the injection — the malicious SQL may execute successfully before any error occurs. A DROP TABLE runs fine as SQL."}], "concept": "ORM QuerySets", "difficulty": "hard"}, {"triggerStop": 5, "type": "weather", "title": "The Lazy Evaluation Fog", "text": "A mysterious fog causes your view to make the same database query three times. Your view assigns posts = Post.objects.filter(published=True), then checks len(posts), iterates in the template, and calls posts.count(). Each access triggers a separate query.", "choices": [{"text": "QuerySets are lazy — they don’t hit the database until evaluated. Force evaluation once with list(), then reuse the result", "correct": true, "explanation": "Django QuerySets are lazy by design — they build up SQL but don’t execute until you iterate, slice, or call list(). Each separate evaluation triggers a new query. Force evaluation once with list(posts), then use the Python list for length checks and iteration."}, {"text": "Django caches all QuerySet results automatically after the first query", "correct": false, "explanation": "QuerySets cache their results after evaluation, but each new operation like .count() triggers a fresh query. Method calls like count() bypass the cache and hit the database directly."}, {"text": "Use .all() instead of .filter() to enable Django’s query caching", "correct": false, "explanation": ".all() and .filter() both return lazy QuerySets. Neither enables any special caching. The solution is to evaluate the QuerySet once and reuse the result."}], "concept": "Template Engine", "difficulty": "hard"}], "partyMembers": [{"name": "Middleware Pipeline", "icon": "middleware", "maxHealth": 3}, {"name": "URL Routing", "icon": "routing", "maxHealth": 3}, {"name": "ORM QuerySets", "icon": "orm", "maxHealth": 3}, {"name": "Template Engine", "icon": "template", "maxHealth": 3}], "deathMessages": ["Lost in the URLconf — circular imports everywhere.", "Died of template inheritance confusion. Too many blocks, not enough extends.", "The migration history was irreconcilable. No amount of squashing could save you.", "Killed by the N+1 query plague. Should have used select_related.", "Your middleware ran in the wrong order. CSRF rejected every form submission.", "Died of context processor overload. Every page fetched the entire database.", "Drowned in a QuerySet you forgot to evaluate. It was lazy until it wasn't.", "Here lies your app. It died waiting for a circular import to resolve."]};
 
 // =====================================================================
 // GAME STATE
@@ -187,21 +187,21 @@ let currentEventType = '';  // event type for canvas overlay
 let currentEventTitle = ''; // event title for canvas overlay
 
 const travelFlavors = [
-  "The WebSocket connection is strong today...",
-  "Packets flow smoothly across the middleware...",
-  "Your JSON payloads are well-formed...",
-  "The config files look clean and tidy...",
-  "A gentle breeze carries API responses...",
-  "The route resolver hums along quietly...",
-  "Session files persist without corruption...",
-  "The gateway handles traffic with grace...",
-  "Your TypeScript types provide comfort on the trail...",
-  "The event loop is calm and responsive...",
-  "A hawk circles overhead, watching your throughput...",
-  "The trail ahead is well-documented...",
-  "Your error handling is robust today...",
-  "The authentication tokens are fresh...",
-  "Your dependency tree looks healthy..."
+  "The WSGI handler is accepting requests smoothly...",
+  "Your middleware stack processes each layer with care...",
+  "The URLconf resolves paths without hesitation...",
+  "Your QuerySets are lazy and efficient today...",
+  "A gentle breeze carries rendered templates across the plains...",
+  "The ORM translates your Python into clean SQL...",
+  "Your migrations are in perfect order...",
+  "The admin panel gleams in the afternoon sun...",
+  "Django's batteries are fully included and charged...",
+  "The CSRF tokens rotate like wagon wheels on the trail...",
+  "A hawk circles overhead, watching your request throughput...",
+  "The trail ahead is well-documented in the Django docs...",
+  "Your context processors inject data without complaint...",
+  "The settings module holds steady in the breeze...",
+  "Your templates extend and inherit with grace..."
 ];
 
 // =====================================================================
@@ -374,10 +374,10 @@ function drawWagon(wx, wy) {
     ctx.fillStyle = '#553300';
     ctx.fillRect(Math.floor(wcx - 1), Math.floor(wcy - 1), 2, 2);
   }
-  // Purple flag
-  ctx.fillStyle = '#AA00AA';
+  // Green flag (Django green)
+  ctx.fillStyle = '#0C4B33';
   ctx.fillRect(Math.floor(wx + 14), Math.floor(wy - 22), 1, -7);
-  ctx.fillStyle = '#FF55FF';
+  ctx.fillStyle = '#2BA977';
   ctx.fillRect(Math.floor(wx + 15), Math.floor(wy - 29), 6, 4);
 }
 
@@ -435,8 +435,8 @@ function drawLandmark(type, x, baseY) {
       ctx.fillRect(Math.floor(x + 18), Math.floor(baseY - 2), 8, 2);
       break;
     case 'mountain':
-      drawMountain(x - 20, 60, 50, '#AA00AA', true);
-      drawMountain(x + 10, 45, 40, '#FF55FF', true);
+      drawMountain(x - 20, 60, 50, '#0C4B33', true);
+      drawMountain(x + 10, 45, 40, '#2BA977', true);
       break;
     case 'river':
       ctx.fillStyle = '#AA5500';
@@ -460,6 +460,22 @@ function drawLandmark(type, x, baseY) {
       for (let i = 0; i < 6; i++) {
         drawTree(x + i * 7, baseY, 14 + (i % 3) * 3);
       }
+      break;
+    case 'desert':
+      // Sand dune
+      ctx.fillStyle = '#FFAA00';
+      ctx.fillRect(Math.floor(x - 5), Math.floor(baseY - 3), 40, 3);
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(x - 10), Math.floor(baseY));
+      ctx.quadraticCurveTo(Math.floor(x + 5), Math.floor(baseY - 8), Math.floor(x + 20), Math.floor(baseY));
+      ctx.fill();
+      // Cactus
+      ctx.fillStyle = '#00AA00';
+      ctx.fillRect(Math.floor(x + 25), Math.floor(baseY - 18), 3, 18);
+      ctx.fillRect(Math.floor(x + 22), Math.floor(baseY - 14), 3, 6);
+      ctx.fillRect(Math.floor(x + 28), Math.floor(baseY - 12), 3, 5);
+      ctx.fillRect(Math.floor(x + 22), Math.floor(baseY - 14), 1, 1);
+      ctx.fillRect(Math.floor(x + 30), Math.floor(baseY - 12), 1, 1);
       break;
   }
 }
@@ -492,8 +508,8 @@ function drawEventOverlay(time) {
 
   var t = (time || 0) * 0.001; // seconds
 
-  // --- PROTOCOL STORM: dark sky, lightning, rain ---
-  if (currentEventTitle.indexOf('Protocol Storm') !== -1) {
+  // --- MIDDLEWARE ORDERING STORM: dark sky, lightning, rain ---
+  if (currentEventTitle.indexOf('Middleware Ordering Storm') !== -1) {
     // Darken sky
     ctx.fillStyle = 'rgba(0,0,50,0.45)';
     ctx.fillRect(0, 0, W, 110);
@@ -529,8 +545,8 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- FELLOW OPERATOR: person standing by campfire ---
-  if (currentEventTitle.indexOf('Fellow Operator') !== -1) {
+  // --- DJANGO ELDER: person standing by campfire ---
+  if (currentEventTitle.indexOf('Django Elder') !== -1) {
     var px = 200, py = 142;
     // Person body
     ctx.fillStyle = '#AA5500';
@@ -563,8 +579,8 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- SESSION STATE RIVER: rough rapids with white water ---
-  if (currentEventTitle.indexOf('Session State') !== -1) {
+  // --- VIEW ARCHITECTURE RIVER: rough rapids with white water ---
+  if (currentEventTitle.indexOf('View Architecture') !== -1) {
     // Extra turbulence on the river
     ctx.fillStyle = '#55FFFF';
     for (var i = 0; i < 20; i++) {
@@ -582,8 +598,8 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- RUNAWAY PROCESS: red sky, smoke, warning ---
-  if (currentEventTitle.indexOf('Runaway Process') !== -1) {
+  // --- N+1 QUERY PLAGUE: red sky, smoke, warning ---
+  if (currentEventTitle.indexOf('N+1 Query Plague') !== -1) {
     // Red danger tint
     ctx.fillStyle = 'rgba(170,0,0,0.25)';
     ctx.fillRect(0, 0, W, H);
@@ -619,33 +635,8 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- RPC RIVER: deep blue, fog/mist over water ---
-  if (currentEventTitle.indexOf('RPC River') !== -1) {
-    // Fog layers drifting over the river
-    ctx.fillStyle = 'rgba(85,85,255,0.12)';
-    for (var i = 0; i < 6; i++) {
-      var fogX = (i * 60 + t * 12 + Math.sin(i) * 20) % (W + 40) - 20;
-      var fogY = 145 + Math.sin(t * 0.5 + i * 1.1) * 5;
-      ctx.beginPath();
-      ctx.arc(fogX, fogY, 20 + i * 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.fillStyle = 'rgba(170,170,255,0.08)';
-    for (var i = 0; i < 8; i++) {
-      var fogX = (i * 45 + t * 8) % (W + 30) - 15;
-      var fogY = 150 + Math.sin(t * 0.3 + i * 0.8) * 8;
-      ctx.beginPath();
-      ctx.arc(fogX, fogY, 15 + i * 2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // Deeper water tint
-    ctx.fillStyle = 'rgba(0,0,85,0.2)';
-    ctx.fillRect(0, 155, W, 18);
-    return;
-  }
-
-  // --- SPRING OF CLEAN ARCHITECTURE: sunny, flowers, rainbow ---
-  if (currentEventTitle.indexOf('Spring') !== -1) {
+  // --- CACHE OF CUSTOM TAGS (fortune): sunny, flowers, rainbow ---
+  if (currentEventTitle.indexOf('Cache of Custom Tags') !== -1) {
     // Bright sun
     ctx.fillStyle = '#FFFF55';
     ctx.beginPath();
@@ -674,7 +665,7 @@ function drawEventOverlay(time) {
       ctx.fillRect(fx + 1, fy - 1, 1, 1); // center
     }
     // Rainbow arc
-    var rainbowColors = ['#FF5555', '#FFAA00', '#FFFF55', '#55FF55', '#5555FF', '#AA00AA'];
+    var rainbowColors = ['#FF5555', '#FFAA00', '#FFFF55', '#55FF55', '#5555FF', '#0C4B33'];
     for (var rc = 0; rc < rainbowColors.length; rc++) {
       ctx.strokeStyle = rainbowColors[rc];
       ctx.lineWidth = 2;
@@ -686,8 +677,8 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- MESSAGE CHUNKING FOG: heavy fog obscuring everything ---
-  if (currentEventTitle.indexOf('Chunking Fog') !== -1) {
+  // --- CONTEXT PROCESSOR STAMPEDE: heavy fog/dust cloud ---
+  if (currentEventTitle.indexOf('Context Processor Stampede') !== -1) {
     // Dense fog layers
     for (var layer = 0; layer < 3; layer++) {
       var alpha = 0.15 + layer * 0.08;
@@ -862,20 +853,20 @@ function renderCanvas(time) {
     drawPixelCloud(cx - 20, c.y, c.w, c.h);
   }
 
-  // Far mountains (parallax 0.3x) - DARK MAGENTA signature Oregon Trail
+  // Far mountains (parallax 0.3x) - DARK GREEN signature Django Trail
   const farOffset = scrollX * 0.3;
   for (const m of farMountains) {
     let mx = ((m.x - farOffset) % (W + 100));
     if (mx < -50) mx += W + 100;
-    drawMountain(mx - 25, m.h, m.w, '#AA00AA', false);
+    drawMountain(mx - 25, m.h, m.w, '#0C4B33', false);
   }
 
-  // Near mountains (parallax 0.4x) - LIGHT MAGENTA with snow caps
+  // Near mountains (parallax 0.4x) - LIGHT GREEN with snow caps
   const nearOffset = scrollX * 0.4;
   for (const m of nearMountains) {
     let mx = ((m.x - nearOffset) % (W + 80));
     if (mx < -40) mx += W + 80;
-    drawMountain(mx - 20, m.h, m.w, '#FF55FF', m.snow);
+    drawMountain(mx - 20, m.h, m.w, '#2BA977', m.snow);
   }
 
   // Grass
@@ -1078,14 +1069,14 @@ function updateMusicIndicator() {
 }
 
 // =====================================================================
-// SYNTAX HIGHLIGHTING (EGA Colors)
+// SYNTAX HIGHLIGHTING (EGA Colors — Python)
 // =====================================================================
-const TS_KEYWORDS = new Set([
-  'import', 'export', 'from', 'const', 'let', 'var', 'function', 'async',
-  'await', 'return', 'if', 'else', 'for', 'while', 'new', 'typeof', 'instanceof',
-  'interface', 'type', 'class', 'extends', 'implements', 'try', 'catch', 'throw',
-  'default', 'switch', 'case', 'break', 'continue', 'true', 'false', 'null',
-  'undefined', 'void', 'of', 'in'
+const PY_KEYWORDS = new Set([
+  'import', 'from', 'def', 'class', 'return', 'if', 'elif', 'else',
+  'for', 'while', 'with', 'as', 'try', 'except', 'finally', 'raise',
+  'yield', 'lambda', 'pass', 'break', 'continue', 'and', 'or', 'not',
+  'in', 'is', 'True', 'False', 'None', 'async', 'await', 'del',
+  'global', 'nonlocal', 'assert'
 ]);
 
 function escHtml(s) {
@@ -1094,53 +1085,113 @@ function escHtml(s) {
 
 function highlightCode(code) {
   return code.split('\n').map(function(line) {
-    if (line.trim().startsWith('//')) {
-      return '<span style="color:#555555">' + escHtml(line) + '</span>';
+    // Full-line comment
+    if (line.trim().startsWith('#')) {
+      return '<span style="color:#75715e">' + escHtml(line) + '</span>';
+    }
+    // Django template tags
+    if (line.indexOf('{%') !== -1 || line.indexOf('{{') !== -1) {
+      var result = '';
+      var i = 0;
+      while (i < line.length) {
+        // Template tag {% ... %}
+        if (line[i] === '{' && i + 1 < line.length && line[i + 1] === '%') {
+          var end = line.indexOf('%}', i + 2);
+          if (end === -1) end = line.length - 2;
+          end += 2;
+          result += '<span style="color:#f92672">' + escHtml(line.substring(i, end)) + '</span>';
+          i = end;
+          continue;
+        }
+        // Template variable {{ ... }}
+        if (line[i] === '{' && i + 1 < line.length && line[i + 1] === '{') {
+          var end = line.indexOf('}}', i + 2);
+          if (end === -1) end = line.length - 2;
+          end += 2;
+          result += '<span style="color:#66d9ef">' + escHtml(line.substring(i, end)) + '</span>';
+          i = end;
+          continue;
+        }
+        // HTML tag
+        if (line[i] === '<') {
+          var end = line.indexOf('>', i);
+          if (end === -1) end = line.length - 1;
+          end += 1;
+          result += '<span style="color:#f92672">' + escHtml(line.substring(i, end)) + '</span>';
+          i = end;
+          continue;
+        }
+        result += '<span style="color:#f8f8f2">' + escHtml(line[i]) + '</span>';
+        i++;
+      }
+      return result;
     }
     var result = '';
     var i = 0;
     while (i < line.length) {
-      // String literal
-      if (line[i] === "'" || line[i] === '"' || line[i] === '`') {
-        var quote = line[i];
+      // Decorator
+      if (line[i] === '@' && (i === 0 || /\s/.test(line[i - 1]))) {
         var end = i + 1;
-        while (end < line.length && line[end] !== quote) {
-          if (line[end] === '\\') end++;
-          end++;
-        }
-        end = Math.min(end + 1, line.length);
-        result += '<span style="color:#FFFF55">' + escHtml(line.substring(i, end)) + '</span>';
+        while (end < line.length && /[\w.]/.test(line[end])) end++;
+        result += '<span style="color:#a6e22e">' + escHtml(line.substring(i, end)) + '</span>';
         i = end;
         continue;
       }
-      // Inline comment
-      if (line[i] === '/' && i + 1 < line.length && line[i + 1] === '/') {
-        result += '<span style="color:#555555">' + escHtml(line.substring(i)) + '</span>';
+      // String literal (single, double, or triple-quoted; with optional f-prefix)
+      if ((line[i] === "'" || line[i] === '"') ||
+          (line[i] === 'f' && i + 1 < line.length && (line[i + 1] === "'" || line[i + 1] === '"'))) {
+        var fStr = false;
+        var si = i;
+        if (line[i] === 'f') { fStr = true; si = i + 1; }
+        var quote = line[si];
+        var triple = (si + 2 < line.length && line[si + 1] === quote && line[si + 2] === quote);
+        var end = si + (triple ? 3 : 1);
+        while (end < line.length) {
+          if (line[end] === '\\') { end += 2; continue; }
+          if (triple) {
+            if (end + 2 < line.length && line[end] === quote && line[end + 1] === quote && line[end + 2] === quote) {
+              end += 3; break;
+            }
+          } else {
+            if (line[end] === quote) { end++; break; }
+          }
+          end++;
+        }
+        end = Math.min(end, line.length);
+        result += '<span style="color:#e6db74">' + escHtml(line.substring(i, end)) + '</span>';
+        i = end;
+        continue;
+      }
+      // Comment
+      if (line[i] === '#') {
+        result += '<span style="color:#75715e">' + escHtml(line.substring(i)) + '</span>';
         break;
       }
       // Number
       if (/\d/.test(line[i]) && (i === 0 || !/\w/.test(line[i - 1]))) {
         var end2 = i;
         while (end2 < line.length && /[\d._]/.test(line[end2])) end2++;
-        result += '<span style="color:#FF55FF">' + escHtml(line.substring(i, end2)) + '</span>';
+        result += '<span style="color:#ae81ff">' + escHtml(line.substring(i, end2)) + '</span>';
         i = end2;
         continue;
       }
       // Identifier or keyword
-      if (/[a-zA-Z_$]/.test(line[i])) {
+      if (/[a-zA-Z_]/.test(line[i])) {
         var end3 = i;
-        while (end3 < line.length && /[\w$]/.test(line[end3])) end3++;
+        while (end3 < line.length && /[\w]/.test(line[end3])) end3++;
         var word = line.substring(i, end3);
-        if (TS_KEYWORDS.has(word)) {
-          result += '<span style="color:#55FFFF">' + escHtml(word) + '</span>';
+        if (PY_KEYWORDS.has(word)) {
+          result += '<span style="color:#f92672">' + escHtml(word) + '</span>';
+        } else if (end3 < line.length && line[end3] === '(') {
+          result += '<span style="color:#a6e22e">' + escHtml(word) + '</span>';
         } else {
-          result += '<span style="color:#55FF55">' + escHtml(word) + '</span>';
+          result += '<span style="color:#f8f8f2">' + escHtml(word) + '</span>';
         }
         i = end3;
         continue;
       }
       // Punctuation / operators
-      result += '<span style="color:#AAAAAA">' + escHtml(line[i]) + '</span>';
+      result += '<span style="color:#f8f8f2">' + escHtml(line[i]) + '</span>';
       i++;
     }
     return result;
@@ -1162,7 +1213,7 @@ function renderTitleScreen() {
   setTextPanel(
     '<div style="text-align:center; padding-top:20px;">' +
     '<div style="color:#FFFF55; font-size:16px; letter-spacing:2px;">THE CODEREGON TRAIL</div>' +
-    '<div style="color:#AAAAAA; margin-top:8px;">The Gateway Trail - OpenClaw Edition</div>' +
+    '<div style="color:#AAAAAA; margin-top:8px;">The WSGI Wagon Trail - Django Edition</div>' +
     '<div style="margin-top:30px;" class="blink">Press SPACE BAR to begin</div>' +
     '</div>'
   );
@@ -1187,10 +1238,10 @@ function renderSetupScreen() {
     '<div style="padding:8px 20px;">' +
     '<div style="color:#55FFFF; margin-bottom:10px;">Your party of key concepts:</div>' +
     '<div style="margin-left:16px;">' +
-    '<div style="color:#55FF55;">1. Gateway Control Plane    <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">2. Channel Plugins          <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">3. Route Resolution         <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">4. Session Persistence      <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">1. Middleware Pipeline       <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">2. URL Routing              <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">3. ORM QuerySets            <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">4. Template Engine          <span style="color:#FF5555">' + hearts + '</span></div>' +
     '</div>' +
     '<div style="color:#55FFFF; margin-top:14px; margin-bottom:6px;">What is your profession?</div>' +
     '<div style="margin-left:16px;">' + profsHtml + '</div>' +
@@ -1219,7 +1270,7 @@ function renderStopScreen() {
     '<div style="padding:4px 12px;">' +
     '<div style="color:#FFFF55; text-align:center; font-size:14px;">\u2550\u2550 ' + escHtml(stop.name) + ' \u2014 ' + escHtml(stop.subtitle) + ' \u2550\u2550</div>' +
     '<div style="color:#555555; text-align:center; font-size:11px; margin-bottom:4px;">[' + escHtml(stop.concept) + ']</div>' +
-    '<div style="border:1px solid #555555; padding:2px 4px; margin:4px 0 2px 0; font-size:11px; color:#AAAAAA;">\u250C\u2500 ' + escHtml(stop.code.file) + ' \u2500\u2500\u2500</div>' +
+    '<div style="border:1px solid #3e3d32; padding:2px 4px; margin:4px 0 2px 0; font-size:11px; color:#75715e;">\u250C\u2500 ' + escHtml(stop.code.file) + ' \u2500\u2500\u2500</div>' +
     '<div class="code-box">' + codeHtml + '</div>' +
     '<div style="color:#AAAAAA; margin:6px 0; line-height:1.4; font-size:13px;">' + escHtml(stop.narration) + '</div>' +
     '<div style="margin-top:8px;" id="stop-choices">' +
@@ -1252,6 +1303,13 @@ function renderEventScreen(event) {
     headerColor = '#55FF55';
   }
 
+  var diffBadge = '';
+  if (event.difficulty) {
+    var diffColors = { easy: '#55FF55', medium: '#FFFF55', hard: '#FF5555' };
+    var diffColor = diffColors[event.difficulty] || '#AAAAAA';
+    diffBadge = ' <span style="display:inline-block;padding:1px 6px;border:1px solid ' + diffColor + ';color:' + diffColor + ';font-size:10px;margin-left:8px;border-radius:2px;">' + event.difficulty.toUpperCase() + '</span>';
+  }
+
   var choicesHtml = '';
   if (event.choices.length > 0 && !eventAnswered) {
     var labels = ['A', 'B', 'C', 'D'];
@@ -1271,7 +1329,7 @@ function renderEventScreen(event) {
 
   setTextPanel(
     '<div style="padding:4px 12px;">' +
-    '<div style="color:' + headerColor + '; font-size:14px; text-align:center;">' + typeLabel + ' \u2014 ' + escHtml(event.title) + '</div>' +
+    '<div style="color:' + headerColor + '; font-size:14px; text-align:center;">' + typeLabel + ' \u2014 ' + escHtml(event.title) + diffBadge + '</div>' +
     '<div style="color:#FFFFFF; margin:8px 0; line-height:1.4;">' + escHtml(event.text) + '</div>' +
     '<div id="event-choices">' + choicesHtml + '</div>' +
     '<div id="event-result"></div>' +
@@ -1320,10 +1378,6 @@ function renderDeathScreen() {
   if (techDebtDeath) {
     var techDebtMsgs = [
       'You have died of tech debt dysentery.',
-      // 'You have died of refactoring dysentery.',
-      // 'You have died of unresolved TODOs.',
-      // 'You have died of scope creep.',
-      // 'You have died of dependency bloat.',
     ];
     deathMsg = techDebtMsgs[Math.floor(Math.random() * techDebtMsgs.length)];
     techDebtDeath = false;
@@ -1358,7 +1412,7 @@ function renderWinScreen() {
   var survivors = partyHealth.filter(function(h) { return h > 0; }).length;
   var pctScore = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 100;
 
-  var conceptNames = ['Gateway Control Plane', 'Channel Plugins', 'Route Resolution', 'Session Persistence'];
+  var conceptNames = ['Middleware Pipeline', 'URL Routing', 'ORM QuerySets', 'Template Engine'];
 
   var masteryHtml = '';
   var weakestName = '';
@@ -1386,7 +1440,7 @@ function renderWinScreen() {
     '<div style="padding:8px 16px;">' +
     '<div style="color:#FFFF55; text-align:center; font-size:16px;">\u2605 YOU MADE IT TO RESPONSE FRONTIER! \u2605</div>' +
     '<div style="margin-top:10px; color:#AAAAAA;">' +
-    '<div>  Framework:    <span style="color:#55FFFF;">OpenClaw (The Gateway Trail)</span></div>' +
+    '<div>  Framework:    <span style="color:#55FFFF;">Django (The WSGI Wagon Trail)</span></div>' +
     '<div>  Survivors:    <span style="color:#55FF55;">' + survivors + '/' + partyHealth.length + '</span></div>' +
     '<div>  Quiz Score:   <span style="color:#FFFF55;">' + score + '/' + totalQuestions + ' (' + pctScore + '%)</span></div>' +
     '<div>  Best Streak:  <span style="color:#FF55FF;">' + bestStreak + '</span></div>' +
@@ -1521,7 +1575,10 @@ function advanceFromTravel() {
 
   // Collect events for the current stop (triggerStop is 1-indexed relative to stop we just visited)
   // Events trigger BEFORE showing the stop
-  pendingEvents = TRAIL_DATA.events.filter(function(e) { return e.triggerStop === currentStop; });
+  var DIFFICULTY_TIERS = [['easy'],['easy','medium'],['medium','hard'],['hard']];
+  var allowedTiers = DIFFICULTY_TIERS[difficulty] || ['easy','medium','hard'];
+  var allStopEvents = TRAIL_DATA.events.filter(function(e) { return e.triggerStop === currentStop; });
+  pendingEvents = allStopEvents.filter(function(e) { return e.type === 'fortune' || !e.difficulty || allowedTiers.indexOf(e.difficulty) !== -1; });
   currentEventIndex = 0;
 
   if (pendingEvents.length > 0) {

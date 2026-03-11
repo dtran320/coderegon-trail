@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Coderegon Trail - OpenClaw Edition</title>
+<title>The Coderegon Trail - Pi Mono Edition</title>
 <style>
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 html, body {
@@ -135,7 +135,7 @@ html, body {
 // =====================================================================
 // TRAIL DATA
 // =====================================================================
-const TRAIL_DATA={"framework":"openclaw","trailName":"The Gateway Trail","stops":[{"name":"Channel Outpost","subtitle":"Message Arrives","concept":"Channel Plugins","landmarkType":"town","code":{"file":"extensions/whatsapp/src/plugin.ts","content":"// extensions/whatsapp/src/plugin.ts (conceptual)\nimport { ChannelPlugin } from '@openclaw/types'\n\nexport const whatsappPlugin: ChannelPlugin = {\n  config: {\n    listAccountIds(cfg) {\n      return cfg.whatsapp?.accounts?.map(a => a.id) ?? []\n    },\n    async isConfigured(account) {\n      return !!account.phoneNumber\n    },\n    resolveAccount(cfg, id) {\n      return cfg.whatsapp.accounts.find(a => a.id === id)\n    },\n  },\n  gateway: {\n    async startAccount({ account, gateway }) {\n      const sock = makeWASocket({ auth: account.auth })\n      sock.ev.on('messages.upsert', async ({ messages }) => {\n        for (const msg of messages) {\n          await gateway.handleInbound({\n            channel: 'whatsapp',\n            peer: msg.key.remoteJid,\n            text: msg.message?.conversation,\n            accountId: account.id,\n          })\n        }\n      })\n    },\n    async stopAccount({ account }) {\n      // Graceful disconnect\n    },\n  },\n}","language":"typescript"},"narration":"Every journey starts at a channel outpost. OpenClaw connects to thirteen different messaging platforms. Each has a channel plugin following the same interface. Here's the WhatsApp plugin using Baileys to listen for messages. When a message arrives, it normalizes it into a common format and hands it to the gateway."},{"name":"Normalization Pass","subtitle":"Common Message Format","concept":"Channel Plugins","landmarkType":"camp","code":{"file":"src/channels/plugins/types.ts","content":"// src/channels/plugins/types.ts (simplified)\nexport interface ChannelPlugin {\n  config: {\n    listAccountIds(cfg: Config): string[]\n    isConfigured(account: AccountConfig): Promise<boolean>\n    resolveAccount(cfg: Config, id: string): AccountConfig\n  }\n  gateway?: {\n    startAccount(opts: StartAccountOpts): Promise<void>\n    stopAccount(opts: StopAccountOpts): Promise<void>\n  }\n}\n\n// The normalized inbound message shape:\ninterface InboundMessage {\n  channel: string\n  accountId: string\n  peer: RoutePeer\n  text: string\n  threadId?: string\n  attachments?: Media[]\n  guildId?: string\n}","language":"typescript"},"narration":"At the Normalization Pass, chaos becomes order. Every messaging platform has its own format. The ChannelPlugin interface forces them all into one shape. The gateway never needs to know whether you messaged from WhatsApp or Telegram."},{"name":"Route Resolution Fork","subtitle":"Finding the Right Agent","concept":"Route Resolution","landmarkType":"mountain","code":{"file":"src/routing/resolve-route.ts","content":"// src/routing/resolve-route.ts (simplified)\nexport function resolveAgentRoute({\n  cfg, channel, accountId, peer, guildId, teamId,\n}: ResolveRouteInput): ResolvedRoute {\n\n  for (const agent of cfg.agents.list) {\n    const routing = agent.routing\n\n    // 1. Exact peer match (highest priority)\n    const peerMatch = routing.peer?.find(\n      b => b.peer === peer.id && b.channel === channel\n    )\n    if (peerMatch) return { agentId: agent.id, matchedBy: 'peer' }\n\n    // 2. Guild/server match\n    const guildMatch = routing.guild?.find(\n      b => b.guildId === guildId && b.channel === channel\n    )\n    if (guildMatch) return { agentId: agent.id, matchedBy: 'guild' }\n\n    // 3. Account-level match\n    const accountMatch = routing.account?.find(\n      b => b.accountId === accountId && b.channel === channel\n    )\n    if (accountMatch) return { agentId: agent.id, matchedBy: 'account' }\n  }\n\n  return { agentId: cfg.agents.default, matchedBy: 'default' }\n}","language":"typescript"},"narration":"Here's where the trail forks. The resolver checks priority order: specific peer binding, then guild/server, then account, then default. One gateway can serve different agents to different people."},{"name":"Session Persistence Camp","subtitle":"Loading Conversation State","concept":"Session Persistence","landmarkType":"camp","code":{"file":"src/sessions/session-utils.ts","content":"// src/sessions/session-utils.ts (simplified)\nimport { readFile, writeFile, mkdir } from 'fs/promises'\n\nconst SESSIONS_DIR = '~/.openclaw/sessions'\n\nexport async function loadSessionEntry(\n  agentId: string,\n  sessionKey: string,\n): Promise<SessionEntry> {\n  const path = `${SESSIONS_DIR}/${agentId}/${sessionKey}.json`\n\n  try {\n    const raw = await readFile(path, 'utf-8')\n    return JSON.parse(raw)\n  } catch {\n    return {\n      sessionKey,\n      agentId,\n      transcript: [],\n      metadata: {\n        model: 'anthropic/claude-opus-4-6',\n        thinkingLevel: 'medium',\n        tokensUsed: 0,\n        createdAt: Date.now(),\n      },\n    }\n  }\n}","language":"typescript"},"narration":"Sessions are just JSON files on disk. Each agent-plus-peer combination gets its own file. If the file doesn't exist, a fresh session starts with sensible defaults. Zero database dependencies, easy backup."},{"name":"Gateway Control Ridge","subtitle":"The WebSocket Command Center","concept":"Gateway Control Plane","landmarkType":"mountain","code":{"file":"src/gateway/server-chat.ts","content":"// src/gateway/server-chat.ts (simplified)\nexport function createChatRunRegistry(gateway: GatewayServer) {\n\n  async function handleChatSend(\n    sessionEntry: SessionEntry,\n    message: InboundMessage,\n  ) {\n    sessionEntry.transcript.push({\n      role: 'user',\n      content: message.text,\n      timestamp: Date.now(),\n    })\n\n    const agentRpc = gateway.acp.getClient(sessionEntry.agentId)\n    const stream = await agentRpc.call('chat.send', {\n      sessionId: sessionEntry.sessionKey,\n      messages: sessionEntry.transcript,\n      tools: sessionEntry.metadata.enabledTools,\n      model: sessionEntry.metadata.model,\n    })\n\n    for await (const chunk of stream) {\n      if (chunk.type === 'text') {\n        gateway.broadcast('chat.stream', { text: chunk.text })\n      } else if (chunk.type === 'tool_use') {\n        const result = await executeTool(chunk.tool, chunk.input)\n        agentRpc.sendToolResult(chunk.id, result)\n      }\n    }\n    await saveSession(sessionEntry)\n  }\n\n  return { handleChatSend }\n}","language":"typescript"},"narration":"The gateway server accepts WebSocket connections from channels, the CLI, and native apps. The streaming loop handles text and tool calls differently. Text streams in real time; tool calls get executed on the gateway and results feed back."},{"name":"Agent RPC Rapids","subtitle":"Talking to the AI","concept":"Gateway Control Plane","landmarkType":"river","code":{"file":"src/acp/client.ts","content":"// src/acp/client.ts (simplified)\nexport function createAcpClient(agentId: string, wsUrl: string) {\n  const ws = new WebSocket(wsUrl)\n\n  async function* call(\n    method: string,\n    params: ChatSendParams,\n  ): AsyncGenerator<AgentChunk> {\n    const requestId = crypto.randomUUID()\n\n    ws.send(JSON.stringify({\n      jsonrpc: '2.0',\n      id: requestId,\n      method,\n      params,\n    }))\n\n    while (true) {\n      const msg = await nextMessage(ws, requestId)\n      if (msg.type === 'done') break\n      yield msg\n    }\n  }\n\n  function sendToolResult(toolCallId: string, result: ToolResult) {\n    ws.send(JSON.stringify({\n      jsonrpc: '2.0',\n      method: 'tool.result',\n      params: { toolCallId, result },\n    }))\n  }\n\n  return { call, sendToolResult }\n}","language":"typescript"},"narration":"Now we cross the RPC Rapids. The gateway and agent communicate over JSON-RPC. The agent decides what to do, but the gateway controls what actually happens on your machine. Security through architecture."},{"name":"Tool Execution Gorge","subtitle":"Running Commands on the Host","concept":"Gateway Control Plane","landmarkType":"forest","code":{"file":"src/agents/bash-tools.exec.ts","content":"// src/agents/bash-tools.exec.ts (simplified)\nexport async function executeBashTool(\n  input: { command: string },\n  context: ToolContext,\n): Promise<ToolResult> {\n  const { command } = input\n  const { sessionEntry, securityPolicy } = context\n\n  if (!securityPolicy.allowBash) {\n    return { error: 'Bash execution not permitted' }\n  }\n\n  const pty = spawn('bash', ['-c', command], {\n    cwd: sessionEntry.metadata.workingDir,\n    env: { ...process.env, ...sessionEntry.metadata.env },\n    timeout: 120_000,\n  })\n\n  let stdout = ''\n  pty.onData(data => { stdout += data })\n  const exitCode = await pty.wait()\n\n  return {\n    stdout: stdout.slice(0, 100_000),\n    exitCode,\n  }\n}","language":"typescript"},"narration":"Deep in Tool Execution Gorge, the agent's intentions become real actions. Security check first, then a real PTY with a two-minute timeout. Bash is just one tool \u2014 same pattern for browser control, canvas, and device actions."},{"name":"Response Delivery Frontier","subtitle":"Back Through the Channel","concept":"Channel Plugins","landmarkType":"town","code":{"file":"src/gateway/server-channels.ts","content":"// src/gateway/server-channels.ts (simplified)\nexport function createChannelManager(gateway: GatewayServer) {\n\n  async function deliverResponse(\n    sessionEntry: SessionEntry,\n    response: AgentResponse,\n  ) {\n    const { channel, peer, accountId } = sessionEntry.routing\n    const plugin = gateway.channels.get(channel)\n\n    const formatted = formatForChannel(channel, response.text, {\n      maxLength: getChannelLimit(channel),\n    })\n\n    for (const chunk of formatted) {\n      await plugin.send({ accountId, peer, text: chunk })\n    }\n\n    sessionEntry.transcript.push({\n      role: 'assistant',\n      content: response.text,\n      timestamp: Date.now(),\n    })\n    await saveSession(sessionEntry)\n\n    gateway.broadcast('chat.response', { text: response.text })\n  }\n\n  return { deliverResponse }\n}","language":"typescript"},"narration":"You made it! The response travels back through the same channel. Formatted for each platform's limits, chunked automatically, saved to the transcript. Message in, intelligence applied, response out. Your wagon has arrived."}],"events":[{"type":"weather","trigger":"after_stop","triggerStop":1,"title":"Protocol Storm!","text":"A storm of messages hits your gateway \u2014 WhatsApp sends phone numbers, Discord sends snowflake IDs, Slack sends workspace tokens. How do you weather this storm?","choices":[{"text":"Define a common interface that all channel plugins must implement","correct":true,"explanation":"OpenClaw's ChannelPlugin interface forces every platform into the same shape. New channels can be added without touching gateway code."},{"text":"Write a giant switch statement in the gateway for each platform","correct":false,"explanation":"That would make the gateway a tangled mess. Every new channel means modifying core code."},{"text":"Only support one messaging platform to keep things simple","correct":false,"explanation":"Multi-channel support is core to OpenClaw's value. The trick is clean abstraction through the plugin interface."}],"concept":"Channel Plugins","difficulty":"easy"},{"type":"encounter","trigger":"after_stop","triggerStop":2,"title":"A Fellow Operator Appears","text":"A seasoned operator says: 'I run three agents \u2014 personal on WhatsApp, work on Slack, social bot on Discord. One gateway.' How does it know which agent handles which message?","choices":[{"text":"Route bindings in the config map channels, peers, and guilds to agents","correct":true,"explanation":"Config bindings map at multiple levels. Priority: peer, guild, team, account, channel, then default."},{"text":"Each agent runs its own separate gateway on a different port","correct":false,"explanation":"One gateway, multiple agents. Separate gateways would mean separate configs and connections."},{"text":"The user specifies which agent to use in every message","correct":false,"explanation":"Routing is automatic and invisible. The gateway figures it out from the config bindings."}],"concept":"Route Resolution","difficulty":"easy"},{"type":"river","trigger":"after_stop","triggerStop":3,"title":"The Session State River","text":"You've reached the boundary between stateless request handling and persistent memory. Your assistant needs to remember last week's conversation across a restart. How do you cross?","choices":[{"text":"Store sessions as JSON files on disk, loaded on demand per key","correct":true,"explanation":"Each session is a JSON file at a predictable path. No database needed. The file system IS the persistence layer."},{"text":"Keep all sessions in memory with a Redis cache","correct":false,"explanation":"In-memory state is lost on restart. Redis adds an external dependency. OpenClaw is local-first."},{"text":"Store history in the AI model's context and let it remember","correct":false,"explanation":"Context windows are limited and expensive. The persistence layer is separate from inference."}],"concept":"Session Persistence","difficulty":"medium"},{"type":"misfortune","trigger":"after_stop","triggerStop":5,"title":"Runaway Process!","text":"The AI agent ran a shell command that's an infinite loop consuming 100% CPU. Your gateway is grinding to a halt!","choices":[{"text":"Tool execution needs timeouts and session security policies should gate commands","correct":true,"explanation":"Bash tools have a two-minute timeout, and security policies control what's allowed. The gateway is the security boundary."},{"text":"The agent should be smarter and never request dangerous commands","correct":false,"explanation":"Never rely on the AI as the security boundary. Defense in depth means the gateway enforces limits."},{"text":"Run all tools in the agent's process so only it crashes","correct":false,"explanation":"Tools run on the gateway because they need local machine access. The separation is a feature."}],"concept":"Gateway Control Plane","difficulty":"medium"},{"type":"river","trigger":"after_stop","triggerStop":5,"title":"The RPC River","text":"The deepest river \u2014 the boundary between gateway and agent runtime. The agent needs a browser screenshot but runs in a different process. How?","choices":[{"text":"JSON-RPC over WebSocket: agent requests, gateway executes locally","correct":true,"explanation":"The agent streams tool_use blocks, the gateway intercepts and executes. The agent could run remotely."},{"text":"The agent directly imports and calls the browser module","correct":false,"explanation":"Separate processes can't call each other's code. The RPC boundary IS the security model."},{"text":"The agent writes commands to a shared file the gateway watches","correct":false,"explanation":"File watching is slow and unreliable. WebSocket RPC gives real-time bidirectional streaming."}],"concept":"Gateway Control Plane","difficulty":"hard"},{"type":"fortune","trigger":"after_stop","triggerStop":6,"title":"Spring of Clean Architecture","text":"Your understanding of the control plane is solid! Friendly contributors join your camp and share plugin templates.","choices":[],"concept":"Channel Plugins","difficulty":"easy"},{"type":"weather","trigger":"after_stop","triggerStop":6,"title":"Message Chunking Fog","text":"Dense fog. Your assistant wrote 3000 words but WhatsApp only allows 4096 characters. The user sees a truncated response. What went wrong?","choices":[{"text":"The formatter should chunk messages based on each channel's limit","correct":true,"explanation":"WhatsApp: 4096, Discord: 2000, Slack: 40000. The delivery layer splits into properly-sized chunks."},{"text":"Tell the AI to always write short responses","correct":false,"explanation":"You can't enforce output length on LLMs. The delivery layer handles formatting."},{"text":"Switch to a channel with no message limits","correct":false,"explanation":"Multi-channel means meeting users where they are. Every channel must work correctly."}],"concept":"Channel Plugins","difficulty":"easy"}],"partyMembers":[{"name":"Gateway Control Plane","icon":"gateway","maxHealth":3},{"name":"Channel Plugins","icon":"channel","maxHealth":3},{"name":"Route Resolution","icon":"route","maxHealth":3},{"name":"Session Persistence","icon":"session","maxHealth":3}],"deathMessages":["You have died of unhandled WebSocket disconnections.","You have died of missing default routes.","You have drowned in the RPC River.","You have died of session bloat.","You have died of a runaway bash command.","You have died of unhandled plugin exceptions.","You have died of API rate limits.","You have died of dependency conflicts.","You have died of expired sessions.","You have died of Discord snowflake avalanche.","You have died of invalid routing config."]};
+const TRAIL_DATA={"framework":"pi-mono","trailName":"The Agent Loop Trail","stops":[{"name":"Independence, MO","subtitle":"CLI Input","concept":"Unified LLM API","landmarkType":"town","code":{"file":"src/main.ts","content":"// src/main.ts (simplified)\nimport { parseArgs } from './cli/args'\nimport { loadConfig } from './config/loader'\nimport { createAgentSession } from './session/factory'\n\nasync function main() {\n  const args = parseArgs(process.argv.slice(2))\n\n  // Support three input modes:\n  // 1. Interactive CLI (default)\n  // 2. Piped stdin: echo 'fix bug' | pi\n  // 3. Inline: pi 'explain this code'\n  const input = args._.length > 0\n    ? args._.join(' ')\n    : process.stdin.isTTY\n      ? null  // interactive mode\n      : await readStdin()\n\n  const config = await loadConfig(args.config)\n  const session = await createAgentSession({\n    input,\n    config,\n    model: args.model ?? config.defaultModel,\n    cwd: process.cwd(),\n  })\n\n  await session.start()\n}","language":"typescript"},"narration":"Every journey starts at the command line. Pi accepts input three ways: interactive CLI, piped stdin, or inline arguments. The entry point parses args, loads config, and creates a session. One command, many ways to invoke it."},{"name":"Chimney Rock","subtitle":"Session Setup","concept":"Session Persistence","landmarkType":"camp","code":{"file":"src/session/factory.ts","content":"// src/session/factory.ts (simplified)\nimport { loadSession, createSession } from './session-manager'\nimport { resolveModel } from '../models/registry'\n\nexport async function createAgentSession(opts: SessionOpts) {\n  const { input, config, model, cwd } = opts\n\n  // Restore or create session\n  const session = opts.resume\n    ? await loadSession(opts.sessionId)\n    : await createSession({\n        model,\n        cwd,\n        tools: config.enabledTools,\n      })\n\n  // Session supports branching: fork from any point\n  if (opts.branchFrom) {\n    await session.branch(opts.branchFrom)\n  }\n\n  const resolvedModel = await resolveModel(model)\n  session.setModel(resolvedModel)\n\n  return session\n}","language":"typescript"},"narration":"At Chimney Rock we set up camp and restore our session. Pi sessions can be resumed from where you left off or branched from any point. Think of it like git for conversations. Every session knows its model, tools, and working directory."},{"name":"Fort Laramie","subtitle":"Model Resolution","concept":"Unified LLM API","landmarkType":"mountain","code":{"file":"src/models/registry.ts","content":"// src/models/registry.ts (simplified)\nconst PROVIDERS = [\n  'anthropic', 'openai', 'google', 'mistral',\n  'groq', 'together', 'fireworks', 'deepseek',\n  'openrouter', 'bedrock', 'vertex', 'ollama',\n  'azure', 'cohere', 'perplexity', 'replicate',\n  'anyscale', 'huggingface', 'local', 'custom',\n] as const\n\nexport async function resolveModel(spec: string) {\n  // Parse 'provider/model' or just 'model'\n  const [provider, model] = spec.includes('/')\n    ? spec.split('/', 2)\n    : [detectProvider(spec), spec]\n\n  const apiKey = await findApiKey(provider)\n  if (!apiKey) {\n    throw new Error(\n      `No API key found for ${provider}. ` +\n      `Set ${getEnvVar(provider)} or add to config.`\n    )\n  }\n\n  return {\n    provider,\n    model,\n    apiKey,\n    endpoint: getEndpoint(provider),\n  }\n}","language":"typescript"},"narration":"Fort Laramie is where supplies meet demand. The model registry knows twenty-plus providers and auto-detects which one you mean. Write 'claude-opus-4-6' and it finds Anthropic. Write 'gpt-4' and it finds OpenAI. One unified interface, no provider lock-in."},{"name":"Independence Rock","subtitle":"Tool Initialization","concept":"Tool System","landmarkType":"mountain","code":{"file":"src/tools/create-tools.ts","content":"// src/tools/create-tools.ts (simplified)\nimport { BashTool } from './bash'\nimport { ReadTool } from './read'\nimport { EditTool } from './edit'\nimport { WriteTool } from './write'\nimport { GrepTool } from './grep'\nimport { GlobTool } from './glob'\n\nexport function createAllTools(cwd: string): Tool[] {\n  // Every tool gets the working directory bound\n  // so relative paths resolve correctly\n  return [\n    new BashTool({ cwd, timeout: 120_000 }),\n    new ReadTool({ cwd }),\n    new EditTool({ cwd }),\n    new WriteTool({ cwd }),\n    new GrepTool({ cwd }),\n    new GlobTool({ cwd }),\n  ]\n}\n\n// Tools follow a common interface:\ninterface Tool {\n  name: string\n  description: string\n  parameters: JSONSchema\n  execute(input: unknown): Promise<ToolResult>\n}","language":"typescript"},"narration":"Independence Rock is where tools are forged. Each tool follows the same interface: name, description, schema, and execute. Every tool gets the working directory bound at creation, so file paths resolve correctly. This is what gives the agent its superpowers."},{"name":"South Pass","subtitle":"LLM Communication","concept":"Agent Loop","landmarkType":"river","code":{"file":"src/llm/stream.ts","content":"// src/llm/stream.ts (simplified)\nexport async function* streamSimple(\n  model: ResolvedModel,\n  messages: Message[],\n  tools: ToolSchema[],\n): AsyncGenerator<StreamEvent> {\n  const response = await fetch(model.endpoint, {\n    method: 'POST',\n    headers: {\n      'Authorization': `Bearer ${model.apiKey}`,\n      'Content-Type': 'application/json',\n    },\n    body: JSON.stringify({\n      model: model.model,\n      messages,\n      tools,\n      stream: true,\n    }),\n  })\n\n  const reader = response.body!.getReader()\n  const decoder = new TextDecoder()\n\n  while (true) {\n    const { done, value } = await reader.read()\n    if (done) break\n    const chunk = decoder.decode(value)\n    for (const event of parseSSE(chunk)) {\n      yield event  // text_delta | tool_use | end_turn\n    }\n  }\n}","language":"typescript"},"narration":"South Pass is the narrowest crossing between your agent and the LLM. Streaming means users see output as it arrives, not after a long wait. The generator yields three event types: text deltas for display, tool use blocks for execution, and end turn to signal completion."},{"name":"Fort Bridger","subtitle":"Tool Execution","concept":"Tool System","landmarkType":"forest","code":{"file":"src/tools/execute.ts","content":"// src/tools/execute.ts (simplified)\nexport async function executeTool(\n  toolCall: ToolUseBlock,\n  tools: Tool[],\n): Promise<ToolResult> {\n  const tool = tools.find(t => t.name === toolCall.name)\n\n  if (!tool) {\n    return {\n      error: `Unknown tool: ${toolCall.name}`,\n      isError: true,\n    }\n  }\n\n  try {\n    const result = await tool.execute(toolCall.input)\n    return {\n      content: truncate(result.output, 100_000),\n      isError: false,\n    }\n  } catch (err) {\n    // Errors go back to the LLM as context\n    // so it can self-correct\n    return {\n      error: err.message,\n      isError: true,\n    }\n  }\n}","language":"typescript"},"narration":"Deep in Fort Bridger, intentions become actions. The dispatcher finds the right tool by name, executes it, and captures the result. If a tool fails, the error goes back to the LLM as context so it can self-correct. No crashes, just learning from mistakes."},{"name":"The Dalles","subtitle":"Agent Loop","concept":"Agent Loop","landmarkType":"camp","code":{"file":"src/agent/loop.ts","content":"// src/agent/loop.ts (simplified)\nexport async function agentLoop(\n  session: Session,\n  tools: Tool[],\n): Promise<void> {\n  while (true) {\n    const stream = streamSimple(\n      session.model,\n      session.messages,\n      tools.map(t => t.schema),\n    )\n\n    let hasToolCalls = false\n    const toolResults: ToolResult[] = []\n\n    for await (const event of stream) {\n      if (event.type === 'text_delta') {\n        process.stdout.write(event.text)\n        session.appendText(event.text)\n      } else if (event.type === 'tool_use') {\n        hasToolCalls = true\n        const result = await executeTool(event, tools)\n        toolResults.push(result)\n        session.appendToolResult(event.id, result)\n      } else if (event.type === 'end_turn') {\n        break\n      }\n    }\n\n    // Stop when LLM has nothing more to do\n    if (!hasToolCalls) break\n  }\n}","language":"typescript"},"narration":"The Dalles is where the magic happens. The agent loop is deceptively simple: call the LLM, parse tool calls, execute them, feed results back, repeat. It stops when the LLM returns end_turn with no tool calls. This loop is what makes agents autonomous."},{"name":"Oregon City","subtitle":"Session Persistence","concept":"Session Persistence","landmarkType":"town","code":{"file":"src/session/session-manager.ts","content":"// src/session/session-manager.ts (simplified)\nimport { writeFile, readFile, mkdir } from 'fs/promises'\n\nconst SESSIONS_DIR = '~/.pi/sessions'\n\nexport async function saveSession(session: Session) {\n  const path = `${SESSIONS_DIR}/${session.id}.json`\n  await mkdir(dirname(path), { recursive: true })\n\n  await writeFile(path, JSON.stringify({\n    id: session.id,\n    parentId: session.parentId,  // for branching\n    model: session.model.spec,\n    messages: session.messages,\n    metadata: {\n      cwd: session.cwd,\n      tokensUsed: session.tokensUsed,\n      createdAt: session.createdAt,\n      updatedAt: Date.now(),\n    },\n  }, null, 2))\n}\n\nexport async function compactSession(session: Session) {\n  // Auto-compact when context gets too large\n  if (session.tokensUsed > session.maxTokens * 0.8) {\n    const summary = await summarize(session.messages)\n    session.messages = [{ role: 'system', content: summary }]\n  }\n}","language":"typescript"},"narration":"You made it to Oregon City! Sessions are saved as JSON files with branching support. When context grows too large, auto-compaction summarizes the conversation. Your work is never lost. The session manager is the foundation that makes everything else possible."}],"events":[{"type":"weather","trigger":"after_stop","triggerStop":1,"title":"Config Storm!","text":"A storm of configuration options hits your CLI! The user can invoke Pi in multiple ways. How does Pi handle different input modes?","choices":[{"text":"Interactive CLI, piped stdin, and inline arguments -- three input modes","correct":true,"explanation":"Pi detects whether stdin is a TTY, checks for inline args, or falls back to interactive mode. All three paths converge into the same session."},{"text":"Only interactive mode -- you must type in the terminal","correct":false,"explanation":"Pi supports piped input (echo 'fix bug' | pi) and inline args (pi 'explain this') alongside interactive mode."},{"text":"Only file input -- you point it at a file to process","correct":false,"explanation":"Pi reads from stdin, args, or interactive input. File processing happens through the agent's tools, not the CLI entry point."}],"concept":"Unified LLM API","difficulty":"easy"},{"type":"river","trigger":"after_stop","triggerStop":3,"title":"The Provider River Crossing!","text":"You face a wide river of LLM providers. Twenty-plus APIs, each with different endpoints, auth schemes, and response formats. Why abstract them behind one unified API?","choices":[{"text":"Swap providers without changing agent code -- one interface for all","correct":true,"explanation":"The model registry normalizes everything. Switch from Claude to GPT to Gemini by changing one string. Your agent code never changes."},{"text":"All providers already have the same API, so it's just cosmetic","correct":false,"explanation":"Every provider has different endpoints, auth headers, streaming formats, and tool call schemas. The abstraction does real work."},{"text":"It's just for cost savings -- route to the cheapest provider","correct":false,"explanation":"Cost optimization is a benefit, but the core value is portability. Write once, run on any LLM."}],"concept":"Unified LLM API","difficulty":"medium"},{"type":"encounter","trigger":"after_stop","triggerStop":4,"title":"A Tool Maker Appears!","text":"A grizzled tool maker examines your tools and asks: 'Why does every tool need a bound working directory (cwd)?'","choices":[{"text":"File operations and bash commands must resolve relative paths correctly","correct":true,"explanation":"When the agent says 'read src/main.ts', the tool needs to know where src/ is. The cwd binding makes relative paths work without the LLM knowing absolute paths."},{"text":"It's a security restriction to prevent accessing files outside the project","correct":false,"explanation":"The cwd is for path resolution, not sandboxing. Tools can still access files outside the project if given absolute paths."},{"text":"Performance optimization -- tools cache file handles per directory","correct":false,"explanation":"There's no file handle caching. The cwd is purely about making relative paths resolve to the right location."}],"concept":"Tool System","difficulty":"easy"},{"type":"weather","trigger":"after_stop","triggerStop":5,"title":"Streaming Storm!","text":"A storm of data packets buffets your wagon! The LLM is generating a long response. Why stream responses instead of waiting for the full completion?","choices":[{"text":"Users see incremental output and tool calls can start as they're parsed","correct":true,"explanation":"Streaming gives immediate feedback. Users see text as it's generated, and tool calls can be dispatched the moment they're complete rather than after the entire response."},{"text":"It's faster for the LLM -- streaming reduces computation time","correct":false,"explanation":"The LLM generates tokens at the same speed either way. Streaming changes when you see them, not how fast they're produced."},{"text":"Required by all LLM APIs -- there's no non-streaming option","correct":false,"explanation":"Most APIs support both streaming and non-streaming modes. Pi chooses streaming for better UX and earlier tool dispatch."}],"concept":"Agent Loop","difficulty":"medium"},{"type":"misfortune","trigger":"after_stop","triggerStop":6,"title":"Tool Execution Failure!","text":"Disaster! The agent ran a bash command that failed with exit code 1. The build is broken. What happens next?","choices":[{"text":"Error captured and sent back to the LLM as context for self-correction","correct":true,"explanation":"The error message becomes a tool result. The LLM reads it, understands what went wrong, and tries a different approach. Errors are learning opportunities."},{"text":"The agent crashes and the session is lost","correct":false,"explanation":"Pi never crashes on tool errors. The error is captured, wrapped in a ToolResult, and returned to the LLM to reason about."},{"text":"The user must manually intervene and fix the command","correct":false,"explanation":"The agent loop handles tool failures automatically. The LLM sees the error and self-corrects without user intervention."}],"concept":"Tool System","difficulty":"medium"},{"type":"encounter","trigger":"after_stop","triggerStop":7,"title":"Loop Pioneer!","text":"A frontier philosopher asks: 'The agent loop calls the LLM, executes tools, and repeats. But when does it stop?'","choices":[{"text":"When the LLM returns end_turn with no tool calls","correct":true,"explanation":"The loop checks hasToolCalls after each iteration. When the LLM decides it's done and returns only text (no tool_use blocks), the loop breaks."},{"text":"After a fixed number of iterations to prevent infinite loops","correct":false,"explanation":"There's no fixed iteration limit in the core loop. The LLM decides when to stop by not requesting any more tools."},{"text":"When it runs out of context tokens","correct":false,"explanation":"Running out of tokens would be an error, not a graceful stop. The LLM signals completion by returning end_turn without tool calls."}],"concept":"Agent Loop","difficulty":"hard"}],"partyMembers":[{"name":"Unified LLM API","icon":"server","maxHealth":3},{"name":"Agent Loop","icon":"router","maxHealth":3},{"name":"Session Persistence","icon":"data","maxHealth":3},{"name":"Tool System","icon":"layout","maxHealth":3}],"deathMessages":["Died of infinite agent loop. The LLM never stopped calling tools.","Lost in provider configuration \u2014 no API key found for any model.","Drowned in context overflow. No compaction strategy equipped.","Killed by a malformed tool call. JSON parsing failed fatally.","Your session branched into an irreconcilable state.","Starved waiting for the streaming response. Connection timed out.","Died of dysentery... er, dependency conflicts in the monorepo.","Buried under unresolved npm workspace hoisting errors."]};
 
 // =====================================================================
 // GAME STATE
@@ -187,20 +187,20 @@ let currentEventType = '';  // event type for canvas overlay
 let currentEventTitle = ''; // event title for canvas overlay
 
 const travelFlavors = [
-  "The WebSocket connection is strong today...",
-  "Packets flow smoothly across the middleware...",
-  "Your JSON payloads are well-formed...",
-  "The config files look clean and tidy...",
+  "The agent loop hums along steadily...",
+  "Tokens stream smoothly from the LLM...",
+  "Your tool calls resolve without errors...",
+  "The session state persists cleanly...",
   "A gentle breeze carries API responses...",
-  "The route resolver hums along quietly...",
-  "Session files persist without corruption...",
-  "The gateway handles traffic with grace...",
+  "The model registry finds your provider instantly...",
+  "Session files save without corruption...",
+  "The streaming connection holds strong...",
   "Your TypeScript types provide comfort on the trail...",
   "The event loop is calm and responsive...",
   "A hawk circles overhead, watching your throughput...",
   "The trail ahead is well-documented...",
   "Your error handling is robust today...",
-  "The authentication tokens are fresh...",
+  "The API keys are fresh and valid...",
   "Your dependency tree looks healthy..."
 ];
 
@@ -485,15 +485,15 @@ function drawRiver(time) {
 }
 
 // =====================================================================
-// EVENT CANVAS OVERLAYS — unique visuals per quiz event
+// EVENT CANVAS OVERLAYS -- unique visuals per quiz event
 // =====================================================================
 function drawEventOverlay(time) {
   if (!currentEventType && !currentEventTitle) return;
 
   var t = (time || 0) * 0.001; // seconds
 
-  // --- PROTOCOL STORM: dark sky, lightning, rain ---
-  if (currentEventTitle.indexOf('Protocol Storm') !== -1) {
+  // --- CONFIG STORM: dark sky, lightning, rain ---
+  if (currentEventTitle.indexOf('Config Storm') !== -1) {
     // Darken sky
     ctx.fillStyle = 'rgba(0,0,50,0.45)';
     ctx.fillRect(0, 0, W, 110);
@@ -529,8 +529,33 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- FELLOW OPERATOR: person standing by campfire ---
-  if (currentEventTitle.indexOf('Fellow Operator') !== -1) {
+  // --- PROVIDER RIVER: deep blue, fog/mist over water ---
+  if (currentEventTitle.indexOf('Provider River') !== -1) {
+    // Fog layers drifting over the river
+    ctx.fillStyle = 'rgba(85,85,255,0.12)';
+    for (var i = 0; i < 6; i++) {
+      var fogX = (i * 60 + t * 12 + Math.sin(i) * 20) % (W + 40) - 20;
+      var fogY = 145 + Math.sin(t * 0.5 + i * 1.1) * 5;
+      ctx.beginPath();
+      ctx.arc(fogX, fogY, 20 + i * 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(170,170,255,0.08)';
+    for (var i = 0; i < 8; i++) {
+      var fogX = (i * 45 + t * 8) % (W + 30) - 15;
+      var fogY = 150 + Math.sin(t * 0.3 + i * 0.8) * 8;
+      ctx.beginPath();
+      ctx.arc(fogX, fogY, 15 + i * 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Deeper water tint
+    ctx.fillStyle = 'rgba(0,0,85,0.2)';
+    ctx.fillRect(0, 155, W, 18);
+    return;
+  }
+
+  // --- TOOL MAKER: person standing by campfire ---
+  if (currentEventTitle.indexOf('Tool Maker') !== -1) {
     var px = 200, py = 142;
     // Person body
     ctx.fillStyle = '#AA5500';
@@ -543,47 +568,52 @@ function drawEventOverlay(time) {
     ctx.fillStyle = '#555555';
     ctx.fillRect(px - 1, py - 17, 6, 2);
     ctx.fillRect(px, py - 19, 4, 2);
-    // Campfire
-    var fx = 212, fy = 148;
-    ctx.fillStyle = '#AA5500';
-    ctx.fillRect(fx - 3, fy, 2, 3);
-    ctx.fillRect(fx + 3, fy, 2, 3);
-    ctx.fillStyle = '#FF5555';
-    var flicker = Math.sin(t * 8) * 2;
-    ctx.fillRect(fx - 1, fy - 3 + Math.floor(flicker * 0.3), 4, 3);
+    // Anvil (tool maker!)
+    ctx.fillStyle = '#AAAAAA';
+    ctx.fillRect(212, 144, 10, 4);
+    ctx.fillRect(214, 148, 6, 4);
+    // Sparks
     ctx.fillStyle = '#FFFF55';
-    ctx.fillRect(fx, fy - 5 + Math.floor(flicker * 0.5), 2, 2);
-    ctx.fillStyle = '#FFAA00';
-    ctx.fillRect(fx - 1, fy - 2, 4, 2);
+    var sparkPhase = Math.sin(t * 6);
+    if (sparkPhase > 0.3) {
+      ctx.fillRect(215 + Math.floor(sparkPhase * 3), 141, 2, 2);
+      ctx.fillRect(219 - Math.floor(sparkPhase * 2), 140, 1, 1);
+    }
     // Firelight glow (subtle)
     ctx.fillStyle = 'rgba(255,170,0,0.08)';
     ctx.beginPath();
-    ctx.arc(fx + 1, fy - 2, 15, 0, Math.PI * 2);
+    ctx.arc(217, 144, 15, 0, Math.PI * 2);
     ctx.fill();
     return;
   }
 
-  // --- SESSION STATE RIVER: rough rapids with white water ---
-  if (currentEventTitle.indexOf('Session State') !== -1) {
-    // Extra turbulence on the river
-    ctx.fillStyle = '#55FFFF';
-    for (var i = 0; i < 20; i++) {
-      var sx = (i * 17 + t * 40) % W;
-      var sy = 157 + Math.sin((i * 3 + t * 5)) * 3;
-      ctx.fillRect(Math.floor(sx), Math.floor(sy), 4, 2);
+  // --- STREAMING STORM: dark sky, data rain, lightning ---
+  if (currentEventTitle.indexOf('Streaming Storm') !== -1) {
+    // Darken sky
+    ctx.fillStyle = 'rgba(0,0,50,0.35)';
+    ctx.fillRect(0, 0, W, 110);
+    // Data rain (green characters falling)
+    ctx.fillStyle = '#55FF55';
+    ctx.font = '8px monospace';
+    var chars = '01{}[]<>/=;:';
+    for (var i = 0; i < 30; i++) {
+      var dx = (i * 11.3) % W;
+      var dy = (i * 17.7 + t * 60) % 110;
+      ctx.globalAlpha = 0.3 + Math.sin(t + i) * 0.2;
+      ctx.fillText(chars[i % chars.length], Math.floor(dx), Math.floor(dy));
     }
-    // Floating logs / debris
-    ctx.fillStyle = '#AA5500';
-    for (var i = 0; i < 3; i++) {
-      var logX = (i * 110 + t * 25) % W;
-      var logY = 159 + Math.sin(t * 2 + i) * 2;
-      ctx.fillRect(Math.floor(logX), Math.floor(logY), 8, 2);
+    ctx.globalAlpha = 1.0;
+    // Occasional lightning
+    var flashPhase = Math.sin(t * 2.1) + Math.sin(t * 3.7);
+    if (flashPhase > 1.7) {
+      ctx.fillStyle = 'rgba(85,255,85,0.15)';
+      ctx.fillRect(0, 0, W, H);
     }
     return;
   }
 
-  // --- RUNAWAY PROCESS: red sky, smoke, warning ---
-  if (currentEventTitle.indexOf('Runaway Process') !== -1) {
+  // --- TOOL EXECUTION FAILURE: red sky, smoke, warning ---
+  if (currentEventTitle.indexOf('Tool Execution Failure') !== -1) {
     // Red danger tint
     ctx.fillStyle = 'rgba(170,0,0,0.25)';
     ctx.fillRect(0, 0, W, H);
@@ -619,97 +649,53 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- RPC RIVER: deep blue, fog/mist over water ---
-  if (currentEventTitle.indexOf('RPC River') !== -1) {
-    // Fog layers drifting over the river
-    ctx.fillStyle = 'rgba(85,85,255,0.12)';
-    for (var i = 0; i < 6; i++) {
-      var fogX = (i * 60 + t * 12 + Math.sin(i) * 20) % (W + 40) - 20;
-      var fogY = 145 + Math.sin(t * 0.5 + i * 1.1) * 5;
-      ctx.beginPath();
-      ctx.arc(fogX, fogY, 20 + i * 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.fillStyle = 'rgba(170,170,255,0.08)';
-    for (var i = 0; i < 8; i++) {
-      var fogX = (i * 45 + t * 8) % (W + 30) - 15;
-      var fogY = 150 + Math.sin(t * 0.3 + i * 0.8) * 8;
-      ctx.beginPath();
-      ctx.arc(fogX, fogY, 15 + i * 2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // Deeper water tint
-    ctx.fillStyle = 'rgba(0,0,85,0.2)';
-    ctx.fillRect(0, 155, W, 18);
-    return;
-  }
-
-  // --- SPRING OF CLEAN ARCHITECTURE: sunny, flowers, rainbow ---
-  if (currentEventTitle.indexOf('Spring') !== -1) {
-    // Bright sun
+  // --- LOOP PIONEER: person with philosophical campfire ---
+  if (currentEventTitle.indexOf('Loop Pioneer') !== -1) {
+    var px = 200, py = 142;
+    // Person body
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(px, py - 12, 4, 8);
+    ctx.fillStyle = '#FFAA00';
+    ctx.fillRect(px, py - 15, 4, 3);
+    ctx.fillRect(px - 1, py - 4, 2, 5);
+    ctx.fillRect(px + 3, py - 4, 2, 5);
+    // Hat
+    ctx.fillStyle = '#555555';
+    ctx.fillRect(px - 1, py - 17, 6, 2);
+    ctx.fillRect(px, py - 19, 4, 2);
+    // Campfire
+    var fx = 212, fy = 148;
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(fx - 3, fy, 2, 3);
+    ctx.fillRect(fx + 3, fy, 2, 3);
+    ctx.fillStyle = '#FF5555';
+    var flicker = Math.sin(t * 8) * 2;
+    ctx.fillRect(fx - 1, fy - 3 + Math.floor(flicker * 0.3), 4, 3);
     ctx.fillStyle = '#FFFF55';
+    ctx.fillRect(fx, fy - 5 + Math.floor(flicker * 0.5), 2, 2);
+    ctx.fillStyle = '#FFAA00';
+    ctx.fillRect(fx - 1, fy - 2, 4, 2);
+    // Infinity symbol floating above (loop metaphor)
+    ctx.strokeStyle = '#55FFFF';
+    ctx.lineWidth = 1;
+    var iy = 130 + Math.sin(t * 2) * 3;
     ctx.beginPath();
-    ctx.arc(260, 30, 12, 0, Math.PI * 2);
+    ctx.arc(210, iy, 5, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(220, iy, 5, 0, Math.PI * 2);
+    ctx.stroke();
+    // Firelight glow
+    ctx.fillStyle = 'rgba(255,170,0,0.08)';
+    ctx.beginPath();
+    ctx.arc(fx + 1, fy - 2, 15, 0, Math.PI * 2);
     ctx.fill();
-    // Sun rays
-    ctx.strokeStyle = '#FFFF55';
-    ctx.lineWidth = 1;
-    for (var i = 0; i < 8; i++) {
-      var angle = i * Math.PI / 4 + t * 0.3;
-      ctx.beginPath();
-      ctx.moveTo(260 + Math.cos(angle) * 14, 30 + Math.sin(angle) * 14);
-      ctx.lineTo(260 + Math.cos(angle) * 20, 30 + Math.sin(angle) * 20);
-      ctx.stroke();
-    }
-    // Flowers on ground
-    var flowerColors = ['#FF5555', '#FFFF55', '#FF55FF', '#55FFFF', '#55FF55'];
-    for (var i = 0; i < 12; i++) {
-      var fx = (i * 27 + 10) % W;
-      var fy = 135 + (i * 7) % 20;
-      ctx.fillStyle = '#00AA00';
-      ctx.fillRect(fx + 1, fy, 1, 4); // stem
-      ctx.fillStyle = flowerColors[i % flowerColors.length];
-      ctx.fillRect(fx, fy - 1, 3, 2); // petals
-      ctx.fillStyle = '#FFFF55';
-      ctx.fillRect(fx + 1, fy - 1, 1, 1); // center
-    }
-    // Rainbow arc
-    var rainbowColors = ['#FF5555', '#FFAA00', '#FFFF55', '#55FF55', '#5555FF', '#AA00AA'];
-    for (var rc = 0; rc < rainbowColors.length; rc++) {
-      ctx.strokeStyle = rainbowColors[rc];
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(160, 110, 70 + rc * 3, Math.PI * 1.1, Math.PI * 1.9);
-      ctx.stroke();
-    }
-    ctx.lineWidth = 1;
-    return;
-  }
-
-  // --- MESSAGE CHUNKING FOG: heavy fog obscuring everything ---
-  if (currentEventTitle.indexOf('Chunking Fog') !== -1) {
-    // Dense fog layers
-    for (var layer = 0; layer < 3; layer++) {
-      var alpha = 0.15 + layer * 0.08;
-      ctx.fillStyle = 'rgba(170,170,170,' + alpha.toFixed(2) + ')';
-      for (var i = 0; i < 10; i++) {
-        var fogX = (i * 35 + t * (6 + layer * 4) + layer * 50) % (W + 60) - 30;
-        var fogY = 60 + layer * 30 + Math.sin(t * 0.4 + i * 0.9 + layer) * 10;
-        var fogR = 18 + layer * 8 + Math.sin(t * 0.3 + i) * 5;
-        ctx.beginPath();
-        ctx.arc(fogX, fogY, fogR, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    // Fog below obscuring ground details
-    ctx.fillStyle = 'rgba(170,170,170,0.25)';
-    ctx.fillRect(0, 110, W, 60);
     return;
   }
 }
 
 // =====================================================================
-// DEATH SCREEN — Apple II green phosphor style
+// DEATH SCREEN -- Apple II green phosphor style
 // =====================================================================
 function drawDeathScene(time) {
   var t = (time || 0) * 0.001;
@@ -1162,7 +1148,7 @@ function renderTitleScreen() {
   setTextPanel(
     '<div style="text-align:center; padding-top:20px;">' +
     '<div style="color:#FFFF55; font-size:16px; letter-spacing:2px;">THE CODEREGON TRAIL</div>' +
-    '<div style="color:#AAAAAA; margin-top:8px;">The Gateway Trail - OpenClaw Edition</div>' +
+    '<div style="color:#AAAAAA; margin-top:8px;">The Agent Loop Trail - A Pi Mono Learning Adventure</div>' +
     '<div style="margin-top:30px;" class="blink">Press SPACE BAR to begin</div>' +
     '</div>'
   );
@@ -1187,10 +1173,10 @@ function renderSetupScreen() {
     '<div style="padding:8px 20px;">' +
     '<div style="color:#55FFFF; margin-bottom:10px;">Your party of key concepts:</div>' +
     '<div style="margin-left:16px;">' +
-    '<div style="color:#55FF55;">1. Gateway Control Plane    <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">2. Channel Plugins          <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">3. Route Resolution         <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">4. Session Persistence      <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">1. Unified LLM API          <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">2. Agent Loop               <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">3. Session Persistence      <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">4. Tool System              <span style="color:#FF5555">' + hearts + '</span></div>' +
     '</div>' +
     '<div style="color:#55FFFF; margin-top:14px; margin-bottom:6px;">What is your profession?</div>' +
     '<div style="margin-left:16px;">' + profsHtml + '</div>' +
@@ -1320,10 +1306,6 @@ function renderDeathScreen() {
   if (techDebtDeath) {
     var techDebtMsgs = [
       'You have died of tech debt dysentery.',
-      // 'You have died of refactoring dysentery.',
-      // 'You have died of unresolved TODOs.',
-      // 'You have died of scope creep.',
-      // 'You have died of dependency bloat.',
     ];
     deathMsg = techDebtMsgs[Math.floor(Math.random() * techDebtMsgs.length)];
     techDebtDeath = false;
@@ -1358,7 +1340,7 @@ function renderWinScreen() {
   var survivors = partyHealth.filter(function(h) { return h > 0; }).length;
   var pctScore = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 100;
 
-  var conceptNames = ['Gateway Control Plane', 'Channel Plugins', 'Route Resolution', 'Session Persistence'];
+  var conceptNames = ['Unified LLM API', 'Agent Loop', 'Session Persistence', 'Tool System'];
 
   var masteryHtml = '';
   var weakestName = '';
@@ -1384,9 +1366,9 @@ function renderWinScreen() {
 
   setTextPanel(
     '<div style="padding:8px 16px;">' +
-    '<div style="color:#FFFF55; text-align:center; font-size:16px;">\u2605 YOU MADE IT TO RESPONSE FRONTIER! \u2605</div>' +
+    '<div style="color:#FFFF55; text-align:center; font-size:16px;">\u2605 YOU MADE IT TO OREGON CITY! \u2605</div>' +
     '<div style="margin-top:10px; color:#AAAAAA;">' +
-    '<div>  Framework:    <span style="color:#55FFFF;">OpenClaw (The Gateway Trail)</span></div>' +
+    '<div>  Framework:    <span style="color:#55FFFF;">Pi Mono (The Agent Loop Trail)</span></div>' +
     '<div>  Survivors:    <span style="color:#55FF55;">' + survivors + '/' + partyHealth.length + '</span></div>' +
     '<div>  Quiz Score:   <span style="color:#FFFF55;">' + score + '/' + totalQuestions + ' (' + pctScore + '%)</span></div>' +
     '<div>  Best Streak:  <span style="color:#FF55FF;">' + bestStreak + '</span></div>' +

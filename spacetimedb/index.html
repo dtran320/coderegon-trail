@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Coderegon Trail - OpenClaw Edition</title>
+<title>The Coderegon Trail - SpacetimeDB Edition</title>
 <style>
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 html, body {
@@ -135,7 +135,7 @@ html, body {
 // =====================================================================
 // TRAIL DATA
 // =====================================================================
-const TRAIL_DATA={"framework":"openclaw","trailName":"The Gateway Trail","stops":[{"name":"Channel Outpost","subtitle":"Message Arrives","concept":"Channel Plugins","landmarkType":"town","code":{"file":"extensions/whatsapp/src/plugin.ts","content":"// extensions/whatsapp/src/plugin.ts (conceptual)\nimport { ChannelPlugin } from '@openclaw/types'\n\nexport const whatsappPlugin: ChannelPlugin = {\n  config: {\n    listAccountIds(cfg) {\n      return cfg.whatsapp?.accounts?.map(a => a.id) ?? []\n    },\n    async isConfigured(account) {\n      return !!account.phoneNumber\n    },\n    resolveAccount(cfg, id) {\n      return cfg.whatsapp.accounts.find(a => a.id === id)\n    },\n  },\n  gateway: {\n    async startAccount({ account, gateway }) {\n      const sock = makeWASocket({ auth: account.auth })\n      sock.ev.on('messages.upsert', async ({ messages }) => {\n        for (const msg of messages) {\n          await gateway.handleInbound({\n            channel: 'whatsapp',\n            peer: msg.key.remoteJid,\n            text: msg.message?.conversation,\n            accountId: account.id,\n          })\n        }\n      })\n    },\n    async stopAccount({ account }) {\n      // Graceful disconnect\n    },\n  },\n}","language":"typescript"},"narration":"Every journey starts at a channel outpost. OpenClaw connects to thirteen different messaging platforms. Each has a channel plugin following the same interface. Here's the WhatsApp plugin using Baileys to listen for messages. When a message arrives, it normalizes it into a common format and hands it to the gateway."},{"name":"Normalization Pass","subtitle":"Common Message Format","concept":"Channel Plugins","landmarkType":"camp","code":{"file":"src/channels/plugins/types.ts","content":"// src/channels/plugins/types.ts (simplified)\nexport interface ChannelPlugin {\n  config: {\n    listAccountIds(cfg: Config): string[]\n    isConfigured(account: AccountConfig): Promise<boolean>\n    resolveAccount(cfg: Config, id: string): AccountConfig\n  }\n  gateway?: {\n    startAccount(opts: StartAccountOpts): Promise<void>\n    stopAccount(opts: StopAccountOpts): Promise<void>\n  }\n}\n\n// The normalized inbound message shape:\ninterface InboundMessage {\n  channel: string\n  accountId: string\n  peer: RoutePeer\n  text: string\n  threadId?: string\n  attachments?: Media[]\n  guildId?: string\n}","language":"typescript"},"narration":"At the Normalization Pass, chaos becomes order. Every messaging platform has its own format. The ChannelPlugin interface forces them all into one shape. The gateway never needs to know whether you messaged from WhatsApp or Telegram."},{"name":"Route Resolution Fork","subtitle":"Finding the Right Agent","concept":"Route Resolution","landmarkType":"mountain","code":{"file":"src/routing/resolve-route.ts","content":"// src/routing/resolve-route.ts (simplified)\nexport function resolveAgentRoute({\n  cfg, channel, accountId, peer, guildId, teamId,\n}: ResolveRouteInput): ResolvedRoute {\n\n  for (const agent of cfg.agents.list) {\n    const routing = agent.routing\n\n    // 1. Exact peer match (highest priority)\n    const peerMatch = routing.peer?.find(\n      b => b.peer === peer.id && b.channel === channel\n    )\n    if (peerMatch) return { agentId: agent.id, matchedBy: 'peer' }\n\n    // 2. Guild/server match\n    const guildMatch = routing.guild?.find(\n      b => b.guildId === guildId && b.channel === channel\n    )\n    if (guildMatch) return { agentId: agent.id, matchedBy: 'guild' }\n\n    // 3. Account-level match\n    const accountMatch = routing.account?.find(\n      b => b.accountId === accountId && b.channel === channel\n    )\n    if (accountMatch) return { agentId: agent.id, matchedBy: 'account' }\n  }\n\n  return { agentId: cfg.agents.default, matchedBy: 'default' }\n}","language":"typescript"},"narration":"Here's where the trail forks. The resolver checks priority order: specific peer binding, then guild/server, then account, then default. One gateway can serve different agents to different people."},{"name":"Session Persistence Camp","subtitle":"Loading Conversation State","concept":"Session Persistence","landmarkType":"camp","code":{"file":"src/sessions/session-utils.ts","content":"// src/sessions/session-utils.ts (simplified)\nimport { readFile, writeFile, mkdir } from 'fs/promises'\n\nconst SESSIONS_DIR = '~/.openclaw/sessions'\n\nexport async function loadSessionEntry(\n  agentId: string,\n  sessionKey: string,\n): Promise<SessionEntry> {\n  const path = `${SESSIONS_DIR}/${agentId}/${sessionKey}.json`\n\n  try {\n    const raw = await readFile(path, 'utf-8')\n    return JSON.parse(raw)\n  } catch {\n    return {\n      sessionKey,\n      agentId,\n      transcript: [],\n      metadata: {\n        model: 'anthropic/claude-opus-4-6',\n        thinkingLevel: 'medium',\n        tokensUsed: 0,\n        createdAt: Date.now(),\n      },\n    }\n  }\n}","language":"typescript"},"narration":"Sessions are just JSON files on disk. Each agent-plus-peer combination gets its own file. If the file doesn't exist, a fresh session starts with sensible defaults. Zero database dependencies, easy backup."},{"name":"Gateway Control Ridge","subtitle":"The WebSocket Command Center","concept":"Gateway Control Plane","landmarkType":"mountain","code":{"file":"src/gateway/server-chat.ts","content":"// src/gateway/server-chat.ts (simplified)\nexport function createChatRunRegistry(gateway: GatewayServer) {\n\n  async function handleChatSend(\n    sessionEntry: SessionEntry,\n    message: InboundMessage,\n  ) {\n    sessionEntry.transcript.push({\n      role: 'user',\n      content: message.text,\n      timestamp: Date.now(),\n    })\n\n    const agentRpc = gateway.acp.getClient(sessionEntry.agentId)\n    const stream = await agentRpc.call('chat.send', {\n      sessionId: sessionEntry.sessionKey,\n      messages: sessionEntry.transcript,\n      tools: sessionEntry.metadata.enabledTools,\n      model: sessionEntry.metadata.model,\n    })\n\n    for await (const chunk of stream) {\n      if (chunk.type === 'text') {\n        gateway.broadcast('chat.stream', { text: chunk.text })\n      } else if (chunk.type === 'tool_use') {\n        const result = await executeTool(chunk.tool, chunk.input)\n        agentRpc.sendToolResult(chunk.id, result)\n      }\n    }\n    await saveSession(sessionEntry)\n  }\n\n  return { handleChatSend }\n}","language":"typescript"},"narration":"The gateway server accepts WebSocket connections from channels, the CLI, and native apps. The streaming loop handles text and tool calls differently. Text streams in real time; tool calls get executed on the gateway and results feed back."},{"name":"Agent RPC Rapids","subtitle":"Talking to the AI","concept":"Gateway Control Plane","landmarkType":"river","code":{"file":"src/acp/client.ts","content":"// src/acp/client.ts (simplified)\nexport function createAcpClient(agentId: string, wsUrl: string) {\n  const ws = new WebSocket(wsUrl)\n\n  async function* call(\n    method: string,\n    params: ChatSendParams,\n  ): AsyncGenerator<AgentChunk> {\n    const requestId = crypto.randomUUID()\n\n    ws.send(JSON.stringify({\n      jsonrpc: '2.0',\n      id: requestId,\n      method,\n      params,\n    }))\n\n    while (true) {\n      const msg = await nextMessage(ws, requestId)\n      if (msg.type === 'done') break\n      yield msg\n    }\n  }\n\n  function sendToolResult(toolCallId: string, result: ToolResult) {\n    ws.send(JSON.stringify({\n      jsonrpc: '2.0',\n      method: 'tool.result',\n      params: { toolCallId, result },\n    }))\n  }\n\n  return { call, sendToolResult }\n}","language":"typescript"},"narration":"Now we cross the RPC Rapids. The gateway and agent communicate over JSON-RPC. The agent decides what to do, but the gateway controls what actually happens on your machine. Security through architecture."},{"name":"Tool Execution Gorge","subtitle":"Running Commands on the Host","concept":"Gateway Control Plane","landmarkType":"forest","code":{"file":"src/agents/bash-tools.exec.ts","content":"// src/agents/bash-tools.exec.ts (simplified)\nexport async function executeBashTool(\n  input: { command: string },\n  context: ToolContext,\n): Promise<ToolResult> {\n  const { command } = input\n  const { sessionEntry, securityPolicy } = context\n\n  if (!securityPolicy.allowBash) {\n    return { error: 'Bash execution not permitted' }\n  }\n\n  const pty = spawn('bash', ['-c', command], {\n    cwd: sessionEntry.metadata.workingDir,\n    env: { ...process.env, ...sessionEntry.metadata.env },\n    timeout: 120_000,\n  })\n\n  let stdout = ''\n  pty.onData(data => { stdout += data })\n  const exitCode = await pty.wait()\n\n  return {\n    stdout: stdout.slice(0, 100_000),\n    exitCode,\n  }\n}","language":"typescript"},"narration":"Deep in Tool Execution Gorge, the agent's intentions become real actions. Security check first, then a real PTY with a two-minute timeout. Bash is just one tool \u2014 same pattern for browser control, canvas, and device actions."},{"name":"Response Delivery Frontier","subtitle":"Back Through the Channel","concept":"Channel Plugins","landmarkType":"town","code":{"file":"src/gateway/server-channels.ts","content":"// src/gateway/server-channels.ts (simplified)\nexport function createChannelManager(gateway: GatewayServer) {\n\n  async function deliverResponse(\n    sessionEntry: SessionEntry,\n    response: AgentResponse,\n  ) {\n    const { channel, peer, accountId } = sessionEntry.routing\n    const plugin = gateway.channels.get(channel)\n\n    const formatted = formatForChannel(channel, response.text, {\n      maxLength: getChannelLimit(channel),\n    })\n\n    for (const chunk of formatted) {\n      await plugin.send({ accountId, peer, text: chunk })\n    }\n\n    sessionEntry.transcript.push({\n      role: 'assistant',\n      content: response.text,\n      timestamp: Date.now(),\n    })\n    await saveSession(sessionEntry)\n\n    gateway.broadcast('chat.response', { text: response.text })\n  }\n\n  return { deliverResponse }\n}","language":"typescript"},"narration":"You made it! The response travels back through the same channel. Formatted for each platform's limits, chunked automatically, saved to the transcript. Message in, intelligence applied, response out. Your wagon has arrived."}],"events":[{"type":"weather","trigger":"after_stop","triggerStop":1,"title":"Protocol Storm!","text":"A storm of messages hits your gateway \u2014 WhatsApp sends phone numbers, Discord sends snowflake IDs, Slack sends workspace tokens. How do you weather this storm?","choices":[{"text":"Define a common interface that all channel plugins must implement","correct":true,"explanation":"OpenClaw's ChannelPlugin interface forces every platform into the same shape. New channels can be added without touching gateway code."},{"text":"Write a giant switch statement in the gateway for each platform","correct":false,"explanation":"That would make the gateway a tangled mess. Every new channel means modifying core code."},{"text":"Only support one messaging platform to keep things simple","correct":false,"explanation":"Multi-channel support is core to OpenClaw's value. The trick is clean abstraction through the plugin interface."}],"concept":"Channel Plugins","difficulty":"easy"},{"type":"encounter","trigger":"after_stop","triggerStop":2,"title":"A Fellow Operator Appears","text":"A seasoned operator says: 'I run three agents \u2014 personal on WhatsApp, work on Slack, social bot on Discord. One gateway.' How does it know which agent handles which message?","choices":[{"text":"Route bindings in the config map channels, peers, and guilds to agents","correct":true,"explanation":"Config bindings map at multiple levels. Priority: peer, guild, team, account, channel, then default."},{"text":"Each agent runs its own separate gateway on a different port","correct":false,"explanation":"One gateway, multiple agents. Separate gateways would mean separate configs and connections."},{"text":"The user specifies which agent to use in every message","correct":false,"explanation":"Routing is automatic and invisible. The gateway figures it out from the config bindings."}],"concept":"Route Resolution","difficulty":"easy"},{"type":"river","trigger":"after_stop","triggerStop":3,"title":"The Session State River","text":"You've reached the boundary between stateless request handling and persistent memory. Your assistant needs to remember last week's conversation across a restart. How do you cross?","choices":[{"text":"Store sessions as JSON files on disk, loaded on demand per key","correct":true,"explanation":"Each session is a JSON file at a predictable path. No database needed. The file system IS the persistence layer."},{"text":"Keep all sessions in memory with a Redis cache","correct":false,"explanation":"In-memory state is lost on restart. Redis adds an external dependency. OpenClaw is local-first."},{"text":"Store history in the AI model's context and let it remember","correct":false,"explanation":"Context windows are limited and expensive. The persistence layer is separate from inference."}],"concept":"Session Persistence","difficulty":"medium"},{"type":"misfortune","trigger":"after_stop","triggerStop":5,"title":"Runaway Process!","text":"The AI agent ran a shell command that's an infinite loop consuming 100% CPU. Your gateway is grinding to a halt!","choices":[{"text":"Tool execution needs timeouts and session security policies should gate commands","correct":true,"explanation":"Bash tools have a two-minute timeout, and security policies control what's allowed. The gateway is the security boundary."},{"text":"The agent should be smarter and never request dangerous commands","correct":false,"explanation":"Never rely on the AI as the security boundary. Defense in depth means the gateway enforces limits."},{"text":"Run all tools in the agent's process so only it crashes","correct":false,"explanation":"Tools run on the gateway because they need local machine access. The separation is a feature."}],"concept":"Gateway Control Plane","difficulty":"medium"},{"type":"river","trigger":"after_stop","triggerStop":5,"title":"The RPC River","text":"The deepest river \u2014 the boundary between gateway and agent runtime. The agent needs a browser screenshot but runs in a different process. How?","choices":[{"text":"JSON-RPC over WebSocket: agent requests, gateway executes locally","correct":true,"explanation":"The agent streams tool_use blocks, the gateway intercepts and executes. The agent could run remotely."},{"text":"The agent directly imports and calls the browser module","correct":false,"explanation":"Separate processes can't call each other's code. The RPC boundary IS the security model."},{"text":"The agent writes commands to a shared file the gateway watches","correct":false,"explanation":"File watching is slow and unreliable. WebSocket RPC gives real-time bidirectional streaming."}],"concept":"Gateway Control Plane","difficulty":"hard"},{"type":"fortune","trigger":"after_stop","triggerStop":6,"title":"Spring of Clean Architecture","text":"Your understanding of the control plane is solid! Friendly contributors join your camp and share plugin templates.","choices":[],"concept":"Channel Plugins","difficulty":"easy"},{"type":"weather","trigger":"after_stop","triggerStop":6,"title":"Message Chunking Fog","text":"Dense fog. Your assistant wrote 3000 words but WhatsApp only allows 4096 characters. The user sees a truncated response. What went wrong?","choices":[{"text":"The formatter should chunk messages based on each channel's limit","correct":true,"explanation":"WhatsApp: 4096, Discord: 2000, Slack: 40000. The delivery layer splits into properly-sized chunks."},{"text":"Tell the AI to always write short responses","correct":false,"explanation":"You can't enforce output length on LLMs. The delivery layer handles formatting."},{"text":"Switch to a channel with no message limits","correct":false,"explanation":"Multi-channel means meeting users where they are. Every channel must work correctly."}],"concept":"Channel Plugins","difficulty":"easy"}],"partyMembers":[{"name":"Gateway Control Plane","icon":"gateway","maxHealth":3},{"name":"Channel Plugins","icon":"channel","maxHealth":3},{"name":"Route Resolution","icon":"route","maxHealth":3},{"name":"Session Persistence","icon":"session","maxHealth":3}],"deathMessages":["You have died of unhandled WebSocket disconnections.","You have died of missing default routes.","You have drowned in the RPC River.","You have died of session bloat.","You have died of a runaway bash command.","You have died of unhandled plugin exceptions.","You have died of API rate limits.","You have died of dependency conflicts.","You have died of expired sessions.","You have died of Discord snowflake avalanche.","You have died of invalid routing config."]};
+const TRAIL_DATA={"framework":"spacetimedb","trailName":"The Spacetime Trail","stops":[{"name":"Independence, MO","subtitle":"Client Connection","concept":"Reducers","landmarkType":"town","code":{"file":"crates/sdk/src/ws.rs","content":"// crates/sdk/src/ws.rs (conceptual)\nuse spacetimedb_sdk::{identity, subscribe, reducer};\n\npub async fn connect(host: &str, db_name: &str, token: Option<&str>) {\n    let conn = spacetimedb_sdk::DbConnection::builder()\n        .with_uri(format!(\"wss://{}/database/{}\", host, db_name))\n        .with_credentials(token.map(|t| Credentials {\n            identity: Identity::from_token(t),\n            token: t.to_string(),\n        }))\n        .on_connect(|_conn, identity, token| {\n            println!(\"Connected as {:?}\", identity);\n            // Save token for reconnection\n            save_token(&token);\n        })\n        .on_disconnect(|_conn, err| {\n            eprintln!(\"Disconnected: {:?}\", err);\n        })\n        .build()\n        .await\n        .expect(\"Failed to connect\");\n}","language":"rust"},"narration":"Every journey begins at Independence. Clients connect directly to the database over WebSocket — no app server in between. The SDK handles authentication, identity assignment, and token persistence. One connection, zero middleware."},{"name":"Chimney Rock","subtitle":"Request Routing","concept":"Reducers","landmarkType":"camp","code":{"file":"crates/core/src/dispatch.rs","content":"// crates/core/src/dispatch.rs (conceptual)\npub enum ClientRequest {\n    CallReducer {\n        reducer_name: String,\n        args: ProductValue,\n        request_id: u32,\n    },\n    Subscribe {\n        query_strings: Vec<String>,\n        request_id: u32,\n    },\n    OneOffQuery {\n        query_string: String,\n        message_id: Vec<u8>,\n    },\n}\n\npub fn dispatch(request: ClientRequest, ctx: &WorkerCtx) {\n    match request {\n        ClientRequest::CallReducer { reducer_name, args, .. } => {\n            ctx.schedule_reducer(reducer_name, args);\n        }\n        ClientRequest::Subscribe { query_strings, .. } => {\n            ctx.register_subscription(query_strings);\n        }\n        ClientRequest::OneOffQuery { query_string, .. } => {\n            ctx.execute_query(query_string);\n        }\n    }\n}","language":"rust"},"narration":"At Chimney Rock, the trail forks three ways. Every client request is either a reducer call, a subscription registration, or a one-off query. The dispatcher routes each to the right handler. Three paths, one protocol."},{"name":"Fort Laramie","subtitle":"Module Invocation","concept":"Module Schema","landmarkType":"mountain","code":{"file":"crates/core/src/host/instance_env.rs","content":"// crates/core/src/host/instance_env.rs (conceptual)\npub struct InstanceEnv {\n    pub db: RelationalDB,\n    pub module_hash: Hash,\n    pub runtime: WasmRuntime, // wasmtime or v8\n}\n\nimpl InstanceEnv {\n    pub fn call_reducer(\n        &self,\n        reducer_name: &str,\n        caller: Identity,\n        args: ProductValue,\n    ) -> Result<ReducerOutcome, DBError> {\n        // ABI host functions available to module:\n        //   spacetime_insert, spacetime_delete,\n        //   spacetime_iter, spacetime_schedule,\n        //   console_log, bytes_sink_write\n        let func = self.runtime.resolve_reducer(reducer_name)?;\n        let ctx = ReducerContext {\n            db: &self.db,\n            sender: caller,\n            timestamp: Timestamp::now(),\n        };\n        func.invoke(ctx, args)\n    }\n}","language":"rust"},"narration":"Fort Laramie houses the module runtime. Your application logic runs as WebAssembly inside the database itself. The InstanceEnv provides ABI host functions — insert, delete, iterate, schedule. The module cannot escape its sandbox, but it has full database access."},{"name":"Independence Rock","subtitle":"Transaction Begin","concept":"In-Memory + WAL","landmarkType":"mountain","code":{"file":"crates/core/src/db/relational_db.rs","content":"// crates/core/src/db/relational_db.rs (conceptual)\npub struct RelationalDB {\n    committed_state: Arc<RwLock<CommittedState>>,\n    wal: WriteAheadLog,\n}\n\nimpl RelationalDB {\n    pub fn begin_tx(&self) -> MutTxId {\n        let committed = self.committed_state.read();\n        MutTxId {\n            // Copy-on-write: reads see committed state,\n            // writes go to a local buffer\n            committed_state: committed.clone_arc(),\n            tx_state: TxState::new(),\n            timer: Instant::now(),\n        }\n    }\n\n    pub fn commit_tx(&self, tx: MutTxId) -> Result<TxData, DBError> {\n        // Merge tx_state into committed_state atomically\n        let mut committed = self.committed_state.write();\n        let tx_data = committed.merge(tx.tx_state)?;\n        // Write-ahead log for durability\n        self.wal.append(&tx_data)?;\n        Ok(tx_data)\n    }\n}","language":"rust"},"narration":"Independence Rock marks the transaction boundary. Every reducer call begins an atomic transaction with copy-on-write isolation. Reads see the committed state; writes buffer locally. Nothing is visible to other transactions until commit. ACID guarantees on every single call."},{"name":"South Pass","subtitle":"Reducer Execution","concept":"Reducers","landmarkType":"forest","code":{"file":"modules/example/src/lib.rs","content":"// modules/example/src/lib.rs\nuse spacetimedb::{spacetimedb, ReducerContext, Table};\n\n#[spacetimedb::table(name = player, public)]\npub struct Player {\n    #[primary_key]\n    pub identity: Identity,\n    pub name: String,\n    pub score: u64,\n}\n\n#[spacetimedb::reducer]\npub fn create_player(ctx: &ReducerContext, name: String) {\n    let player = Player {\n        identity: ctx.sender,\n        name,\n        score: 0,\n    };\n    ctx.db.player().insert(player);\n}\n\n#[spacetimedb::reducer]\npub fn add_score(ctx: &ReducerContext, points: u64) {\n    let mut player = ctx.db.player()\n        .identity().find(ctx.sender)\n        .expect(\"Player not found\");\n    player.score += points;\n    ctx.db.player().identity().update(player);\n}","language":"rust"},"narration":"South Pass is where reducers do their work. A single function replaces your entire API layer — no REST endpoints, no controllers, no serialization boilerplate. Define tables with macros, write logic with type-safe queries. The reducer IS the server."},{"name":"Fort Bridger","subtitle":"Validation & Commit","concept":"In-Memory + WAL","landmarkType":"camp","code":{"file":"crates/core/src/db/commit.rs","content":"// crates/core/src/db/commit.rs (conceptual)\npub fn finalize_reducer(\n    db: &RelationalDB,\n    tx: MutTxId,\n    outcome: ReducerOutcome,\n) -> Result<Option<TxData>, DBError> {\n    match outcome {\n        ReducerOutcome::Ok => {\n            // All writes succeed atomically\n            let tx_data = db.commit_tx(tx)?;\n            // tx_data contains all inserts/deletes\n            // for subscription evaluation\n            Ok(Some(tx_data))\n        }\n        ReducerOutcome::Err(e) => {\n            // Reducer panicked or returned Err\n            // Roll back ALL changes — nothing persists\n            db.rollback_tx(tx);\n            log::warn!(\"Reducer rolled back: {}\", e);\n            Ok(None)\n        }\n    }\n}","language":"rust"},"narration":"Fort Bridger is the commit-or-rollback checkpoint. If the reducer succeeds, every insert, update, and delete commits atomically. If it panics or returns an error, everything rolls back — the database state is untouched. No partial updates, ever."},{"name":"The Dalles","subtitle":"Delta Computation","concept":"Incremental Subscriptions","landmarkType":"river","code":{"file":"crates/core/src/subscription/delta.rs","content":"// crates/core/src/subscription/delta.rs (conceptual)\npub struct SubscriptionPlan {\n    queries: Vec<CompiledQuery>,\n}\n\nimpl SubscriptionPlan {\n    pub fn eval_incr(\n        &self,\n        tx_data: &TxData,\n    ) -> Vec<TableUpdate> {\n        let mut updates = Vec::new();\n        for query in &self.queries {\n            // Only evaluate tables that changed\n            if !tx_data.touches_table(query.table_id) {\n                continue;\n            }\n            // Compute delta: which rows were added/removed\n            // from this query's result set\n            let delta = query.eval_delta(\n                &tx_data.inserts,\n                &tx_data.deletes,\n            );\n            if !delta.is_empty() {\n                updates.push(TableUpdate {\n                    table_id: query.table_id,\n                    table_name: query.table_name.clone(),\n                    inserts: delta.inserts,\n                    deletes: delta.deletes,\n                });\n            }\n        }\n        updates\n    }\n}","language":"rust"},"narration":"The Dalles rapids are where incremental evaluation happens. After every commit, the subscription engine computes minimal deltas — only the rows that actually changed for each subscribed query. No polling, no full re-evaluation. Just the diff."},{"name":"Oregon City","subtitle":"Broadcast Updates","concept":"Incremental Subscriptions","landmarkType":"town","code":{"file":"crates/core/src/host/broadcast.rs","content":"// crates/core/src/host/broadcast.rs (conceptual)\npub async fn broadcast_updates(\n    clients: &ClientActorIndex,\n    tx_data: &TxData,\n    subscriptions: &SubscriptionManager,\n) {\n    // For each connected client...\n    for (client_id, client) in clients.iter() {\n        let plan = subscriptions.get_plan(client_id);\n        // Evaluate incremental delta for this client's queries\n        let updates = plan.eval_incr(tx_data);\n        if updates.is_empty() {\n            continue;\n        }\n        // Push via WebSocket — client SDK applies\n        // updates to local cache automatically\n        client.send(ServerMessage::TransactionUpdate {\n            updates,\n            reducer_call: tx_data.reducer_info(),\n            timestamp: tx_data.timestamp,\n        }).await;\n    }\n    // 100K+ transactions per second,\n    // each broadcasting to all affected subscribers\n}","language":"rust"},"narration":"Oregon City — you made it! Deltas stream over WebSocket to every subscribed client in real time. The client SDK patches its local cache automatically. No manual cache invalidation, no stale data. One commit, instant sync at over 100,000 transactions per second."}],"events":[{"type":"weather","trigger":"after_stop","triggerStop":1,"title":"Connection Storm!","text":"A storm of connection requests hammers your database. Clients from every platform try to connect simultaneously. But wait — there's no app server to route through. Why do clients connect directly to the database?","choices":[{"text":"Eliminates the middle-tier server, reducing latency and architecture complexity","correct":true,"explanation":"SpacetimeDB removes the app server entirely. Clients talk directly to the database over WebSocket, cutting latency and eliminating an entire tier of infrastructure."},{"text":"Databases are inherently faster than application servers at handling connections","correct":false,"explanation":"It's not that databases are faster — it's that removing the middle tier eliminates an entire network hop and simplifies the architecture."},{"text":"Direct connections provide better security than going through a server","correct":false,"explanation":"Security comes from the module sandbox and identity system, not from the connection topology. The benefit is architectural simplicity."}],"concept":"Reducers","difficulty":"easy"},{"type":"river","trigger":"after_stop","triggerStop":3,"title":"The Module Loading River!","text":"You've reached the river where modules must be loaded into the runtime. The current is strong — one wrong step and your application logic sinks. Why does SpacetimeDB use WebAssembly for module execution?","choices":[{"text":"WASM provides sandboxed, near-native performance with memory safety guarantees","correct":true,"explanation":"WebAssembly gives near-native speed while keeping modules sandboxed. Memory safety is enforced by the runtime — a module cannot corrupt database internals or access host memory."},{"text":"JavaScript is too slow for database operations","correct":false,"explanation":"SpacetimeDB actually supports both WASM and V8 (for TypeScript modules). The choice of WASM is about sandboxing and performance, not about JavaScript being slow."},{"text":"WebAssembly is easier to write than native code","correct":false,"explanation":"WASM is a compilation target, not a language you write directly. You write Rust, C#, or TypeScript, which compiles to WASM. The benefit is isolation and portability."}],"concept":"Module Schema","difficulty":"medium"},{"type":"encounter","trigger":"after_stop","triggerStop":4,"title":"A Transaction Pioneer appears!","text":"A grizzled pioneer approaches your wagon. 'I've been running reducers for years,' they say. 'Every single one is wrapped in a transaction. No exceptions.' Why is every reducer call a single transaction?","choices":[{"text":"Atomic all-or-nothing execution prevents partial state corruption","correct":true,"explanation":"If a reducer inserts three rows then panics on the fourth, all four operations roll back. The database never ends up in a half-updated state. Atomicity is the foundation of correctness."},{"text":"Transactions make reducers run faster by batching writes","correct":false,"explanation":"Transactions aren't about speed — they're about correctness. The overhead of transaction management is worth it to guarantee consistency."},{"text":"It's a requirement of all relational databases to use transactions","correct":false,"explanation":"While relational databases support transactions, not all operations require them. SpacetimeDB makes this choice deliberately — every reducer is atomic to prevent partial state corruption."}],"concept":"In-Memory + WAL","difficulty":"easy"},{"type":"weather","trigger":"after_stop","triggerStop":5,"title":"Reducer Storm!","text":"A violent storm hits the trail! Lightning strikes your module mid-execution. A reducer panics while halfway through updating player scores. What happens to the partially-written data?","choices":[{"text":"All changes are rolled back, and the database state is unchanged","correct":true,"explanation":"The transaction system guarantees atomicity. A panicking reducer triggers a full rollback — every insert, update, and delete from that call is undone. The committed state remains pristine."},{"text":"Partial changes are committed up to the point of the panic","correct":false,"explanation":"That would violate atomicity. SpacetimeDB uses copy-on-write isolation — writes go to a local buffer and only merge on successful commit. A panic means the buffer is discarded."},{"text":"The database crashes and must be recovered from the WAL","correct":false,"explanation":"A reducer panic is not a database crash. The transaction simply rolls back. The database continues serving other requests without interruption."}],"concept":"Reducers","difficulty":"medium"},{"type":"misfortune","trigger":"after_stop","triggerStop":6,"title":"Commit Failure!","text":"Disaster on the trail! Your wagon's storage is running slow. The old way of writing everything to disk on every operation is grinding progress to a halt. Why is SpacetimeDB's in-memory + WAL approach faster than traditional disk-based databases?","choices":[{"text":"Reads are microsecond in-memory lookups; WAL only writes sequentially for durability","correct":true,"explanation":"All data lives in memory for instant reads. The Write-Ahead Log only does sequential disk writes — the fastest possible I/O pattern. No random disk seeks, no B-tree page splits on the read path."},{"text":"The WAL doesn't actually persist data to disk","correct":false,"explanation":"The WAL absolutely persists to disk — that's where durability comes from. On restart, the WAL replays to reconstruct in-memory state. It's durable AND fast."},{"text":"In-memory databases don't need durability guarantees","correct":false,"explanation":"SpacetimeDB provides full durability via the WAL. Data survives crashes and restarts. In-memory is the performance optimization; WAL is the durability guarantee."}],"concept":"In-Memory + WAL","difficulty":"hard"},{"type":"encounter","trigger":"after_stop","triggerStop":7,"title":"Subscription Pioneer!","text":"A fellow traveler rides up alongside your wagon. 'I've been watching my queries update in real time,' they say with amazement. 'But the database isn't polling.' How does incremental evaluation achieve real-time updates?","choices":[{"text":"Only recomputes affected rows from the delta, not the entire query result set","correct":true,"explanation":"After each commit, the engine checks which tables were touched, then evaluates only the changed rows against each subscription's query. If your query wasn't affected, zero work is done."},{"text":"It caches the entire result set and invalidates on any change","correct":false,"explanation":"Full cache invalidation would mean re-evaluating entire queries on every commit. Incremental evaluation is smarter — it only processes the delta (inserted/deleted rows)."},{"text":"It polls the database at a very high frequency","correct":false,"explanation":"There is no polling. The subscription engine is push-based — it evaluates deltas as part of the commit path and immediately pushes results over WebSocket."}],"concept":"Incremental Subscriptions","difficulty":"medium"}],"partyMembers":[{"name":"Reducers","icon":"server","maxHealth":3},{"name":"Module Schema","icon":"data","maxHealth":3},{"name":"Incremental Subscriptions","icon":"router","maxHealth":3},{"name":"In-Memory + WAL","icon":"layout","maxHealth":3}],"deathMessages":["Died of WASM memory overflow. Your reducer allocated without bounds.","Lost in the subscription maze \u2014 too many WHERE clauses to evaluate.","Drowned in the transaction river. Deadlock between two reducers.","Killed by a schema migration. The module version was incompatible.","Your client cache diverged from the server. State was irreconcilable.","Starved waiting for the WAL to flush. Disk I/O blocked recovery.","Died of dysentery... er, serialization errors crossing the WASM boundary.","Buried under 170,000 transactions per second. The benchmarks were too real."]};
 
 // =====================================================================
 // GAME STATE
@@ -187,21 +187,21 @@ let currentEventType = '';  // event type for canvas overlay
 let currentEventTitle = ''; // event title for canvas overlay
 
 const travelFlavors = [
-  "The WebSocket connection is strong today...",
-  "Packets flow smoothly across the middleware...",
-  "Your JSON payloads are well-formed...",
-  "The config files look clean and tidy...",
-  "A gentle breeze carries API responses...",
-  "The route resolver hums along quietly...",
-  "Session files persist without corruption...",
-  "The gateway handles traffic with grace...",
-  "Your TypeScript types provide comfort on the trail...",
-  "The event loop is calm and responsive...",
+  "The WebSocket connection holds steady...",
+  "Transactions commit smoothly across the prairie...",
+  "Your WASM modules are well-optimized...",
+  "The WAL flushes cleanly to disk...",
+  "A gentle breeze carries subscription deltas...",
+  "The reducer scheduler hums along quietly...",
+  "In-memory tables serve reads in microseconds...",
+  "The module sandbox keeps everything contained...",
+  "Your Rust types provide comfort on the trail...",
+  "The commit pipeline is calm and responsive...",
   "A hawk circles overhead, watching your throughput...",
   "The trail ahead is well-documented...",
-  "Your error handling is robust today...",
-  "The authentication tokens are fresh...",
-  "Your dependency tree looks healthy..."
+  "Your ACID guarantees are holding strong today...",
+  "The identity tokens are fresh and valid...",
+  "Your schema migrations look healthy..."
 ];
 
 // =====================================================================
@@ -492,8 +492,8 @@ function drawEventOverlay(time) {
 
   var t = (time || 0) * 0.001; // seconds
 
-  // --- PROTOCOL STORM: dark sky, lightning, rain ---
-  if (currentEventTitle.indexOf('Protocol Storm') !== -1) {
+  // --- CONNECTION STORM: dark sky, lightning, rain ---
+  if (currentEventTitle.indexOf('Connection Storm') !== -1) {
     // Darken sky
     ctx.fillStyle = 'rgba(0,0,50,0.45)';
     ctx.fillRect(0, 0, W, 110);
@@ -529,8 +529,27 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- FELLOW OPERATOR: person standing by campfire ---
-  if (currentEventTitle.indexOf('Fellow Operator') !== -1) {
+  // --- MODULE LOADING RIVER: rough rapids with white water ---
+  if (currentEventTitle.indexOf('Module Loading') !== -1) {
+    // Extra turbulence on the river
+    ctx.fillStyle = '#55FFFF';
+    for (var i = 0; i < 20; i++) {
+      var sx = (i * 17 + t * 40) % W;
+      var sy = 157 + Math.sin((i * 3 + t * 5)) * 3;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), 4, 2);
+    }
+    // Floating logs / debris
+    ctx.fillStyle = '#AA5500';
+    for (var i = 0; i < 3; i++) {
+      var logX = (i * 110 + t * 25) % W;
+      var logY = 159 + Math.sin(t * 2 + i) * 2;
+      ctx.fillRect(Math.floor(logX), Math.floor(logY), 8, 2);
+    }
+    return;
+  }
+
+  // --- TRANSACTION PIONEER: person standing by campfire ---
+  if (currentEventTitle.indexOf('Transaction Pioneer') !== -1) {
     var px = 200, py = 142;
     // Person body
     ctx.fillStyle = '#AA5500';
@@ -563,27 +582,40 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- SESSION STATE RIVER: rough rapids with white water ---
-  if (currentEventTitle.indexOf('Session State') !== -1) {
-    // Extra turbulence on the river
-    ctx.fillStyle = '#55FFFF';
-    for (var i = 0; i < 20; i++) {
-      var sx = (i * 17 + t * 40) % W;
-      var sy = 157 + Math.sin((i * 3 + t * 5)) * 3;
-      ctx.fillRect(Math.floor(sx), Math.floor(sy), 4, 2);
+  // --- REDUCER STORM: dark sky, lightning, swirling data particles ---
+  if (currentEventTitle.indexOf('Reducer Storm') !== -1) {
+    // Darken sky
+    ctx.fillStyle = 'rgba(50,0,50,0.45)';
+    ctx.fillRect(0, 0, W, 110);
+    // Lightning flash
+    var flashPhase = Math.sin(t * 2.1) + Math.sin(t * 3.7);
+    if (flashPhase > 1.6) {
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = '#FF55FF';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      var lx = 160 + Math.sin(t * 1.9) * 80;
+      ctx.moveTo(lx, 5);
+      ctx.lineTo(lx + 6, 30);
+      ctx.lineTo(lx - 4, 30);
+      ctx.lineTo(lx + 8, 60);
+      ctx.lineTo(lx - 2, 60);
+      ctx.lineTo(lx + 4, 90);
+      ctx.stroke();
     }
-    // Floating logs / debris
-    ctx.fillStyle = '#AA5500';
-    for (var i = 0; i < 3; i++) {
-      var logX = (i * 110 + t * 25) % W;
-      var logY = 159 + Math.sin(t * 2 + i) * 2;
-      ctx.fillRect(Math.floor(logX), Math.floor(logY), 8, 2);
+    // Swirling data particles
+    ctx.fillStyle = '#55FFFF';
+    for (var i = 0; i < 15; i++) {
+      var px = 160 + Math.cos(t * 1.5 + i * 0.8) * (30 + i * 4);
+      var py = 60 + Math.sin(t * 1.5 + i * 0.8) * (20 + i * 2);
+      ctx.fillRect(Math.floor(px), Math.floor(py), 2, 2);
     }
     return;
   }
 
-  // --- RUNAWAY PROCESS: red sky, smoke, warning ---
-  if (currentEventTitle.indexOf('Runaway Process') !== -1) {
+  // --- COMMIT FAILURE: red sky, smoke, warning ---
+  if (currentEventTitle.indexOf('Commit Failure') !== -1) {
     // Red danger tint
     ctx.fillStyle = 'rgba(170,0,0,0.25)';
     ctx.fillRect(0, 0, W, H);
@@ -619,91 +651,34 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- RPC RIVER: deep blue, fog/mist over water ---
-  if (currentEventTitle.indexOf('RPC River') !== -1) {
-    // Fog layers drifting over the river
-    ctx.fillStyle = 'rgba(85,85,255,0.12)';
-    for (var i = 0; i < 6; i++) {
-      var fogX = (i * 60 + t * 12 + Math.sin(i) * 20) % (W + 40) - 20;
-      var fogY = 145 + Math.sin(t * 0.5 + i * 1.1) * 5;
-      ctx.beginPath();
-      ctx.arc(fogX, fogY, 20 + i * 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.fillStyle = 'rgba(170,170,255,0.08)';
+  // --- SUBSCRIPTION PIONEER: person with glowing data streams ---
+  if (currentEventTitle.indexOf('Subscription Pioneer') !== -1) {
+    var px = 200, py = 142;
+    // Person body
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(px, py - 12, 4, 8);
+    ctx.fillStyle = '#FFAA00';
+    ctx.fillRect(px, py - 15, 4, 3);
+    ctx.fillRect(px - 1, py - 4, 2, 5);
+    ctx.fillRect(px + 3, py - 4, 2, 5);
+    // Hat
+    ctx.fillStyle = '#555555';
+    ctx.fillRect(px - 1, py - 17, 6, 2);
+    ctx.fillRect(px, py - 19, 4, 2);
+    // Data streams flowing from person
+    ctx.fillStyle = '#55FF55';
     for (var i = 0; i < 8; i++) {
-      var fogX = (i * 45 + t * 8) % (W + 30) - 15;
-      var fogY = 150 + Math.sin(t * 0.3 + i * 0.8) * 8;
-      ctx.beginPath();
-      ctx.arc(fogX, fogY, 15 + i * 2, 0, Math.PI * 2);
-      ctx.fill();
+      var dx = px + 10 + i * 6 + Math.sin(t * 3 + i) * 2;
+      var dy = py - 10 + Math.sin(t * 2 + i * 1.5) * 4;
+      ctx.fillRect(Math.floor(dx), Math.floor(dy), 3, 1);
     }
-    // Deeper water tint
-    ctx.fillStyle = 'rgba(0,0,85,0.2)';
-    ctx.fillRect(0, 155, W, 18);
-    return;
-  }
-
-  // --- SPRING OF CLEAN ARCHITECTURE: sunny, flowers, rainbow ---
-  if (currentEventTitle.indexOf('Spring') !== -1) {
-    // Bright sun
-    ctx.fillStyle = '#FFFF55';
-    ctx.beginPath();
-    ctx.arc(260, 30, 12, 0, Math.PI * 2);
-    ctx.fill();
-    // Sun rays
-    ctx.strokeStyle = '#FFFF55';
-    ctx.lineWidth = 1;
-    for (var i = 0; i < 8; i++) {
-      var angle = i * Math.PI / 4 + t * 0.3;
-      ctx.beginPath();
-      ctx.moveTo(260 + Math.cos(angle) * 14, 30 + Math.sin(angle) * 14);
-      ctx.lineTo(260 + Math.cos(angle) * 20, 30 + Math.sin(angle) * 20);
-      ctx.stroke();
+    // Glowing subscription indicators
+    ctx.fillStyle = '#55FFFF';
+    for (var i = 0; i < 5; i++) {
+      var sx = px - 15 - i * 8;
+      var sy = py - 8 + Math.cos(t * 2.5 + i) * 3;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), 2, 2);
     }
-    // Flowers on ground
-    var flowerColors = ['#FF5555', '#FFFF55', '#FF55FF', '#55FFFF', '#55FF55'];
-    for (var i = 0; i < 12; i++) {
-      var fx = (i * 27 + 10) % W;
-      var fy = 135 + (i * 7) % 20;
-      ctx.fillStyle = '#00AA00';
-      ctx.fillRect(fx + 1, fy, 1, 4); // stem
-      ctx.fillStyle = flowerColors[i % flowerColors.length];
-      ctx.fillRect(fx, fy - 1, 3, 2); // petals
-      ctx.fillStyle = '#FFFF55';
-      ctx.fillRect(fx + 1, fy - 1, 1, 1); // center
-    }
-    // Rainbow arc
-    var rainbowColors = ['#FF5555', '#FFAA00', '#FFFF55', '#55FF55', '#5555FF', '#AA00AA'];
-    for (var rc = 0; rc < rainbowColors.length; rc++) {
-      ctx.strokeStyle = rainbowColors[rc];
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(160, 110, 70 + rc * 3, Math.PI * 1.1, Math.PI * 1.9);
-      ctx.stroke();
-    }
-    ctx.lineWidth = 1;
-    return;
-  }
-
-  // --- MESSAGE CHUNKING FOG: heavy fog obscuring everything ---
-  if (currentEventTitle.indexOf('Chunking Fog') !== -1) {
-    // Dense fog layers
-    for (var layer = 0; layer < 3; layer++) {
-      var alpha = 0.15 + layer * 0.08;
-      ctx.fillStyle = 'rgba(170,170,170,' + alpha.toFixed(2) + ')';
-      for (var i = 0; i < 10; i++) {
-        var fogX = (i * 35 + t * (6 + layer * 4) + layer * 50) % (W + 60) - 30;
-        var fogY = 60 + layer * 30 + Math.sin(t * 0.4 + i * 0.9 + layer) * 10;
-        var fogR = 18 + layer * 8 + Math.sin(t * 0.3 + i) * 5;
-        ctx.beginPath();
-        ctx.arc(fogX, fogY, fogR, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    // Fog below obscuring ground details
-    ctx.fillStyle = 'rgba(170,170,170,0.25)';
-    ctx.fillRect(0, 110, W, 60);
     return;
   }
 }
@@ -1085,7 +1060,10 @@ const TS_KEYWORDS = new Set([
   'await', 'return', 'if', 'else', 'for', 'while', 'new', 'typeof', 'instanceof',
   'interface', 'type', 'class', 'extends', 'implements', 'try', 'catch', 'throw',
   'default', 'switch', 'case', 'break', 'continue', 'true', 'false', 'null',
-  'undefined', 'void', 'of', 'in'
+  'undefined', 'void', 'of', 'in',
+  'use', 'pub', 'struct', 'impl', 'fn', 'mod', 'crate', 'self', 'Self',
+  'mut', 'match', 'enum', 'trait', 'where', 'unsafe', 'move', 'ref',
+  'async', 'await', 'dyn', 'static', 'super'
 ]);
 
 function escHtml(s) {
@@ -1162,7 +1140,7 @@ function renderTitleScreen() {
   setTextPanel(
     '<div style="text-align:center; padding-top:20px;">' +
     '<div style="color:#FFFF55; font-size:16px; letter-spacing:2px;">THE CODEREGON TRAIL</div>' +
-    '<div style="color:#AAAAAA; margin-top:8px;">The Gateway Trail - OpenClaw Edition</div>' +
+    '<div style="color:#AAAAAA; margin-top:8px;">The Spacetime Trail - A SpacetimeDB Learning Adventure</div>' +
     '<div style="margin-top:30px;" class="blink">Press SPACE BAR to begin</div>' +
     '</div>'
   );
@@ -1187,10 +1165,10 @@ function renderSetupScreen() {
     '<div style="padding:8px 20px;">' +
     '<div style="color:#55FFFF; margin-bottom:10px;">Your party of key concepts:</div>' +
     '<div style="margin-left:16px;">' +
-    '<div style="color:#55FF55;">1. Gateway Control Plane    <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">2. Channel Plugins          <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">3. Route Resolution         <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">4. Session Persistence      <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">1. Reducers                 <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">2. Module Schema            <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">3. Incremental Subscriptions<span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">4. In-Memory + WAL          <span style="color:#FF5555">' + hearts + '</span></div>' +
     '</div>' +
     '<div style="color:#55FFFF; margin-top:14px; margin-bottom:6px;">What is your profession?</div>' +
     '<div style="margin-left:16px;">' + profsHtml + '</div>' +
@@ -1320,10 +1298,6 @@ function renderDeathScreen() {
   if (techDebtDeath) {
     var techDebtMsgs = [
       'You have died of tech debt dysentery.',
-      // 'You have died of refactoring dysentery.',
-      // 'You have died of unresolved TODOs.',
-      // 'You have died of scope creep.',
-      // 'You have died of dependency bloat.',
     ];
     deathMsg = techDebtMsgs[Math.floor(Math.random() * techDebtMsgs.length)];
     techDebtDeath = false;
@@ -1358,7 +1332,7 @@ function renderWinScreen() {
   var survivors = partyHealth.filter(function(h) { return h > 0; }).length;
   var pctScore = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 100;
 
-  var conceptNames = ['Gateway Control Plane', 'Channel Plugins', 'Route Resolution', 'Session Persistence'];
+  var conceptNames = ['Reducers', 'Module Schema', 'Incremental Subscriptions', 'In-Memory + WAL'];
 
   var masteryHtml = '';
   var weakestName = '';
@@ -1386,7 +1360,7 @@ function renderWinScreen() {
     '<div style="padding:8px 16px;">' +
     '<div style="color:#FFFF55; text-align:center; font-size:16px;">\u2605 YOU MADE IT TO RESPONSE FRONTIER! \u2605</div>' +
     '<div style="margin-top:10px; color:#AAAAAA;">' +
-    '<div>  Framework:    <span style="color:#55FFFF;">OpenClaw (The Gateway Trail)</span></div>' +
+    '<div>  Framework:    <span style="color:#55FFFF;">SpacetimeDB (The Spacetime Trail)</span></div>' +
     '<div>  Survivors:    <span style="color:#55FF55;">' + survivors + '/' + partyHealth.length + '</span></div>' +
     '<div>  Quiz Score:   <span style="color:#FFFF55;">' + score + '/' + totalQuestions + ' (' + pctScore + '%)</span></div>' +
     '<div>  Best Streak:  <span style="color:#FF55FF;">' + bestStreak + '</span></div>' +

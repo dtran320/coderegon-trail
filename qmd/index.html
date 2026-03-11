@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Coderegon Trail - OpenClaw Edition</title>
+<title>The Coderegon Trail - QMD Edition</title>
 <style>
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 html, body {
@@ -135,7 +135,7 @@ html, body {
 // =====================================================================
 // TRAIL DATA
 // =====================================================================
-const TRAIL_DATA={"framework":"openclaw","trailName":"The Gateway Trail","stops":[{"name":"Channel Outpost","subtitle":"Message Arrives","concept":"Channel Plugins","landmarkType":"town","code":{"file":"extensions/whatsapp/src/plugin.ts","content":"// extensions/whatsapp/src/plugin.ts (conceptual)\nimport { ChannelPlugin } from '@openclaw/types'\n\nexport const whatsappPlugin: ChannelPlugin = {\n  config: {\n    listAccountIds(cfg) {\n      return cfg.whatsapp?.accounts?.map(a => a.id) ?? []\n    },\n    async isConfigured(account) {\n      return !!account.phoneNumber\n    },\n    resolveAccount(cfg, id) {\n      return cfg.whatsapp.accounts.find(a => a.id === id)\n    },\n  },\n  gateway: {\n    async startAccount({ account, gateway }) {\n      const sock = makeWASocket({ auth: account.auth })\n      sock.ev.on('messages.upsert', async ({ messages }) => {\n        for (const msg of messages) {\n          await gateway.handleInbound({\n            channel: 'whatsapp',\n            peer: msg.key.remoteJid,\n            text: msg.message?.conversation,\n            accountId: account.id,\n          })\n        }\n      })\n    },\n    async stopAccount({ account }) {\n      // Graceful disconnect\n    },\n  },\n}","language":"typescript"},"narration":"Every journey starts at a channel outpost. OpenClaw connects to thirteen different messaging platforms. Each has a channel plugin following the same interface. Here's the WhatsApp plugin using Baileys to listen for messages. When a message arrives, it normalizes it into a common format and hands it to the gateway."},{"name":"Normalization Pass","subtitle":"Common Message Format","concept":"Channel Plugins","landmarkType":"camp","code":{"file":"src/channels/plugins/types.ts","content":"// src/channels/plugins/types.ts (simplified)\nexport interface ChannelPlugin {\n  config: {\n    listAccountIds(cfg: Config): string[]\n    isConfigured(account: AccountConfig): Promise<boolean>\n    resolveAccount(cfg: Config, id: string): AccountConfig\n  }\n  gateway?: {\n    startAccount(opts: StartAccountOpts): Promise<void>\n    stopAccount(opts: StopAccountOpts): Promise<void>\n  }\n}\n\n// The normalized inbound message shape:\ninterface InboundMessage {\n  channel: string\n  accountId: string\n  peer: RoutePeer\n  text: string\n  threadId?: string\n  attachments?: Media[]\n  guildId?: string\n}","language":"typescript"},"narration":"At the Normalization Pass, chaos becomes order. Every messaging platform has its own format. The ChannelPlugin interface forces them all into one shape. The gateway never needs to know whether you messaged from WhatsApp or Telegram."},{"name":"Route Resolution Fork","subtitle":"Finding the Right Agent","concept":"Route Resolution","landmarkType":"mountain","code":{"file":"src/routing/resolve-route.ts","content":"// src/routing/resolve-route.ts (simplified)\nexport function resolveAgentRoute({\n  cfg, channel, accountId, peer, guildId, teamId,\n}: ResolveRouteInput): ResolvedRoute {\n\n  for (const agent of cfg.agents.list) {\n    const routing = agent.routing\n\n    // 1. Exact peer match (highest priority)\n    const peerMatch = routing.peer?.find(\n      b => b.peer === peer.id && b.channel === channel\n    )\n    if (peerMatch) return { agentId: agent.id, matchedBy: 'peer' }\n\n    // 2. Guild/server match\n    const guildMatch = routing.guild?.find(\n      b => b.guildId === guildId && b.channel === channel\n    )\n    if (guildMatch) return { agentId: agent.id, matchedBy: 'guild' }\n\n    // 3. Account-level match\n    const accountMatch = routing.account?.find(\n      b => b.accountId === accountId && b.channel === channel\n    )\n    if (accountMatch) return { agentId: agent.id, matchedBy: 'account' }\n  }\n\n  return { agentId: cfg.agents.default, matchedBy: 'default' }\n}","language":"typescript"},"narration":"Here's where the trail forks. The resolver checks priority order: specific peer binding, then guild/server, then account, then default. One gateway can serve different agents to different people."},{"name":"Session Persistence Camp","subtitle":"Loading Conversation State","concept":"Session Persistence","landmarkType":"camp","code":{"file":"src/sessions/session-utils.ts","content":"// src/sessions/session-utils.ts (simplified)\nimport { readFile, writeFile, mkdir } from 'fs/promises'\n\nconst SESSIONS_DIR = '~/.openclaw/sessions'\n\nexport async function loadSessionEntry(\n  agentId: string,\n  sessionKey: string,\n): Promise<SessionEntry> {\n  const path = `${SESSIONS_DIR}/${agentId}/${sessionKey}.json`\n\n  try {\n    const raw = await readFile(path, 'utf-8')\n    return JSON.parse(raw)\n  } catch {\n    return {\n      sessionKey,\n      agentId,\n      transcript: [],\n      metadata: {\n        model: 'anthropic/claude-opus-4-6',\n        thinkingLevel: 'medium',\n        tokensUsed: 0,\n        createdAt: Date.now(),\n      },\n    }\n  }\n}","language":"typescript"},"narration":"Sessions are just JSON files on disk. Each agent-plus-peer combination gets its own file. If the file doesn't exist, a fresh session starts with sensible defaults. Zero database dependencies, easy backup."},{"name":"Gateway Control Ridge","subtitle":"The WebSocket Command Center","concept":"Gateway Control Plane","landmarkType":"mountain","code":{"file":"src/gateway/server-chat.ts","content":"// src/gateway/server-chat.ts (simplified)\nexport function createChatRunRegistry(gateway: GatewayServer) {\n\n  async function handleChatSend(\n    sessionEntry: SessionEntry,\n    message: InboundMessage,\n  ) {\n    sessionEntry.transcript.push({\n      role: 'user',\n      content: message.text,\n      timestamp: Date.now(),\n    })\n\n    const agentRpc = gateway.acp.getClient(sessionEntry.agentId)\n    const stream = await agentRpc.call('chat.send', {\n      sessionId: sessionEntry.sessionKey,\n      messages: sessionEntry.transcript,\n      tools: sessionEntry.metadata.enabledTools,\n      model: sessionEntry.metadata.model,\n    })\n\n    for await (const chunk of stream) {\n      if (chunk.type === 'text') {\n        gateway.broadcast('chat.stream', { text: chunk.text })\n      } else if (chunk.type === 'tool_use') {\n        const result = await executeTool(chunk.tool, chunk.input)\n        agentRpc.sendToolResult(chunk.id, result)\n      }\n    }\n    await saveSession(sessionEntry)\n  }\n\n  return { handleChatSend }\n}","language":"typescript"},"narration":"The gateway server accepts WebSocket connections from channels, the CLI, and native apps. The streaming loop handles text and tool calls differently. Text streams in real time; tool calls get executed on the gateway and results feed back."},{"name":"Agent RPC Rapids","subtitle":"Talking to the AI","concept":"Gateway Control Plane","landmarkType":"river","code":{"file":"src/acp/client.ts","content":"// src/acp/client.ts (simplified)\nexport function createAcpClient(agentId: string, wsUrl: string) {\n  const ws = new WebSocket(wsUrl)\n\n  async function* call(\n    method: string,\n    params: ChatSendParams,\n  ): AsyncGenerator<AgentChunk> {\n    const requestId = crypto.randomUUID()\n\n    ws.send(JSON.stringify({\n      jsonrpc: '2.0',\n      id: requestId,\n      method,\n      params,\n    }))\n\n    while (true) {\n      const msg = await nextMessage(ws, requestId)\n      if (msg.type === 'done') break\n      yield msg\n    }\n  }\n\n  function sendToolResult(toolCallId: string, result: ToolResult) {\n    ws.send(JSON.stringify({\n      jsonrpc: '2.0',\n      method: 'tool.result',\n      params: { toolCallId, result },\n    }))\n  }\n\n  return { call, sendToolResult }\n}","language":"typescript"},"narration":"Now we cross the RPC Rapids. The gateway and agent communicate over JSON-RPC. The agent decides what to do, but the gateway controls what actually happens on your machine. Security through architecture."},{"name":"Tool Execution Gorge","subtitle":"Running Commands on the Host","concept":"Gateway Control Plane","landmarkType":"forest","code":{"file":"src/agents/bash-tools.exec.ts","content":"// src/agents/bash-tools.exec.ts (simplified)\nexport async function executeBashTool(\n  input: { command: string },\n  context: ToolContext,\n): Promise<ToolResult> {\n  const { command } = input\n  const { sessionEntry, securityPolicy } = context\n\n  if (!securityPolicy.allowBash) {\n    return { error: 'Bash execution not permitted' }\n  }\n\n  const pty = spawn('bash', ['-c', command], {\n    cwd: sessionEntry.metadata.workingDir,\n    env: { ...process.env, ...sessionEntry.metadata.env },\n    timeout: 120_000,\n  })\n\n  let stdout = ''\n  pty.onData(data => { stdout += data })\n  const exitCode = await pty.wait()\n\n  return {\n    stdout: stdout.slice(0, 100_000),\n    exitCode,\n  }\n}","language":"typescript"},"narration":"Deep in Tool Execution Gorge, the agent's intentions become real actions. Security check first, then a real PTY with a two-minute timeout. Bash is just one tool \u2014 same pattern for browser control, canvas, and device actions."},{"name":"Response Delivery Frontier","subtitle":"Back Through the Channel","concept":"Channel Plugins","landmarkType":"town","code":{"file":"src/gateway/server-channels.ts","content":"// src/gateway/server-channels.ts (simplified)\nexport function createChannelManager(gateway: GatewayServer) {\n\n  async function deliverResponse(\n    sessionEntry: SessionEntry,\n    response: AgentResponse,\n  ) {\n    const { channel, peer, accountId } = sessionEntry.routing\n    const plugin = gateway.channels.get(channel)\n\n    const formatted = formatForChannel(channel, response.text, {\n      maxLength: getChannelLimit(channel),\n    })\n\n    for (const chunk of formatted) {\n      await plugin.send({ accountId, peer, text: chunk })\n    }\n\n    sessionEntry.transcript.push({\n      role: 'assistant',\n      content: response.text,\n      timestamp: Date.now(),\n    })\n    await saveSession(sessionEntry)\n\n    gateway.broadcast('chat.response', { text: response.text })\n  }\n\n  return { deliverResponse }\n}","language":"typescript"},"narration":"You made it! The response travels back through the same channel. Formatted for each platform's limits, chunked automatically, saved to the transcript. Message in, intelligence applied, response out. Your wagon has arrived."}],"events":[{"type":"weather","trigger":"after_stop","triggerStop":1,"title":"Protocol Storm!","text":"A storm of messages hits your gateway \u2014 WhatsApp sends phone numbers, Discord sends snowflake IDs, Slack sends workspace tokens. How do you weather this storm?","choices":[{"text":"Define a common interface that all channel plugins must implement","correct":true,"explanation":"OpenClaw's ChannelPlugin interface forces every platform into the same shape. New channels can be added without touching gateway code."},{"text":"Write a giant switch statement in the gateway for each platform","correct":false,"explanation":"That would make the gateway a tangled mess. Every new channel means modifying core code."},{"text":"Only support one messaging platform to keep things simple","correct":false,"explanation":"Multi-channel support is core to OpenClaw's value. The trick is clean abstraction through the plugin interface."}],"concept":"Channel Plugins","difficulty":"easy"},{"type":"encounter","trigger":"after_stop","triggerStop":2,"title":"A Fellow Operator Appears","text":"A seasoned operator says: 'I run three agents \u2014 personal on WhatsApp, work on Slack, social bot on Discord. One gateway.' How does it know which agent handles which message?","choices":[{"text":"Route bindings in the config map channels, peers, and guilds to agents","correct":true,"explanation":"Config bindings map at multiple levels. Priority: peer, guild, team, account, channel, then default."},{"text":"Each agent runs its own separate gateway on a different port","correct":false,"explanation":"One gateway, multiple agents. Separate gateways would mean separate configs and connections."},{"text":"The user specifies which agent to use in every message","correct":false,"explanation":"Routing is automatic and invisible. The gateway figures it out from the config bindings."}],"concept":"Route Resolution","difficulty":"easy"},{"type":"river","trigger":"after_stop","triggerStop":3,"title":"The Session State River","text":"You've reached the boundary between stateless request handling and persistent memory. Your assistant needs to remember last week's conversation across a restart. How do you cross?","choices":[{"text":"Store sessions as JSON files on disk, loaded on demand per key","correct":true,"explanation":"Each session is a JSON file at a predictable path. No database needed. The file system IS the persistence layer."},{"text":"Keep all sessions in memory with a Redis cache","correct":false,"explanation":"In-memory state is lost on restart. Redis adds an external dependency. OpenClaw is local-first."},{"text":"Store history in the AI model's context and let it remember","correct":false,"explanation":"Context windows are limited and expensive. The persistence layer is separate from inference."}],"concept":"Session Persistence","difficulty":"medium"},{"type":"misfortune","trigger":"after_stop","triggerStop":5,"title":"Runaway Process!","text":"The AI agent ran a shell command that's an infinite loop consuming 100% CPU. Your gateway is grinding to a halt!","choices":[{"text":"Tool execution needs timeouts and session security policies should gate commands","correct":true,"explanation":"Bash tools have a two-minute timeout, and security policies control what's allowed. The gateway is the security boundary."},{"text":"The agent should be smarter and never request dangerous commands","correct":false,"explanation":"Never rely on the AI as the security boundary. Defense in depth means the gateway enforces limits."},{"text":"Run all tools in the agent's process so only it crashes","correct":false,"explanation":"Tools run on the gateway because they need local machine access. The separation is a feature."}],"concept":"Gateway Control Plane","difficulty":"medium"},{"type":"river","trigger":"after_stop","triggerStop":5,"title":"The RPC River","text":"The deepest river \u2014 the boundary between gateway and agent runtime. The agent needs a browser screenshot but runs in a different process. How?","choices":[{"text":"JSON-RPC over WebSocket: agent requests, gateway executes locally","correct":true,"explanation":"The agent streams tool_use blocks, the gateway intercepts and executes. The agent could run remotely."},{"text":"The agent directly imports and calls the browser module","correct":false,"explanation":"Separate processes can't call each other's code. The RPC boundary IS the security model."},{"text":"The agent writes commands to a shared file the gateway watches","correct":false,"explanation":"File watching is slow and unreliable. WebSocket RPC gives real-time bidirectional streaming."}],"concept":"Gateway Control Plane","difficulty":"hard"},{"type":"fortune","trigger":"after_stop","triggerStop":6,"title":"Spring of Clean Architecture","text":"Your understanding of the control plane is solid! Friendly contributors join your camp and share plugin templates.","choices":[],"concept":"Channel Plugins","difficulty":"easy"},{"type":"weather","trigger":"after_stop","triggerStop":6,"title":"Message Chunking Fog","text":"Dense fog. Your assistant wrote 3000 words but WhatsApp only allows 4096 characters. The user sees a truncated response. What went wrong?","choices":[{"text":"The formatter should chunk messages based on each channel's limit","correct":true,"explanation":"WhatsApp: 4096, Discord: 2000, Slack: 40000. The delivery layer splits into properly-sized chunks."},{"text":"Tell the AI to always write short responses","correct":false,"explanation":"You can't enforce output length on LLMs. The delivery layer handles formatting."},{"text":"Switch to a channel with no message limits","correct":false,"explanation":"Multi-channel means meeting users where they are. Every channel must work correctly."}],"concept":"Channel Plugins","difficulty":"easy"}],"partyMembers":[{"name":"Gateway Control Plane","icon":"gateway","maxHealth":3},{"name":"Channel Plugins","icon":"channel","maxHealth":3},{"name":"Route Resolution","icon":"route","maxHealth":3},{"name":"Session Persistence","icon":"session","maxHealth":3}],"deathMessages":["You have died of unhandled WebSocket disconnections.","You have died of missing default routes.","You have drowned in the RPC River.","You have died of session bloat.","You have died of a runaway bash command.","You have died of unhandled plugin exceptions.","You have died of API rate limits.","You have died of dependency conflicts.","You have died of expired sessions.","You have died of Discord snowflake avalanche.","You have died of invalid routing config."]};
+const TRAIL_DATA={"framework":"qmd","trailName":"The Hybrid Search Trail","stops":[{"name":"Independence, MO","subtitle":"Query Input","concept":"Hybrid Search","landmarkType":"town","code":{"file":"src/commands/search.ts","content":"// src/commands/search.ts (simplified)\nimport { Command } from 'commander'\n\nconst program = new Command()\n\nprogram\n  .command('search <query>')\n  .description('BM25 keyword search')\n  .action(async (query) => {\n    const results = await bm25Search(db, query)\n    formatResults(results, options)\n  })\n\nprogram\n  .command('vsearch <query>')\n  .description('Vector semantic search')\n  .action(async (query) => {\n    const embedding = await embed(query)\n    const results = await vectorSearch(db, embedding)\n    formatResults(results, options)\n  })\n\nprogram\n  .command('query <query>')\n  .description('Full hybrid search pipeline')\n  .action(async (query) => {\n    const results = await hybridSearch(db, query, {\n      expand: true, rerank: true, blend: true\n    })\n    formatResults(results, options)\n  })","language":"typescript"},"narration":"Every search journey starts here at Independence. QMD offers three trails: simple keyword search, vector semantic search, or the full hybrid pipeline. The query command activates everything: expansion, parallel retrieval, fusion, reranking, and blending. Choose your path wisely."},{"name":"Chimney Rock","subtitle":"Strong Signal Detection","concept":"Smart Chunking","landmarkType":"mountain","code":{"file":"src/search/strong-signal.ts","content":"// src/search/strong-signal.ts (simplified)\nconst STRONG_SIGNAL_THRESHOLD = 15.0\n\nexport async function checkStrongSignal(\n  db: Database,\n  query: string\n): Promise<StrongSignalResult> {\n  // Quick BM25 probe — just check top result\n  const probe = await db.all(`\n    SELECT path, rank AS score\n    FROM docs_fts\n    WHERE docs_fts MATCH ?\n    ORDER BY rank\n    LIMIT 1\n  `, [fts5Escape(query)])\n\n  if (probe.length > 0 && Math.abs(probe[0].score) > STRONG_SIGNAL_THRESHOLD) {\n    // Strong match found — skip LLM expansion\n    return {\n      strong: true,\n      topResult: probe[0],\n      skipExpansion: true\n    }\n  }\n\n  return { strong: false, skipExpansion: false }\n}","language":"typescript"},"narration":"At Chimney Rock, we check for strong signals before committing to the expensive trail ahead. A quick BM25 probe tests if there is already an excellent keyword match. If the score exceeds the threshold, we skip the costly LLM expansion entirely. Why pay for a guide when the landmark is right in front of you?"},{"name":"Fort Laramie","subtitle":"Query Expansion","concept":"Query Expansion","landmarkType":"camp","code":{"file":"src/search/expand.ts","content":"// src/search/expand.ts (simplified)\nimport { llamaChat } from '../llm/qwen3.js'\n\nconst EXPANSION_PROMPT = `Generate 1-2 alternative search\nqueries that capture the same intent but use different\nvocabulary. Return JSON array of strings.`\n\nexport async function expandQuery(\n  query: string,\n  cache: Map<string, string[]>\n): Promise<string[]> {\n  const cached = cache.get(query)\n  if (cached) return cached\n\n  const response = await llamaChat([\n    { role: 'system', content: EXPANSION_PROMPT },\n    { role: 'user', content: query }\n  ])\n\n  const variants = JSON.parse(response)\n  cache.set(query, variants)\n\n  // Return original + expansions\n  return [query, ...variants]\n}","language":"typescript"},"narration":"Fort Laramie is where we recruit local guides. The Qwen3 LLM generates one or two alternative queries that mean the same thing but use different words. Searching for 'deploy' might also search for 'deployment process' or 'release pipeline.' The cache prevents asking the same question twice."},{"name":"Independence Rock","subtitle":"Parallel Search","concept":"Hybrid Search","landmarkType":"mountain","code":{"file":"src/search/parallel.ts","content":"// src/search/parallel.ts (simplified)\nexport async function parallelSearch(\n  db: Database,\n  queries: string[],\n  embedding: Float32Array\n): Promise<{ bm25Results: RankedList[], vectorResults: RankedList }> {\n\n  // BM25 search for each query variant in parallel\n  const bm25Promise = Promise.all(\n    queries.map(q => db.all(`\n      SELECT path, rank AS score\n      FROM docs_fts\n      WHERE docs_fts MATCH ?\n      ORDER BY rank\n      LIMIT 30\n    `, [fts5Escape(q)]))\n  )\n\n  // Vector search runs simultaneously\n  const vectorPromise = db.all(`\n    SELECT path, distance AS score\n    FROM vec_docs\n    WHERE embedding MATCH ?\n    ORDER BY distance\n    LIMIT 30\n  `, [embedding])\n\n  const [bm25Results, vectorResults] = await Promise.all([\n    bm25Promise, vectorPromise\n  ])\n\n  return { bm25Results, vectorResults }\n}","language":"typescript"},"narration":"At Independence Rock, the trail splits into two parallel paths. BM25 keyword search and vector semantic search run simultaneously, each bringing back their top 30 candidates. BM25 finds exact word matches while vectors find conceptually similar documents even when they use completely different vocabulary."},{"name":"South Pass","subtitle":"Reciprocal Rank Fusion","concept":"Position-Aware Blending","landmarkType":"river","code":{"file":"src/search/rrf.ts","content":"// src/search/rrf.ts (simplified)\nconst K = 60 // RRF constant\n\nexport function reciprocalRankFusion(\n  rankedLists: RankedList[],\n  weights: number[]\n): FusedResult[] {\n  const scores = new Map<string, number>()\n\n  for (let i = 0; i < rankedLists.length; i++) {\n    const list = rankedLists[i]\n    const weight = weights[i] ?? 1.0\n\n    for (let rank = 0; rank < list.length; rank++) {\n      const doc = list[rank].path\n      const rrfScore = weight * (1 / (K + rank + 1))\n      scores.set(doc, (scores.get(doc) ?? 0) + rrfScore)\n    }\n  }\n\n  return Array.from(scores.entries())\n    .map(([path, score]) => ({ path, score }))\n    .sort((a, b) => b.score - a.score)\n}","language":"typescript"},"narration":"South Pass is where all the ranked lists converge into one river. Reciprocal Rank Fusion scores each document as 1 divided by K plus rank plus 1. The original query gets double weight because the user's exact words matter most. Documents that appear in multiple lists get boosted. Simple math, powerful results."},{"name":"Fort Bridger","subtitle":"LLM Re-ranking","concept":"Query Expansion","landmarkType":"forest","code":{"file":"src/search/rerank.ts","content":"// src/search/rerank.ts (simplified)\nimport { llamaRerank } from '../llm/qwen3-reranker.js'\n\nexport async function rerankResults(\n  query: string,\n  candidates: FusedResult[],\n  topN: number = 30\n): Promise<RerankedResult[]> {\n  const top = candidates.slice(0, topN)\n\n  // Load document content for each candidate\n  const docs = await Promise.all(\n    top.map(c => loadDocContent(c.path))\n  )\n\n  // Cross-encoder scoring: query vs each document\n  const scores = await llamaRerank({\n    query,\n    documents: docs.map(d => d.content),\n    model: 'qwen3-reranker'\n  })\n\n  return top.map((candidate, i) => ({\n    ...candidate,\n    rerankerScore: scores[i],\n    originalRank: i\n  })).sort((a, b) => b.rerankerScore - a.rerankerScore)\n}","language":"typescript"},"narration":"Deep in the forest at Fort Bridger, the Qwen3-Reranker acts as a wise judge. It reads each candidate document alongside the original query and scores how relevant they truly are. A cross-encoder sees both query and document together, catching nuances that keyword matching and embeddings miss."},{"name":"The Dalles","subtitle":"Position-Aware Blending","concept":"Position-Aware Blending","landmarkType":"camp","code":{"file":"src/search/blend.ts","content":"// src/search/blend.ts (simplified)\nconst BLEND_TIERS = [\n  { maxRank: 5,  retrievalWeight: 0.7, rerankerWeight: 0.3 },\n  { maxRank: 15, retrievalWeight: 0.5, rerankerWeight: 0.5 },\n  { maxRank: 30, retrievalWeight: 0.3, rerankerWeight: 0.7 },\n]\n\nexport function positionAwareBlend(\n  retrievalResults: FusedResult[],\n  rerankedResults: RerankedResult[]\n): BlendedResult[] {\n  return retrievalResults.map((doc, rank) => {\n    const tier = BLEND_TIERS.find(t => rank < t.maxRank)\n      ?? BLEND_TIERS[BLEND_TIERS.length - 1]\n\n    const reranked = rerankedResults.find(r => r.path === doc.path)\n    const rerankerScore = reranked?.rerankerScore ?? 0\n\n    return {\n      path: doc.path,\n      score: tier.retrievalWeight * doc.score\n             + tier.rerankerWeight * rerankerScore,\n      tier: rank < 5 ? 'top' : rank < 15 ? 'mid' : 'tail'\n    }\n  }).sort((a, b) => b.score - a.score)\n}","language":"typescript"},"narration":"At The Dalles, we blend the retrieval and reranker scores with position awareness. Top-5 results trust retrieval more because BM25 and vector hits at the top are usually precise. Lower-ranked results lean on the reranker because it excels at separating borderline relevant from irrelevant. Different weights for different positions."},{"name":"Oregon City","subtitle":"Result Formatting","concept":"Smart Chunking","landmarkType":"town","code":{"file":"src/output/formatter.ts","content":"// src/output/formatter.ts (simplified)\nexport function formatResults(\n  results: BlendedResult[],\n  options: FormatOptions\n): string {\n  if (options.format === 'json') {\n    return JSON.stringify(results.map(r => ({\n      path: r.path,\n      score: Math.round(r.score * 1000) / 1000,\n      snippet: r.snippet?.slice(0, 200)\n    })), null, 2)\n  }\n\n  // Default: human-readable with snippets\n  return results.map((r, i) => {\n    const rank = `${i + 1}.`.padStart(3)\n    const score = r.score.toFixed(3)\n    const path = r.path\n    const snippet = r.snippet\n      ? `\\n     ${r.snippet.slice(0, 120)}...`\n      : ''\n    return `${rank} [${score}] ${path}${snippet}`\n  }).join('\\n')\n}","language":"typescript"},"narration":"You made it to Oregon City! The final stop formats results for humans or machines. JSON output feeds AI agents. Human-readable output shows rank, score, path, and a snippet preview. The journey from raw query to ranked results is complete. Your wagon of search results has arrived."}}],"events":[{"type":"weather","trigger":"after_stop","triggerStop":1,"title":"A Search Storm Is Brewing!","text":"Dark clouds gather over the trail. Lightning illuminates three possible paths through the storm. What happens when you run `qmd query \"deploy\"`?","choices":[{"text":"Full hybrid pipeline with expansion, parallel search, fusion, reranking, and blending","correct":true,"explanation":"The `query` command activates the complete hybrid pipeline: LLM expansion generates variants, BM25 and vector search run in parallel, RRF fuses the ranked lists, the reranker judges candidates, and position-aware blending produces the final ranking."},{"text":"Just BM25 keyword search against the FTS5 index","correct":false,"explanation":"That would be the `search` command. The `query` command goes further with expansion, vector search, fusion, reranking, and blending."},{"text":"Just vector semantic search using embeddings","correct":false,"explanation":"That would be the `vsearch` command. The `query` command combines both keyword and semantic search with additional intelligence layers."}],"concept":"Hybrid Search","difficulty":"easy"},{"type":"encounter","trigger":"after_stop","triggerStop":2,"title":"A Fellow Traveler Shares Wisdom!","text":"A seasoned search engineer approaches your wagon. 'I see you check for strong BM25 signals before calling the LLM,' they say. 'Smart move.' Why check for strong BM25 signals before LLM expansion?","choices":[{"text":"Skip expensive LLM calls when an excellent exact match is already found","correct":true,"explanation":"If BM25 already finds a strong match above the threshold, there is no need to spend time and compute on LLM query expansion. It is an optimization that avoids unnecessary work."},{"text":"BM25 is always more accurate than any other search method","correct":false,"explanation":"BM25 is great for exact keyword matches but misses conceptually similar documents with different vocabulary. The strong signal check is about efficiency, not superiority."},{"text":"LLMs are unreliable and should be avoided whenever possible","correct":false,"explanation":"LLMs are quite useful for query expansion and reranking. The strong signal check is an optimization, not a judgment on LLM quality."}],"concept":"Smart Chunking","difficulty":"easy"},{"type":"river","trigger":"after_stop","triggerStop":4,"title":"The Search River Crossing!","text":"You have reached a wide river where two search currents merge. On one bank, keywords. On the other, embeddings. How does semantic search differ from keyword search?","choices":[{"text":"Finds conceptually similar documents even when they use completely different words","correct":true,"explanation":"Vector semantic search converts text to embeddings that capture meaning. A search for 'deploy' can find documents about 'release pipeline' or 'shipping code' because the vectors are close in embedding space."},{"text":"It is faster because embeddings are precomputed","correct":false,"explanation":"Speed is not the key difference. Semantic search is about finding meaning-based similarity, not just matching the exact words in the query."},{"text":"It uses regular expressions to find pattern matches","correct":false,"explanation":"Regex is a completely different approach. Semantic search uses neural network embeddings to capture the meaning of text, not pattern matching."}],"concept":"Hybrid Search","difficulty":"medium"},{"type":"weather","trigger":"after_stop","triggerStop":5,"title":"Fusion Storm!","text":"A violent storm of ranked lists crashes together at South Pass. BM25 results, vector results, and expanded query results all compete for position. Why weight the original query 2x in RRF?","choices":[{"text":"The user's exact words should have more influence than LLM-generated expansions","correct":true,"explanation":"The original query directly reflects the user's intent. Expanded variants are helpful for coverage but the user's own words deserve more weight. Double weighting ensures the original query's top hits stay prominent."},{"text":"It is a random implementation choice with no particular reasoning","correct":false,"explanation":"The 2x weight is deliberate. The user typed those exact words for a reason. Expansion variants help find more results but should not override the user's stated intent."},{"text":"Expanded queries are inherently less accurate than the original","correct":false,"explanation":"Expansions are not less accurate — they find different relevant documents. The 2x weight is about respecting user intent, not about accuracy of expansions."}],"concept":"Position-Aware Blending","difficulty":"medium"},{"type":"misfortune","trigger":"after_stop","triggerStop":6,"title":"Reranker Breakdown!","text":"Disaster strikes! The reranker has gone haywire, promoting strange documents to the top of your results. What could go wrong if you ONLY used the reranker for final ranking?","choices":[{"text":"It might demote exact keyword matches the user specifically searched for","correct":true,"explanation":"A cross-encoder reranker optimizes for semantic relevance but can miss the importance of exact keyword matches. If someone searches for a specific function name, the reranker might rank a conceptually similar but different function higher."},{"text":"It would be too slow to return any results at all","correct":false,"explanation":"The reranker is slower than BM25 but still returns results. The real issue is ranking quality for exact matches, not speed."},{"text":"Rerankers cannot process text longer than 100 characters","correct":false,"explanation":"Modern rerankers handle substantial text. The issue is about ranking priorities, not input limitations."}],"concept":"Query Expansion","difficulty":"medium"},{"type":"encounter","trigger":"after_stop","triggerStop":7,"title":"Position-Aware Pioneer!","text":"A pioneer who has traveled this trail before shares their hard-won knowledge. 'Trust retrieval for the top ranks,' they say. Why trust retrieval more for top-ranked results?","choices":[{"text":"Top BM25 and vector hits are usually precise; the reranker adds value for borderline results lower in the list","correct":true,"explanation":"When BM25 or vector search puts something at rank 1, it is almost certainly relevant. The reranker shines at positions 10-30 where it can distinguish truly relevant borderline results from noise."},{"text":"The reranker is always wrong for top-ranked results","correct":false,"explanation":"The reranker is not always wrong — it is just less needed at the top. Retrieval already did a good job finding the best matches. The reranker's value increases as you go further down the list."},{"text":"It is purely a performance optimization to skip reranking top results","correct":false,"explanation":"Position-aware blending does not skip the reranker for top results. It uses different weight ratios: more retrieval weight at the top, more reranker weight at the bottom. Both signals contribute everywhere."}],"concept":"Position-Aware Blending","difficulty":"hard"}],"partyMembers":[{"name":"Hybrid Search","icon":"server","maxHealth":3},{"name":"Smart Chunking","icon":"data","maxHealth":3},{"name":"Query Expansion","icon":"router","maxHealth":3},{"name":"Position-Aware Blending","icon":"layout","maxHealth":3}],"deathMessages":["Died of zero search results. No index configured.","Lost in the embedding space \u2014 no nearest neighbors found.","Drowned in the fusion river. Too many ranked lists to combine.","Starved waiting for the LLM to expand your query. Model download timed out.","Killed by a reranker hallucination. Irrelevant doc promoted to #1.","Your chunking was too aggressive. Semantic meaning was lost.","Died of dysentery... er, dependency conflicts with node-llama-cpp.","Buried under 100,000 unindexed documents."]};
 
 // =====================================================================
 // GAME STATE
@@ -187,20 +187,20 @@ let currentEventType = '';  // event type for canvas overlay
 let currentEventTitle = ''; // event title for canvas overlay
 
 const travelFlavors = [
-  "The WebSocket connection is strong today...",
-  "Packets flow smoothly across the middleware...",
-  "Your JSON payloads are well-formed...",
-  "The config files look clean and tidy...",
-  "A gentle breeze carries API responses...",
-  "The route resolver hums along quietly...",
-  "Session files persist without corruption...",
-  "The gateway handles traffic with grace...",
+  "The search index is freshly built today...",
+  "Embeddings flow smoothly through the vector space...",
+  "Your FTS5 tables are well-optimized...",
+  "The BM25 scores look clean and accurate...",
+  "A gentle breeze carries query results...",
+  "The Qwen3 model hums along quietly...",
+  "Document chunks persist without corruption...",
+  "The hybrid pipeline handles queries with grace...",
   "Your TypeScript types provide comfort on the trail...",
-  "The event loop is calm and responsive...",
+  "The search loop is calm and responsive...",
   "A hawk circles overhead, watching your throughput...",
-  "The trail ahead is well-documented...",
+  "The trail ahead is well-indexed...",
   "Your error handling is robust today...",
-  "The authentication tokens are fresh...",
+  "The SQLite database is fresh and defragmented...",
   "Your dependency tree looks healthy..."
 ];
 
@@ -492,8 +492,8 @@ function drawEventOverlay(time) {
 
   var t = (time || 0) * 0.001; // seconds
 
-  // --- PROTOCOL STORM: dark sky, lightning, rain ---
-  if (currentEventTitle.indexOf('Protocol Storm') !== -1) {
+  // --- SEARCH STORM: dark sky, lightning, rain ---
+  if (currentEventTitle.indexOf('Search Storm') !== -1) {
     // Darken sky
     ctx.fillStyle = 'rgba(0,0,50,0.45)';
     ctx.fillRect(0, 0, W, 110);
@@ -529,8 +529,8 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- FELLOW OPERATOR: person standing by campfire ---
-  if (currentEventTitle.indexOf('Fellow Operator') !== -1) {
+  // --- FELLOW TRAVELER: person standing by campfire ---
+  if (currentEventTitle.indexOf('Fellow Traveler') !== -1) {
     var px = 200, py = 142;
     // Person body
     ctx.fillStyle = '#AA5500';
@@ -563,8 +563,8 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- SESSION STATE RIVER: rough rapids with white water ---
-  if (currentEventTitle.indexOf('Session State') !== -1) {
+  // --- SEARCH RIVER CROSSING: rough rapids with white water ---
+  if (currentEventTitle.indexOf('Search River') !== -1) {
     // Extra turbulence on the river
     ctx.fillStyle = '#55FFFF';
     for (var i = 0; i < 20; i++) {
@@ -582,8 +582,43 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- RUNAWAY PROCESS: red sky, smoke, warning ---
-  if (currentEventTitle.indexOf('Runaway Process') !== -1) {
+  // --- FUSION STORM: swirling colored particles converging ---
+  if (currentEventTitle.indexOf('Fusion Storm') !== -1) {
+    // Darken sky
+    ctx.fillStyle = 'rgba(50,0,50,0.35)';
+    ctx.fillRect(0, 0, W, 110);
+    // Swirling colored particles representing ranked lists
+    var colors = ['#55FFFF', '#FF55FF', '#FFFF55', '#55FF55'];
+    for (var ci = 0; ci < colors.length; ci++) {
+      ctx.fillStyle = colors[ci];
+      for (var i = 0; i < 8; i++) {
+        var angle = t * (1.5 + ci * 0.3) + i * Math.PI / 4;
+        var radius = 30 + Math.sin(t * 0.7 + i) * 15;
+        var cx = 160 + Math.cos(angle) * radius;
+        var cy = 60 + Math.sin(angle) * radius * 0.6;
+        ctx.fillRect(Math.floor(cx), Math.floor(cy), 3, 3);
+      }
+    }
+    // Convergence point glow
+    ctx.fillStyle = 'rgba(255,255,85,0.15)';
+    ctx.beginPath();
+    ctx.arc(160, 60, 12 + Math.sin(t * 3) * 4, 0, Math.PI * 2);
+    ctx.fill();
+    // Lightning between particles
+    if (Math.sin(t * 2.5) > 0.7) {
+      ctx.strokeStyle = '#FFFF55';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(140, 45);
+      ctx.lineTo(160, 60);
+      ctx.lineTo(180, 50);
+      ctx.stroke();
+    }
+    return;
+  }
+
+  // --- RERANKER BREAKDOWN: red sky, smoke, warning ---
+  if (currentEventTitle.indexOf('Reranker Breakdown') !== -1) {
     // Red danger tint
     ctx.fillStyle = 'rgba(170,0,0,0.25)';
     ctx.fillRect(0, 0, W, H);
@@ -619,91 +654,40 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- RPC RIVER: deep blue, fog/mist over water ---
-  if (currentEventTitle.indexOf('RPC River') !== -1) {
-    // Fog layers drifting over the river
-    ctx.fillStyle = 'rgba(85,85,255,0.12)';
-    for (var i = 0; i < 6; i++) {
-      var fogX = (i * 60 + t * 12 + Math.sin(i) * 20) % (W + 40) - 20;
-      var fogY = 145 + Math.sin(t * 0.5 + i * 1.1) * 5;
-      ctx.beginPath();
-      ctx.arc(fogX, fogY, 20 + i * 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.fillStyle = 'rgba(170,170,255,0.08)';
-    for (var i = 0; i < 8; i++) {
-      var fogX = (i * 45 + t * 8) % (W + 30) - 15;
-      var fogY = 150 + Math.sin(t * 0.3 + i * 0.8) * 8;
-      ctx.beginPath();
-      ctx.arc(fogX, fogY, 15 + i * 2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // Deeper water tint
-    ctx.fillStyle = 'rgba(0,0,85,0.2)';
-    ctx.fillRect(0, 155, W, 18);
-    return;
-  }
-
-  // --- SPRING OF CLEAN ARCHITECTURE: sunny, flowers, rainbow ---
-  if (currentEventTitle.indexOf('Spring') !== -1) {
-    // Bright sun
+  // --- POSITION-AWARE PIONEER: person with lantern, stars ---
+  if (currentEventTitle.indexOf('Position-Aware Pioneer') !== -1) {
+    var px = 200, py = 142;
+    // Person body
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(px, py - 12, 4, 8);
+    ctx.fillStyle = '#FFAA00';
+    ctx.fillRect(px, py - 15, 4, 3);
+    ctx.fillRect(px - 1, py - 4, 2, 5);
+    ctx.fillRect(px + 3, py - 4, 2, 5);
+    // Hat
+    ctx.fillStyle = '#555555';
+    ctx.fillRect(px - 1, py - 17, 6, 2);
+    ctx.fillRect(px, py - 19, 4, 2);
+    // Lantern
     ctx.fillStyle = '#FFFF55';
+    var lanternGlow = 0.5 + Math.sin(t * 4) * 0.3;
+    ctx.globalAlpha = lanternGlow;
     ctx.beginPath();
-    ctx.arc(260, 30, 12, 0, Math.PI * 2);
+    ctx.arc(px + 8, py - 8, 8, 0, Math.PI * 2);
     ctx.fill();
-    // Sun rays
-    ctx.strokeStyle = '#FFFF55';
-    ctx.lineWidth = 1;
-    for (var i = 0; i < 8; i++) {
-      var angle = i * Math.PI / 4 + t * 0.3;
-      ctx.beginPath();
-      ctx.moveTo(260 + Math.cos(angle) * 14, 30 + Math.sin(angle) * 14);
-      ctx.lineTo(260 + Math.cos(angle) * 20, 30 + Math.sin(angle) * 20);
-      ctx.stroke();
+    ctx.globalAlpha = 1.0;
+    ctx.fillStyle = '#FFAA00';
+    ctx.fillRect(px + 6, py - 10, 4, 4);
+    // Stars twinkling
+    ctx.fillStyle = '#FFFFFF';
+    for (var i = 0; i < 10; i++) {
+      var sx = 20 + i * 30;
+      var sy = 10 + (i * 7) % 25;
+      var twinkle = Math.sin(t * 3 + i * 1.5) > 0.3 ? 1.0 : 0.3;
+      ctx.globalAlpha = twinkle;
+      ctx.fillRect(sx, sy, 2, 2);
     }
-    // Flowers on ground
-    var flowerColors = ['#FF5555', '#FFFF55', '#FF55FF', '#55FFFF', '#55FF55'];
-    for (var i = 0; i < 12; i++) {
-      var fx = (i * 27 + 10) % W;
-      var fy = 135 + (i * 7) % 20;
-      ctx.fillStyle = '#00AA00';
-      ctx.fillRect(fx + 1, fy, 1, 4); // stem
-      ctx.fillStyle = flowerColors[i % flowerColors.length];
-      ctx.fillRect(fx, fy - 1, 3, 2); // petals
-      ctx.fillStyle = '#FFFF55';
-      ctx.fillRect(fx + 1, fy - 1, 1, 1); // center
-    }
-    // Rainbow arc
-    var rainbowColors = ['#FF5555', '#FFAA00', '#FFFF55', '#55FF55', '#5555FF', '#AA00AA'];
-    for (var rc = 0; rc < rainbowColors.length; rc++) {
-      ctx.strokeStyle = rainbowColors[rc];
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(160, 110, 70 + rc * 3, Math.PI * 1.1, Math.PI * 1.9);
-      ctx.stroke();
-    }
-    ctx.lineWidth = 1;
-    return;
-  }
-
-  // --- MESSAGE CHUNKING FOG: heavy fog obscuring everything ---
-  if (currentEventTitle.indexOf('Chunking Fog') !== -1) {
-    // Dense fog layers
-    for (var layer = 0; layer < 3; layer++) {
-      var alpha = 0.15 + layer * 0.08;
-      ctx.fillStyle = 'rgba(170,170,170,' + alpha.toFixed(2) + ')';
-      for (var i = 0; i < 10; i++) {
-        var fogX = (i * 35 + t * (6 + layer * 4) + layer * 50) % (W + 60) - 30;
-        var fogY = 60 + layer * 30 + Math.sin(t * 0.4 + i * 0.9 + layer) * 10;
-        var fogR = 18 + layer * 8 + Math.sin(t * 0.3 + i) * 5;
-        ctx.beginPath();
-        ctx.arc(fogX, fogY, fogR, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    // Fog below obscuring ground details
-    ctx.fillStyle = 'rgba(170,170,170,0.25)';
-    ctx.fillRect(0, 110, W, 60);
+    ctx.globalAlpha = 1.0;
     return;
   }
 }
@@ -1162,7 +1146,7 @@ function renderTitleScreen() {
   setTextPanel(
     '<div style="text-align:center; padding-top:20px;">' +
     '<div style="color:#FFFF55; font-size:16px; letter-spacing:2px;">THE CODEREGON TRAIL</div>' +
-    '<div style="color:#AAAAAA; margin-top:8px;">The Gateway Trail - OpenClaw Edition</div>' +
+    '<div style="color:#AAAAAA; margin-top:8px;">The Hybrid Search Trail - A QMD Learning Adventure</div>' +
     '<div style="margin-top:30px;" class="blink">Press SPACE BAR to begin</div>' +
     '</div>'
   );
@@ -1187,10 +1171,10 @@ function renderSetupScreen() {
     '<div style="padding:8px 20px;">' +
     '<div style="color:#55FFFF; margin-bottom:10px;">Your party of key concepts:</div>' +
     '<div style="margin-left:16px;">' +
-    '<div style="color:#55FF55;">1. Gateway Control Plane    <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">2. Channel Plugins          <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">3. Route Resolution         <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">4. Session Persistence      <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">1. Hybrid Search              <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">2. Smart Chunking             <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">3. Query Expansion            <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">4. Position-Aware Blending    <span style="color:#FF5555">' + hearts + '</span></div>' +
     '</div>' +
     '<div style="color:#55FFFF; margin-top:14px; margin-bottom:6px;">What is your profession?</div>' +
     '<div style="margin-left:16px;">' + profsHtml + '</div>' +
@@ -1320,10 +1304,6 @@ function renderDeathScreen() {
   if (techDebtDeath) {
     var techDebtMsgs = [
       'You have died of tech debt dysentery.',
-      // 'You have died of refactoring dysentery.',
-      // 'You have died of unresolved TODOs.',
-      // 'You have died of scope creep.',
-      // 'You have died of dependency bloat.',
     ];
     deathMsg = techDebtMsgs[Math.floor(Math.random() * techDebtMsgs.length)];
     techDebtDeath = false;
@@ -1358,7 +1338,7 @@ function renderWinScreen() {
   var survivors = partyHealth.filter(function(h) { return h > 0; }).length;
   var pctScore = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 100;
 
-  var conceptNames = ['Gateway Control Plane', 'Channel Plugins', 'Route Resolution', 'Session Persistence'];
+  var conceptNames = ['Hybrid Search', 'Smart Chunking', 'Query Expansion', 'Position-Aware Blending'];
 
   var masteryHtml = '';
   var weakestName = '';
@@ -1384,9 +1364,9 @@ function renderWinScreen() {
 
   setTextPanel(
     '<div style="padding:8px 16px;">' +
-    '<div style="color:#FFFF55; text-align:center; font-size:16px;">\u2605 YOU MADE IT TO RESPONSE FRONTIER! \u2605</div>' +
+    '<div style="color:#FFFF55; text-align:center; font-size:16px;">\u2605 YOU MADE IT TO RESULT FRONTIER! \u2605</div>' +
     '<div style="margin-top:10px; color:#AAAAAA;">' +
-    '<div>  Framework:    <span style="color:#55FFFF;">OpenClaw (The Gateway Trail)</span></div>' +
+    '<div>  Framework:    <span style="color:#55FFFF;">QMD (The Hybrid Search Trail)</span></div>' +
     '<div>  Survivors:    <span style="color:#55FF55;">' + survivors + '/' + partyHealth.length + '</span></div>' +
     '<div>  Quiz Score:   <span style="color:#FFFF55;">' + score + '/' + totalQuestions + ' (' + pctScore + '%)</span></div>' +
     '<div>  Best Streak:  <span style="color:#FF55FF;">' + bestStreak + '</span></div>' +

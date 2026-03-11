@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Coderegon Trail - OpenClaw Edition</title>
+<title>The Coderegon Trail - RuView Edition</title>
 <style>
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 html, body {
@@ -135,7 +135,7 @@ html, body {
 // =====================================================================
 // TRAIL DATA
 // =====================================================================
-const TRAIL_DATA={"framework":"openclaw","trailName":"The Gateway Trail","stops":[{"name":"Channel Outpost","subtitle":"Message Arrives","concept":"Channel Plugins","landmarkType":"town","code":{"file":"extensions/whatsapp/src/plugin.ts","content":"// extensions/whatsapp/src/plugin.ts (conceptual)\nimport { ChannelPlugin } from '@openclaw/types'\n\nexport const whatsappPlugin: ChannelPlugin = {\n  config: {\n    listAccountIds(cfg) {\n      return cfg.whatsapp?.accounts?.map(a => a.id) ?? []\n    },\n    async isConfigured(account) {\n      return !!account.phoneNumber\n    },\n    resolveAccount(cfg, id) {\n      return cfg.whatsapp.accounts.find(a => a.id === id)\n    },\n  },\n  gateway: {\n    async startAccount({ account, gateway }) {\n      const sock = makeWASocket({ auth: account.auth })\n      sock.ev.on('messages.upsert', async ({ messages }) => {\n        for (const msg of messages) {\n          await gateway.handleInbound({\n            channel: 'whatsapp',\n            peer: msg.key.remoteJid,\n            text: msg.message?.conversation,\n            accountId: account.id,\n          })\n        }\n      })\n    },\n    async stopAccount({ account }) {\n      // Graceful disconnect\n    },\n  },\n}","language":"typescript"},"narration":"Every journey starts at a channel outpost. OpenClaw connects to thirteen different messaging platforms. Each has a channel plugin following the same interface. Here's the WhatsApp plugin using Baileys to listen for messages. When a message arrives, it normalizes it into a common format and hands it to the gateway."},{"name":"Normalization Pass","subtitle":"Common Message Format","concept":"Channel Plugins","landmarkType":"camp","code":{"file":"src/channels/plugins/types.ts","content":"// src/channels/plugins/types.ts (simplified)\nexport interface ChannelPlugin {\n  config: {\n    listAccountIds(cfg: Config): string[]\n    isConfigured(account: AccountConfig): Promise<boolean>\n    resolveAccount(cfg: Config, id: string): AccountConfig\n  }\n  gateway?: {\n    startAccount(opts: StartAccountOpts): Promise<void>\n    stopAccount(opts: StopAccountOpts): Promise<void>\n  }\n}\n\n// The normalized inbound message shape:\ninterface InboundMessage {\n  channel: string\n  accountId: string\n  peer: RoutePeer\n  text: string\n  threadId?: string\n  attachments?: Media[]\n  guildId?: string\n}","language":"typescript"},"narration":"At the Normalization Pass, chaos becomes order. Every messaging platform has its own format. The ChannelPlugin interface forces them all into one shape. The gateway never needs to know whether you messaged from WhatsApp or Telegram."},{"name":"Route Resolution Fork","subtitle":"Finding the Right Agent","concept":"Route Resolution","landmarkType":"mountain","code":{"file":"src/routing/resolve-route.ts","content":"// src/routing/resolve-route.ts (simplified)\nexport function resolveAgentRoute({\n  cfg, channel, accountId, peer, guildId, teamId,\n}: ResolveRouteInput): ResolvedRoute {\n\n  for (const agent of cfg.agents.list) {\n    const routing = agent.routing\n\n    // 1. Exact peer match (highest priority)\n    const peerMatch = routing.peer?.find(\n      b => b.peer === peer.id && b.channel === channel\n    )\n    if (peerMatch) return { agentId: agent.id, matchedBy: 'peer' }\n\n    // 2. Guild/server match\n    const guildMatch = routing.guild?.find(\n      b => b.guildId === guildId && b.channel === channel\n    )\n    if (guildMatch) return { agentId: agent.id, matchedBy: 'guild' }\n\n    // 3. Account-level match\n    const accountMatch = routing.account?.find(\n      b => b.accountId === accountId && b.channel === channel\n    )\n    if (accountMatch) return { agentId: agent.id, matchedBy: 'account' }\n  }\n\n  return { agentId: cfg.agents.default, matchedBy: 'default' }\n}","language":"typescript"},"narration":"Here's where the trail forks. The resolver checks priority order: specific peer binding, then guild/server, then account, then default. One gateway can serve different agents to different people."},{"name":"Session Persistence Camp","subtitle":"Loading Conversation State","concept":"Session Persistence","landmarkType":"camp","code":{"file":"src/sessions/session-utils.ts","content":"// src/sessions/session-utils.ts (simplified)\nimport { readFile, writeFile, mkdir } from 'fs/promises'\n\nconst SESSIONS_DIR = '~/.openclaw/sessions'\n\nexport async function loadSessionEntry(\n  agentId: string,\n  sessionKey: string,\n): Promise<SessionEntry> {\n  const path = `${SESSIONS_DIR}/${agentId}/${sessionKey}.json`\n\n  try {\n    const raw = await readFile(path, 'utf-8')\n    return JSON.parse(raw)\n  } catch {\n    return {\n      sessionKey,\n      agentId,\n      transcript: [],\n      metadata: {\n        model: 'anthropic/claude-opus-4-6',\n        thinkingLevel: 'medium',\n        tokensUsed: 0,\n        createdAt: Date.now(),\n      },\n    }\n  }\n}","language":"typescript"},"narration":"Sessions are just JSON files on disk. Each agent-plus-peer combination gets its own file. If the file doesn't exist, a fresh session starts with sensible defaults. Zero database dependencies, easy backup."},{"name":"Gateway Control Ridge","subtitle":"The WebSocket Command Center","concept":"Gateway Control Plane","landmarkType":"mountain","code":{"file":"src/gateway/server-chat.ts","content":"// src/gateway/server-chat.ts (simplified)\nexport function createChatRunRegistry(gateway: GatewayServer) {\n\n  async function handleChatSend(\n    sessionEntry: SessionEntry,\n    message: InboundMessage,\n  ) {\n    sessionEntry.transcript.push({\n      role: 'user',\n      content: message.text,\n      timestamp: Date.now(),\n    })\n\n    const agentRpc = gateway.acp.getClient(sessionEntry.agentId)\n    const stream = await agentRpc.call('chat.send', {\n      sessionId: sessionEntry.sessionKey,\n      messages: sessionEntry.transcript,\n      tools: sessionEntry.metadata.enabledTools,\n      model: sessionEntry.metadata.model,\n    })\n\n    for await (const chunk of stream) {\n      if (chunk.type === 'text') {\n        gateway.broadcast('chat.stream', { text: chunk.text })\n      } else if (chunk.type === 'tool_use') {\n        const result = await executeTool(chunk.tool, chunk.input)\n        agentRpc.sendToolResult(chunk.id, result)\n      }\n    }\n    await saveSession(sessionEntry)\n  }\n\n  return { handleChatSend }\n}","language":"typescript"},"narration":"The gateway server accepts WebSocket connections from channels, the CLI, and native apps. The streaming loop handles text and tool calls differently. Text streams in real time; tool calls get executed on the gateway and results feed back."},{"name":"Agent RPC Rapids","subtitle":"Talking to the AI","concept":"Gateway Control Plane","landmarkType":"river","code":{"file":"src/acp/client.ts","content":"// src/acp/client.ts (simplified)\nexport function createAcpClient(agentId: string, wsUrl: string) {\n  const ws = new WebSocket(wsUrl)\n\n  async function* call(\n    method: string,\n    params: ChatSendParams,\n  ): AsyncGenerator<AgentChunk> {\n    const requestId = crypto.randomUUID()\n\n    ws.send(JSON.stringify({\n      jsonrpc: '2.0',\n      id: requestId,\n      method,\n      params,\n    }))\n\n    while (true) {\n      const msg = await nextMessage(ws, requestId)\n      if (msg.type === 'done') break\n      yield msg\n    }\n  }\n\n  function sendToolResult(toolCallId: string, result: ToolResult) {\n    ws.send(JSON.stringify({\n      jsonrpc: '2.0',\n      method: 'tool.result',\n      params: { toolCallId, result },\n    }))\n  }\n\n  return { call, sendToolResult }\n}","language":"typescript"},"narration":"Now we cross the RPC Rapids. The gateway and agent communicate over JSON-RPC. The agent decides what to do, but the gateway controls what actually happens on your machine. Security through architecture."},{"name":"Tool Execution Gorge","subtitle":"Running Commands on the Host","concept":"Gateway Control Plane","landmarkType":"forest","code":{"file":"src/agents/bash-tools.exec.ts","content":"// src/agents/bash-tools.exec.ts (simplified)\nexport async function executeBashTool(\n  input: { command: string },\n  context: ToolContext,\n): Promise<ToolResult> {\n  const { command } = input\n  const { sessionEntry, securityPolicy } = context\n\n  if (!securityPolicy.allowBash) {\n    return { error: 'Bash execution not permitted' }\n  }\n\n  const pty = spawn('bash', ['-c', command], {\n    cwd: sessionEntry.metadata.workingDir,\n    env: { ...process.env, ...sessionEntry.metadata.env },\n    timeout: 120_000,\n  })\n\n  let stdout = ''\n  pty.onData(data => { stdout += data })\n  const exitCode = await pty.wait()\n\n  return {\n    stdout: stdout.slice(0, 100_000),\n    exitCode,\n  }\n}","language":"typescript"},"narration":"Deep in Tool Execution Gorge, the agent's intentions become real actions. Security check first, then a real PTY with a two-minute timeout. Bash is just one tool \u2014 same pattern for browser control, canvas, and device actions."},{"name":"Response Delivery Frontier","subtitle":"Back Through the Channel","concept":"Channel Plugins","landmarkType":"town","code":{"file":"src/gateway/server-channels.ts","content":"// src/gateway/server-channels.ts (simplified)\nexport function createChannelManager(gateway: GatewayServer) {\n\n  async function deliverResponse(\n    sessionEntry: SessionEntry,\n    response: AgentResponse,\n  ) {\n    const { channel, peer, accountId } = sessionEntry.routing\n    const plugin = gateway.channels.get(channel)\n\n    const formatted = formatForChannel(channel, response.text, {\n      maxLength: getChannelLimit(channel),\n    })\n\n    for (const chunk of formatted) {\n      await plugin.send({ accountId, peer, text: chunk })\n    }\n\n    sessionEntry.transcript.push({\n      role: 'assistant',\n      content: response.text,\n      timestamp: Date.now(),\n    })\n    await saveSession(sessionEntry)\n\n    gateway.broadcast('chat.response', { text: response.text })\n  }\n\n  return { deliverResponse }\n}","language":"typescript"},"narration":"You made it! The response travels back through the same channel. Formatted for each platform's limits, chunked automatically, saved to the transcript. Message in, intelligence applied, response out. Your wagon has arrived."}],"events":[{"type":"weather","trigger":"after_stop","triggerStop":1,"title":"Protocol Storm!","text":"A storm of messages hits your gateway \u2014 WhatsApp sends phone numbers, Discord sends snowflake IDs, Slack sends workspace tokens. How do you weather this storm?","choices":[{"text":"Define a common interface that all channel plugins must implement","correct":true,"explanation":"OpenClaw's ChannelPlugin interface forces every platform into the same shape. New channels can be added without touching gateway code."},{"text":"Write a giant switch statement in the gateway for each platform","correct":false,"explanation":"That would make the gateway a tangled mess. Every new channel means modifying core code."},{"text":"Only support one messaging platform to keep things simple","correct":false,"explanation":"Multi-channel support is core to OpenClaw's value. The trick is clean abstraction through the plugin interface."}],"concept":"Channel Plugins","difficulty":"easy"},{"type":"encounter","trigger":"after_stop","triggerStop":2,"title":"A Fellow Operator Appears","text":"A seasoned operator says: 'I run three agents \u2014 personal on WhatsApp, work on Slack, social bot on Discord. One gateway.' How does it know which agent handles which message?","choices":[{"text":"Route bindings in the config map channels, peers, and guilds to agents","correct":true,"explanation":"Config bindings map at multiple levels. Priority: peer, guild, team, account, channel, then default."},{"text":"Each agent runs its own separate gateway on a different port","correct":false,"explanation":"One gateway, multiple agents. Separate gateways would mean separate configs and connections."},{"text":"The user specifies which agent to use in every message","correct":false,"explanation":"Routing is automatic and invisible. The gateway figures it out from the config bindings."}],"concept":"Route Resolution","difficulty":"easy"},{"type":"river","trigger":"after_stop","triggerStop":3,"title":"The Session State River","text":"You've reached the boundary between stateless request handling and persistent memory. Your assistant needs to remember last week's conversation across a restart. How do you cross?","choices":[{"text":"Store sessions as JSON files on disk, loaded on demand per key","correct":true,"explanation":"Each session is a JSON file at a predictable path. No database needed. The file system IS the persistence layer."},{"text":"Keep all sessions in memory with a Redis cache","correct":false,"explanation":"In-memory state is lost on restart. Redis adds an external dependency. OpenClaw is local-first."},{"text":"Store history in the AI model's context and let it remember","correct":false,"explanation":"Context windows are limited and expensive. The persistence layer is separate from inference."}],"concept":"Session Persistence","difficulty":"medium"},{"type":"misfortune","trigger":"after_stop","triggerStop":5,"title":"Runaway Process!","text":"The AI agent ran a shell command that's an infinite loop consuming 100% CPU. Your gateway is grinding to a halt!","choices":[{"text":"Tool execution needs timeouts and session security policies should gate commands","correct":true,"explanation":"Bash tools have a two-minute timeout, and security policies control what's allowed. The gateway is the security boundary."},{"text":"The agent should be smarter and never request dangerous commands","correct":false,"explanation":"Never rely on the AI as the security boundary. Defense in depth means the gateway enforces limits."},{"text":"Run all tools in the agent's process so only it crashes","correct":false,"explanation":"Tools run on the gateway because they need local machine access. The separation is a feature."}],"concept":"Gateway Control Plane","difficulty":"medium"},{"type":"river","trigger":"after_stop","triggerStop":5,"title":"The RPC River","text":"The deepest river \u2014 the boundary between gateway and agent runtime. The agent needs a browser screenshot but runs in a different process. How?","choices":[{"text":"JSON-RPC over WebSocket: agent requests, gateway executes locally","correct":true,"explanation":"The agent streams tool_use blocks, the gateway intercepts and executes. The agent could run remotely."},{"text":"The agent directly imports and calls the browser module","correct":false,"explanation":"Separate processes can't call each other's code. The RPC boundary IS the security model."},{"text":"The agent writes commands to a shared file the gateway watches","correct":false,"explanation":"File watching is slow and unreliable. WebSocket RPC gives real-time bidirectional streaming."}],"concept":"Gateway Control Plane","difficulty":"hard"},{"type":"fortune","trigger":"after_stop","triggerStop":6,"title":"Spring of Clean Architecture","text":"Your understanding of the control plane is solid! Friendly contributors join your camp and share plugin templates.","choices":[],"concept":"Channel Plugins","difficulty":"easy"},{"type":"weather","trigger":"after_stop","triggerStop":6,"title":"Message Chunking Fog","text":"Dense fog. Your assistant wrote 3000 words but WhatsApp only allows 4096 characters. The user sees a truncated response. What went wrong?","choices":[{"text":"The formatter should chunk messages based on each channel's limit","correct":true,"explanation":"WhatsApp: 4096, Discord: 2000, Slack: 40000. The delivery layer splits into properly-sized chunks."},{"text":"Tell the AI to always write short responses","correct":false,"explanation":"You can't enforce output length on LLMs. The delivery layer handles formatting."},{"text":"Switch to a channel with no message limits","correct":false,"explanation":"Multi-channel means meeting users where they are. Every channel must work correctly."}],"concept":"Channel Plugins","difficulty":"easy"}],"partyMembers":[{"name":"Gateway Control Plane","icon":"gateway","maxHealth":3},{"name":"Channel Plugins","icon":"channel","maxHealth":3},{"name":"Route Resolution","icon":"route","maxHealth":3},{"name":"Session Persistence","icon":"session","maxHealth":3}],"deathMessages":["You have died of unhandled WebSocket disconnections.","You have died of missing default routes.","You have drowned in the RPC River.","You have died of session bloat.","You have died of a runaway bash command.","You have died of unhandled plugin exceptions.","You have died of API rate limits.","You have died of dependency conflicts.","You have died of expired sessions.","You have died of Discord snowflake avalanche.","You have died of invalid routing config."]};
+const TRAIL_DATA={"framework": "ruview", "trailName": "The WiFi Sensing Trail", "stops": [{"name": "Independence, MO", "subtitle": "CSI Capture", "concept": "CSI Pipeline", "landmarkType": "town", "code": {"file": "csi-capture/src/main.rs", "content": "// csi-capture/src/main.rs\nuse esp_wifi::csi::{CsiConfig, CsiReceiver};\nuse ruview_core::CsiFrame;\n\nfn main() -> anyhow::Result<()> {\n    let config = CsiConfig {\n        channel: 6,\n        secondary_channel: None,\n        subcarrier_mask: 0xFFFFFFFF_FFFFFFFF,\n        // Capture all 52 OFDM subcarriers\n        htltf_en: true,\n        stbc_htltf2_en: true,\n        ltf_merge_en: true,\n    };\n\n    let mut receiver = CsiReceiver::new(config)?;\n    receiver.set_callback(|raw_csi| {\n        let frame = CsiFrame {\n            timestamp_us: esp_timer::now(),\n            rssi: raw_csi.rssi,\n            // 52 subcarriers x 2 (amplitude + phase)\n            subcarriers: parse_subcarriers(raw_csi.buf),\n            mac_src: raw_csi.mac,\n        };\n        csi_queue.send(frame).ok();\n    });\n\n    receiver.start()?;\n    Ok(())\n}", "language": "rust"}, "narration": "Every journey starts at Independence, Missouri. The ESP32-S3 captures Channel State Information from WiFi signals. Unlike regular WiFi that only sees signal strength, CSI reveals amplitude and phase for each of 52 subcarriers. This raw radio data carries hidden information about everything between transmitter and receiver."}, {"name": "Chimney Rock", "subtitle": "Signal Preprocessing", "concept": "CSI Pipeline", "landmarkType": "camp", "code": {"file": "signal-processing/src/preprocess.rs", "content": "// signal-processing/src/preprocess.rs\nuse ruview_core::{CsiFrame, CleanCsi};\nuse ndarray::Array1;\n\npub fn preprocess(frame: &CsiFrame) -> CleanCsi {\n    // 1. Remove hardware phase offset\n    let phase_raw = frame.phase_array();\n    let phase_cal = unwrap_phase(&phase_raw);\n\n    // 2. Bandpass filter: keep 0.05-50 Hz\n    //    (human motion band)\n    let filtered = bandpass_filter(\n        &frame.amplitude_array(),\n        0.05, 50.0,\n        frame.sample_rate,\n    );\n\n    // 3. Antenna phase correction\n    let corrected = correct_antenna_offset(\n        &phase_cal,\n        &frame.antenna_config,\n    );\n\n    CleanCsi {\n        amplitude: filtered,\n        phase: corrected,\n        timestamp: frame.timestamp_us,\n        subcarrier_count: 52,\n    }\n}", "language": "rust"}, "narration": "At Chimney Rock, we clean the raw radio signals. Phase unwrapping removes hardware-induced jumps. Bandpass filtering isolates the human motion band between 0.05 and 50 Hz. Antenna correction eliminates offsets between multiple receive chains. Without this step, the rest of the pipeline sees noise instead of people."}, {"name": "Fort Laramie", "subtitle": "Subcarrier Analysis", "concept": "CSI Pipeline", "landmarkType": "mountain", "code": {"file": "signal-processing/src/subcarrier.rs", "content": "// signal-processing/src/subcarrier.rs\nuse ndarray::{Array2, Axis};\nuse ruview_core::CleanCsi;\n\npub struct SubcarrierMatrix {\n    // [time_samples x 52_subcarriers]\n    pub amplitude: Array2<f32>,\n    pub phase: Array2<f32>,\n}\n\npub fn decompose(\n    window: &[CleanCsi],\n) -> SubcarrierMatrix {\n    let n = window.len();\n    let mut amp = Array2::zeros((n, 52));\n    let mut pha = Array2::zeros((n, 52));\n\n    for (i, csi) in window.iter().enumerate() {\n        amp.row_mut(i).assign(&csi.amplitude);\n        pha.row_mut(i).assign(&csi.phase);\n    }\n\n    // PCA to extract dominant components\n    let components = pca(&amp, 8);\n    // Each component captures a different\n    // spatial pattern in the room\n\n    SubcarrierMatrix {\n        amplitude: components,\n        phase: pha,\n    }\n}", "language": "rust"}, "narration": "Fort Laramie is where we read the room, literally. Each of 52 WiFi subcarriers travels a slightly different path through space. By arranging them into a time-by-subcarrier matrix and applying PCA, we extract the dominant spatial patterns. Each principal component tells a different story about what is happening in the environment."}, {"name": "Independence Rock", "subtitle": "Motion Detection", "concept": "Pose Estimation", "landmarkType": "camp", "code": {"file": "detection/src/motion.rs", "content": "// detection/src/motion.rs\nuse ruview_core::SubcarrierMatrix;\n\npub struct MotionResult {\n    pub detected: bool,\n    pub confidence: f32,\n    pub motion_energy: f32,\n}\n\npub fn detect_motion(\n    matrix: &SubcarrierMatrix,\n    threshold: f32,\n) -> MotionResult {\n    // RSSI variance over sliding window\n    let rssi_var = matrix.amplitude\n        .mean_axis(Axis(1))\n        .unwrap()\n        .var(0.0);\n\n    // Motion band power (0.5-4 Hz)\n    let motion_power = bandpower(\n        &matrix.amplitude,\n        0.5, 4.0,\n        SAMPLE_RATE,\n    );\n\n    let energy = rssi_var * 0.4\n        + motion_power * 0.6;\n\n    MotionResult {\n        detected: energy > threshold,\n        confidence: (energy / threshold)\n            .min(1.0),\n        motion_energy: energy,\n    }\n}", "language": "rust"}, "narration": "At Independence Rock, we detect human presence. When a person moves, they disturb WiFi multipath patterns, causing measurable variance in signal amplitude. We combine RSSI variance with motion band power between 0.5 and 4 Hz. If the combined energy exceeds our threshold, someone is in the room. No cameras, no wearables, just radio waves."}, {"name": "South Pass", "subtitle": "Pose Estimation", "concept": "Pose Estimation", "landmarkType": "mountain", "code": {"file": "pose/src/densepose.rs", "content": "// pose/src/densepose.rs\nuse ruview_core::{SubcarrierMatrix, DensePose};\nuse tflite::Interpreter;\n\npub struct PoseEstimator {\n    model: Interpreter,\n    uv_map_size: (usize, usize),\n}\n\nimpl PoseEstimator {\n    pub fn estimate(\n        &self,\n        csi: &SubcarrierMatrix,\n    ) -> DensePose {\n        // Reshape CSI to model input:\n        // [1, time_window, 52, 2]\n        // (amplitude + phase channels)\n        let input = csi.to_model_input();\n\n        // Run inference at ~54K FPS\n        self.model.invoke(&input).unwrap();\n\n        // Output: UV body surface map\n        // 24 body parts x (u, v) coordinates\n        let uv_coords = self.model\n            .output::<DensePoseUV>(0);\n        let confidence = self.model\n            .output::<f32>(1);\n\n        DensePose {\n            body_parts: uv_coords,\n            confidence: *confidence,\n            timestamp: csi.timestamp(),\n        }\n    }\n}", "language": "rust"}, "narration": "South Pass is where the magic happens. CSI amplitude and phase patterns are fed into a neural network that outputs DensePose UV body surface maps. Different body parts create distinct disturbance signatures in the WiFi field. The model maps these patterns to 24 body part coordinates at up to 54 thousand frames per second. All from radio waves."}, {"name": "Fort Bridger", "subtitle": "Vital Sign Detection", "concept": "Vital Signs", "landmarkType": "river", "code": {"file": "vitals/src/detect.rs", "content": "// vitals/src/detect.rs\nuse rustfft::{FftPlanner, num_complex::Complex};\n\npub struct VitalSigns {\n    pub breathing_rate: f32,  // breaths/min\n    pub heart_rate: f32,      // beats/min\n    pub confidence: f32,\n}\n\npub fn extract_vitals(\n    csi_stream: &[f32],\n    sample_rate: f32,\n) -> VitalSigns {\n    let mut planner = FftPlanner::new();\n    let fft = planner.plan_fft_forward(\n        csi_stream.len()\n    );\n\n    let mut spectrum: Vec<Complex<f32>> =\n        csi_stream.iter()\n            .map(|&x| Complex::new(x, 0.0))\n            .collect();\n    fft.process(&mut spectrum);\n\n    // Breathing: 0.1 - 0.5 Hz (6-30 bpm)\n    let breath = find_peak(\n        &spectrum, sample_rate,\n        0.1, 0.5,\n    );\n    // Heartbeat: 0.8 - 2.0 Hz (48-120 bpm)\n    let heart = find_peak(\n        &spectrum, sample_rate,\n        0.8, 2.0,\n    );\n\n    VitalSigns {\n        breathing_rate: breath.freq * 60.0,\n        heart_rate: heart.freq * 60.0,\n        confidence: breath.power.min(heart.power),\n    }\n}", "language": "rust"}, "narration": "Fort Bridger is where WiFi becomes a medical instrument. Breathing causes chest expansion that changes signal path length at 0.1 to 0.5 Hz. Heartbeat creates even tinier movements at 0.8 to 2.0 Hz. FFT decomposes the CSI time series into frequency bands, and peak detection finds the dominant rhythm in each. Contactless vital signs from radio waves alone."}, {"name": "The Dalles", "subtitle": "Through-Wall Sensing", "concept": "Edge Intelligence", "landmarkType": "forest", "code": {"file": "sensing/src/fresnel.rs", "content": "// sensing/src/fresnel.rs\nuse ruview_core::Geometry;\n\npub struct FresnelZone {\n    pub radius: f32,     // meters\n    pub depth: f32,      // wall penetration\n    pub sensitivity: f32,\n}\n\npub fn calculate_fresnel(\n    tx_pos: [f32; 3],\n    rx_pos: [f32; 3],\n    freq_ghz: f32,\n    wall_material: WallType,\n) -> FresnelZone {\n    let wavelength = 0.3 / freq_ghz; // meters\n    let distance = euclidean(&tx_pos, &rx_pos);\n\n    // First Fresnel zone radius\n    let radius = (wavelength * distance / 4.0)\n        .sqrt();\n\n    // Wall attenuation model\n    let attenuation = match wall_material {\n        WallType::Drywall => 3.0,  // dB\n        WallType::Concrete => 12.0,\n        WallType::Wood => 5.0,\n        WallType::Glass => 2.0,\n    };\n\n    // Effective sensing depth\n    let max_depth = 5.0\n        - (attenuation / 4.0);\n\n    FresnelZone {\n        radius,\n        depth: max_depth,\n        sensitivity: 1.0\n            / (1.0 + attenuation / 10.0),\n    }\n}", "language": "rust"}, "narration": "At The Dalles, we push through walls. Radio waves at 2.4 and 5 GHz penetrate common building materials that block visible light entirely. Fresnel zone geometry tells us where detection is most sensitive. Multipath modeling accounts for reflections off walls, floors, and ceilings. The result is presence detection up to 5 meters deep through standard drywall."}, {"name": "Oregon City", "subtitle": "Edge Intelligence", "concept": "Edge Intelligence", "landmarkType": "town", "code": {"file": "edge/src/pipeline.rs", "content": "// edge/src/pipeline.rs\nuse ruview_core::*;\nuse esp_hal::timer::PeriodicTimer;\n\npub struct EdgePipeline {\n    csi_rx: CsiReceiver,\n    preprocessor: Preprocessor,\n    motion_det: MotionDetector,\n    pose_est: PoseEstimator,\n    vital_ext: VitalExtractor,\n}\n\nimpl EdgePipeline {\n    pub fn run_on_device(&mut self) {\n        // All processing on ESP32-S3\n        // No cloud, no internet required\n        loop {\n            let frame = self.csi_rx.recv();\n            let clean = self.preprocessor\n                .process(&frame);\n            let matrix = decompose_window(\n                &self.buffer, &clean\n            );\n\n            if self.motion_det\n                .detect(&matrix).detected {\n                let pose = self.pose_est\n                    .estimate(&matrix);\n                let vitals = self.vital_ext\n                    .extract(&matrix);\n\n                // Output locally via MQTT/BLE\n                publish_local(SensorOutput {\n                    pose,\n                    vitals,\n                    timestamp: frame.timestamp_us,\n                });\n            }\n        }\n    }\n}", "language": "rust"}, "narration": "You made it to Oregon City! The entire pipeline runs on the ESP32-S3 microcontroller. CSI capture, preprocessing, motion detection, pose estimation, and vital sign extraction all happen on-device. No cloud uploads, no internet required. Data stays local and private, published only over local MQTT or BLE. Your wagon has arrived at the frontier of privacy-preserving edge intelligence."}], "events": [{"type": "weather", "trigger": "after_stop", "triggerStop": 1, "title": "Signal Storm!", "text": "A storm of electromagnetic interference hits your ESP32. Consumer WiFi routers everywhere, but your CSI stream is empty. Why can't standard consumer WiFi provide CSI?", "choices": [{"text": "Consumer WiFi only exposes RSSI, not per-subcarrier amplitude and phase data", "correct": true, "explanation": "Standard WiFi chips report a single RSSI value. CSI requires firmware-level access to the baseband processor to extract per-subcarrier amplitude and phase. The ESP32-S3 exposes this through a special API."}, {"text": "WiFi is too slow to capture detailed signal information", "correct": false, "explanation": "WiFi operates at GHz frequencies with plenty of bandwidth. The issue is access, not speed. Consumer firmware simply hides the raw subcarrier data."}, {"text": "It requires 5G cellular signals instead", "correct": false, "explanation": "WiFi CSI works on standard 2.4 and 5 GHz WiFi. No 5G needed. The ESP32-S3 provides special firmware access to the raw channel state."}], "concept": "CSI Pipeline", "difficulty": "easy"}, {"type": "encounter", "trigger": "after_stop", "triggerStop": 2, "title": "A Signal Engineer Appears!", "text": "A seasoned RF engineer approaches your camp. She asks: Why is phase calibration critical for WiFi sensing? Your raw phase data looks like random noise.", "choices": [{"text": "Raw phase data has hardware-induced offsets that mask real environmental changes", "correct": true, "explanation": "Each ESP32 has slightly different oscillator timing, creating phase offsets unrelated to the environment. Without calibration, these hardware artifacts dominate the signal and hide the subtle changes caused by human presence."}, {"text": "Phase calibration makes the WiFi signals louder and easier to detect", "correct": false, "explanation": "Calibration does not amplify signals. It removes systematic errors so the remaining phase changes reflect actual environmental disturbances rather than hardware quirks."}, {"text": "Phase calibration is required by WiFi standards for all devices", "correct": false, "explanation": "WiFi standards do not require CSI phase calibration. This is a sensing-specific preprocessing step needed because we use phase data far beyond what normal WiFi communication requires."}], "concept": "CSI Pipeline", "difficulty": "easy"}, {"type": "river", "trigger": "after_stop", "triggerStop": 4, "title": "The Presence Detection River!", "text": "A wide river blocks your path. Your motion detector triggers, but you see nothing. How does motion detection actually work with just WiFi signals?", "choices": [{"text": "Human movement changes signal multipath patterns, causing measurable variance in CSI", "correct": true, "explanation": "When a person moves through the Fresnel zones between transmitter and receiver, they alter the constructive and destructive interference patterns. This shows up as increased variance in CSI amplitude across subcarriers."}, {"text": "WiFi measures body heat like a thermal camera", "correct": false, "explanation": "WiFi radio waves do not detect heat. They detect changes in the electromagnetic propagation environment caused by physical movement of objects and people."}, {"text": "WiFi sends out radar pulses to detect motion", "correct": false, "explanation": "WiFi CSI sensing is passive. It analyzes the normal WiFi communication signals, not special radar pulses. The existing data packets are the sensing medium."}], "concept": "Pose Estimation", "difficulty": "medium"}, {"type": "weather", "trigger": "after_stop", "triggerStop": 5, "title": "Pose Estimation Storm!", "text": "Dark clouds gather. Your pose estimation model outputs impossible body positions. How can WiFi estimate body pose without any cameras?", "choices": [{"text": "Different body parts create distinct CSI disturbance patterns mapped to UV coordinates", "correct": true, "explanation": "Arms, legs, torso, and head each scatter WiFi signals differently due to their size, shape, and material properties. A trained neural network learns to map these distinct CSI patterns to DensePose UV body surface coordinates."}, {"text": "WiFi bounces off skin like sonar and creates an echo image", "correct": false, "explanation": "WiFi does not work like sonar. It does not create echo images. Instead, it measures how the overall multipath propagation pattern changes when body parts move through the signal field."}, {"text": "WiFi uses infrared light embedded in the signal", "correct": false, "explanation": "WiFi operates at radio frequencies around 2.4 and 5 GHz, far from infrared. There is no light component. The sensing relies purely on radio wave propagation effects."}], "concept": "Pose Estimation", "difficulty": "medium"}, {"type": "misfortune", "trigger": "after_stop", "triggerStop": 6, "title": "Vital Sign Failure!", "text": "Disaster strikes! Your vital sign detector shows zero breathing rate even though a person is clearly present. What makes breathing detection possible at 0.1 to 0.5 Hz?", "choices": [{"text": "Chest expansion during breathing causes periodic changes in signal path length", "correct": true, "explanation": "When a person breathes, their chest expands by 1 to 2 centimeters. This tiny movement changes the WiFi signal path length periodically at the breathing frequency, creating a detectable oscillation in CSI amplitude and phase."}, {"text": "WiFi measures blood oxygen saturation like a pulse oximeter", "correct": false, "explanation": "WiFi cannot measure blood oxygen. It detects the physical movement of breathing, not chemical properties of blood. The signal path length change from chest expansion is what creates the breathing signature."}, {"text": "WiFi detects body temperature changes during breathing", "correct": false, "explanation": "WiFi radio waves are not sensitive to temperature. The detection relies on the mechanical expansion and contraction of the chest, which physically alters the multipath propagation environment."}], "concept": "Vital Signs", "difficulty": "hard"}, {"type": "encounter", "trigger": "after_stop", "triggerStop": 7, "title": "Through-Wall Pioneer!", "text": "A frontier settler asks: I want to monitor my elderly parent in the next room without cameras. Why can WiFi sense through walls but cameras cannot?", "choices": [{"text": "Radio waves at 2.4 and 5 GHz penetrate common building materials while visible light cannot", "correct": true, "explanation": "WiFi radio waves have wavelengths of 6 to 12 centimeters, much larger than the molecular structure of drywall, wood, and glass. They pass through these materials with manageable attenuation. Visible light wavelengths are far too small and get absorbed or reflected."}, {"text": "WiFi signals are more powerful than camera light", "correct": false, "explanation": "Power is not the issue. A flashlight cannot see through a wall no matter how bright. The key is wavelength. Radio waves interact differently with building materials than visible light does."}, {"text": "Cameras need visible light to work but WiFi creates its own light", "correct": false, "explanation": "WiFi does not create light. It uses radio waves, which are a completely different part of the electromagnetic spectrum. The penetration ability comes from the much longer wavelength of radio compared to visible light."}], "concept": "Edge Intelligence", "difficulty": "easy"}], "partyMembers": [{"name": "CSI Pipeline", "icon": "server", "maxHealth": 3}, {"name": "Pose Estimation", "icon": "router", "maxHealth": 3}, {"name": "Vital Signs", "icon": "data", "maxHealth": 3}, {"name": "Edge Intelligence", "icon": "layout", "maxHealth": 3}], "deathMessages": ["Died of phase unwrapping errors. The CSI data was hopelessly corrupted.", "Lost in the multipath — too many reflections, no clear signal.", "Drowned in noise. The bandpass filter could not save you.", "Killed by a false positive. That was a ceiling fan, not a person.", "Your ESP32 ran out of memory during on-device inference.", "Starved waiting for CSI packets. The WiFi router was unplugged.", "Died of Fresnel zone miscalculation. Sensed through the wrong wall.", "Buried under 52 subcarriers of garbage data."]};
 
 // =====================================================================
 // GAME STATE
@@ -187,21 +187,21 @@ let currentEventType = '';  // event type for canvas overlay
 let currentEventTitle = ''; // event title for canvas overlay
 
 const travelFlavors = [
-  "The WebSocket connection is strong today...",
-  "Packets flow smoothly across the middleware...",
-  "Your JSON payloads are well-formed...",
-  "The config files look clean and tidy...",
-  "A gentle breeze carries API responses...",
-  "The route resolver hums along quietly...",
-  "Session files persist without corruption...",
-  "The gateway handles traffic with grace...",
-  "Your TypeScript types provide comfort on the trail...",
-  "The event loop is calm and responsive...",
-  "A hawk circles overhead, watching your throughput...",
-  "The trail ahead is well-documented...",
-  "Your error handling is robust today...",
-  "The authentication tokens are fresh...",
-  "Your dependency tree looks healthy..."
+  "The CSI stream flows steady from the ESP32...",
+  "Subcarrier amplitudes are clean and stable...",
+  "The bandpass filter hums along nicely...",
+  "Phase calibration is holding true...",
+  "WiFi signals carry secrets about the room ahead...",
+  "The Fresnel zones are well-defined today...",
+  "Your antenna array picks up clear multipath patterns...",
+  "The motion detector is calm, no false positives...",
+  "Radio waves pass through walls like water through sand...",
+  "The FFT reveals clean frequency peaks...",
+  "A hawk circles overhead, invisible to cameras but not to WiFi...",
+  "The edge processor handles inference with room to spare...",
+  "Your Rust code compiles without warnings...",
+  "The OFDM subcarriers tell stories of the space...",
+  "Privacy is preserved. No cameras needed on this trail..."
 ];
 
 // =====================================================================
@@ -374,10 +374,10 @@ function drawWagon(wx, wy) {
     ctx.fillStyle = '#553300';
     ctx.fillRect(Math.floor(wcx - 1), Math.floor(wcy - 1), 2, 2);
   }
-  // Purple flag
-  ctx.fillStyle = '#AA00AA';
+  // Cyan flag (WiFi theme)
+  ctx.fillStyle = '#00AAAA';
   ctx.fillRect(Math.floor(wx + 14), Math.floor(wy - 22), 1, -7);
-  ctx.fillStyle = '#FF55FF';
+  ctx.fillStyle = '#55FFFF';
   ctx.fillRect(Math.floor(wx + 15), Math.floor(wy - 29), 6, 4);
 }
 
@@ -492,8 +492,8 @@ function drawEventOverlay(time) {
 
   var t = (time || 0) * 0.001; // seconds
 
-  // --- PROTOCOL STORM: dark sky, lightning, rain ---
-  if (currentEventTitle.indexOf('Protocol Storm') !== -1) {
+  // --- SIGNAL STORM: dark sky, lightning, radio interference ---
+  if (currentEventTitle.indexOf('Signal Storm') !== -1) {
     // Darken sky
     ctx.fillStyle = 'rgba(0,0,50,0.45)';
     ctx.fillRect(0, 0, W, 110);
@@ -515,6 +515,18 @@ function drawEventOverlay(time) {
       ctx.lineTo(lx + 2, 95);
       ctx.stroke();
     }
+    // Radio wave interference lines
+    ctx.strokeStyle = '#55FFFF';
+    ctx.lineWidth = 1;
+    for (var i = 0; i < 6; i++) {
+      ctx.beginPath();
+      for (var wx = 0; wx < W; wx += 2) {
+        var wy = 30 + i * 14 + Math.sin((wx + t * 60) * 0.05 + i) * 5;
+        if (wx === 0) ctx.moveTo(wx, wy);
+        else ctx.lineTo(wx, wy);
+      }
+      ctx.stroke();
+    }
     // Rain
     ctx.strokeStyle = '#5555FF';
     ctx.lineWidth = 1;
@@ -529,8 +541,8 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- FELLOW OPERATOR: person standing by campfire ---
-  if (currentEventTitle.indexOf('Fellow Operator') !== -1) {
+  // --- SIGNAL ENGINEER: person with antenna equipment ---
+  if (currentEventTitle.indexOf('Signal Engineer') !== -1) {
     var px = 200, py = 142;
     // Person body
     ctx.fillStyle = '#AA5500';
@@ -539,32 +551,29 @@ function drawEventOverlay(time) {
     ctx.fillRect(px, py - 15, 4, 3); // head
     ctx.fillRect(px - 1, py - 4, 2, 5); // left leg
     ctx.fillRect(px + 3, py - 4, 2, 5); // right leg
-    // Hat
-    ctx.fillStyle = '#555555';
+    // Hard hat
+    ctx.fillStyle = '#FFFF55';
     ctx.fillRect(px - 1, py - 17, 6, 2);
     ctx.fillRect(px, py - 19, 4, 2);
-    // Campfire
-    var fx = 212, fy = 148;
-    ctx.fillStyle = '#AA5500';
-    ctx.fillRect(fx - 3, fy, 2, 3);
-    ctx.fillRect(fx + 3, fy, 2, 3);
-    ctx.fillStyle = '#FF5555';
-    var flicker = Math.sin(t * 8) * 2;
-    ctx.fillRect(fx - 1, fy - 3 + Math.floor(flicker * 0.3), 4, 3);
-    ctx.fillStyle = '#FFFF55';
-    ctx.fillRect(fx, fy - 5 + Math.floor(flicker * 0.5), 2, 2);
-    ctx.fillStyle = '#FFAA00';
-    ctx.fillRect(fx - 1, fy - 2, 4, 2);
-    // Firelight glow (subtle)
-    ctx.fillStyle = 'rgba(255,170,0,0.08)';
-    ctx.beginPath();
-    ctx.arc(fx + 1, fy - 2, 15, 0, Math.PI * 2);
-    ctx.fill();
+    // Antenna equipment
+    var ax = 215, ay = 140;
+    ctx.fillStyle = '#AAAAAA';
+    ctx.fillRect(ax, ay - 20, 2, 20); // pole
+    ctx.fillStyle = '#55FFFF';
+    // Radio waves emanating from antenna
+    for (var i = 0; i < 3; i++) {
+      var waveR = 6 + i * 5 + Math.sin(t * 3) * 2;
+      ctx.strokeStyle = 'rgba(85,255,255,' + (0.4 - i * 0.1).toFixed(2) + ')';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(ax + 1, ay - 20, waveR, -Math.PI * 0.7, Math.PI * 0.7);
+      ctx.stroke();
+    }
     return;
   }
 
-  // --- SESSION STATE RIVER: rough rapids with white water ---
-  if (currentEventTitle.indexOf('Session State') !== -1) {
+  // --- PRESENCE DETECTION RIVER: signal waves crossing water ---
+  if (currentEventTitle.indexOf('Presence Detection') !== -1) {
     // Extra turbulence on the river
     ctx.fillStyle = '#55FFFF';
     for (var i = 0; i < 20; i++) {
@@ -572,44 +581,74 @@ function drawEventOverlay(time) {
       var sy = 157 + Math.sin((i * 3 + t * 5)) * 3;
       ctx.fillRect(Math.floor(sx), Math.floor(sy), 4, 2);
     }
-    // Floating logs / debris
-    ctx.fillStyle = '#AA5500';
-    for (var i = 0; i < 3; i++) {
-      var logX = (i * 110 + t * 25) % W;
-      var logY = 159 + Math.sin(t * 2 + i) * 2;
-      ctx.fillRect(Math.floor(logX), Math.floor(logY), 8, 2);
+    // WiFi signal ripples in water
+    ctx.strokeStyle = 'rgba(85,255,255,0.3)';
+    ctx.lineWidth = 1;
+    for (var i = 0; i < 4; i++) {
+      var rippleR = 8 + i * 6 + Math.sin(t * 2) * 3;
+      ctx.beginPath();
+      ctx.arc(160, 162, rippleR, 0, Math.PI);
+      ctx.stroke();
     }
     return;
   }
 
-  // --- RUNAWAY PROCESS: red sky, smoke, warning ---
-  if (currentEventTitle.indexOf('Runaway Process') !== -1) {
+  // --- POSE ESTIMATION STORM: purple tint, body outline ---
+  if (currentEventTitle.indexOf('Pose Estimation Storm') !== -1) {
+    // Purple atmosphere
+    ctx.fillStyle = 'rgba(85,0,170,0.2)';
+    ctx.fillRect(0, 0, W, H);
+    // Wireframe body outline (stick figure with UV mapping feel)
+    var bx = 160, by = 100;
+    ctx.strokeStyle = '#FF55FF';
+    ctx.lineWidth = 2;
+    // Head
+    ctx.beginPath();
+    ctx.arc(bx, by - 25, 6, 0, Math.PI * 2);
+    ctx.stroke();
+    // Torso
+    ctx.beginPath(); ctx.moveTo(bx, by - 19); ctx.lineTo(bx, by); ctx.stroke();
+    // Arms (animated)
+    var armAngle = Math.sin(t * 2) * 0.4;
+    ctx.beginPath(); ctx.moveTo(bx, by - 15); ctx.lineTo(bx - 12, by - 8 + Math.sin(t * 2.5) * 4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx, by - 15); ctx.lineTo(bx + 12, by - 8 - Math.sin(t * 2.5) * 4); ctx.stroke();
+    // Legs
+    ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx - 8, by + 14); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + 8, by + 14); ctx.stroke();
+    // UV coordinate dots
+    ctx.fillStyle = '#FFFF55';
+    var joints = [[bx, by-25],[bx, by-15],[bx-12, by-8],[bx+12, by-8],[bx, by],[bx-8, by+14],[bx+8, by+14]];
+    for (var i = 0; i < joints.length; i++) {
+      ctx.fillRect(joints[i][0]-1, joints[i][1]-1 + Math.sin(t*3+i)*1, 3, 3);
+    }
+    ctx.lineWidth = 1;
+    return;
+  }
+
+  // --- VITAL SIGN FAILURE: red danger, flatline ---
+  if (currentEventTitle.indexOf('Vital Sign') !== -1) {
     // Red danger tint
     ctx.fillStyle = 'rgba(170,0,0,0.25)';
     ctx.fillRect(0, 0, W, H);
-    // Smoke particles rising
-    ctx.fillStyle = '#555555';
-    for (var i = 0; i < 15; i++) {
-      var sx = 140 + Math.sin(i * 2.7 + t) * 30;
-      var sy = 130 - ((t * 20 + i * 15) % 90);
-      var size = 2 + (i % 3);
-      ctx.globalAlpha = 0.3 + Math.sin(t + i) * 0.15;
-      ctx.fillRect(Math.floor(sx), Math.floor(sy), size, size);
+    // EKG/breathing line across screen
+    ctx.strokeStyle = '#FF5555';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (var wx = 0; wx < W; wx += 2) {
+      var baseY = 80;
+      var signal;
+      var phase = (wx + t * 100) % 120;
+      if (phase < 10) {
+        signal = Math.sin(phase * 0.6) * 20;
+      } else if (phase < 20) {
+        signal = -Math.sin((phase - 10) * 0.3) * 10;
+      } else {
+        signal = Math.random() * 2 - 1; // flatline noise
+      }
+      if (wx === 0) ctx.moveTo(wx, baseY + signal);
+      else ctx.lineTo(wx, baseY + signal);
     }
-    ctx.globalAlpha = 1.0;
-    // Fire at base
-    ctx.fillStyle = '#FF5555';
-    for (var i = 0; i < 8; i++) {
-      var fx = 130 + i * 5;
-      var fh = 4 + Math.sin(t * 6 + i * 1.5) * 3;
-      ctx.fillRect(fx, Math.floor(140 - fh), 3, Math.floor(fh));
-    }
-    ctx.fillStyle = '#FFFF55';
-    for (var i = 0; i < 5; i++) {
-      var fx = 135 + i * 6;
-      var fh = 2 + Math.sin(t * 8 + i * 2) * 2;
-      ctx.fillRect(fx, Math.floor(139 - fh), 2, Math.floor(fh));
-    }
+    ctx.stroke();
     // Pulsing red border
     var pulse = (Math.sin(t * 4) + 1) * 0.15;
     ctx.strokeStyle = 'rgba(255,0,0,' + pulse.toFixed(2) + ')';
@@ -619,91 +658,32 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- RPC RIVER: deep blue, fog/mist over water ---
-  if (currentEventTitle.indexOf('RPC River') !== -1) {
-    // Fog layers drifting over the river
-    ctx.fillStyle = 'rgba(85,85,255,0.12)';
-    for (var i = 0; i < 6; i++) {
-      var fogX = (i * 60 + t * 12 + Math.sin(i) * 20) % (W + 40) - 20;
-      var fogY = 145 + Math.sin(t * 0.5 + i * 1.1) * 5;
-      ctx.beginPath();
-      ctx.arc(fogX, fogY, 20 + i * 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.fillStyle = 'rgba(170,170,255,0.08)';
-    for (var i = 0; i < 8; i++) {
-      var fogX = (i * 45 + t * 8) % (W + 30) - 15;
-      var fogY = 150 + Math.sin(t * 0.3 + i * 0.8) * 8;
-      ctx.beginPath();
-      ctx.arc(fogX, fogY, 15 + i * 2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // Deeper water tint
-    ctx.fillStyle = 'rgba(0,0,85,0.2)';
-    ctx.fillRect(0, 155, W, 18);
-    return;
-  }
-
-  // --- SPRING OF CLEAN ARCHITECTURE: sunny, flowers, rainbow ---
-  if (currentEventTitle.indexOf('Spring') !== -1) {
-    // Bright sun
-    ctx.fillStyle = '#FFFF55';
-    ctx.beginPath();
-    ctx.arc(260, 30, 12, 0, Math.PI * 2);
-    ctx.fill();
-    // Sun rays
-    ctx.strokeStyle = '#FFFF55';
+  // --- THROUGH-WALL PIONEER: person visible through wall outline ---
+  if (currentEventTitle.indexOf('Through-Wall') !== -1) {
+    // Wall
+    ctx.fillStyle = 'rgba(85,85,85,0.4)';
+    ctx.fillRect(140, 70, 8, 80);
+    // Brick lines
+    ctx.strokeStyle = 'rgba(170,170,170,0.3)';
     ctx.lineWidth = 1;
-    for (var i = 0; i < 8; i++) {
-      var angle = i * Math.PI / 4 + t * 0.3;
+    for (var by = 70; by < 150; by += 8) {
+      ctx.beginPath(); ctx.moveTo(140, by); ctx.lineTo(148, by); ctx.stroke();
+    }
+    // Person silhouette behind wall (ghostly)
+    var px = 170, py = 115;
+    ctx.fillStyle = 'rgba(85,255,255,0.25)';
+    ctx.beginPath(); ctx.arc(px, py - 15, 5, 0, Math.PI * 2); ctx.fill(); // head
+    ctx.fillRect(px - 3, py - 10, 6, 12); // torso
+    ctx.fillRect(px - 5, py + 2, 4, 10); // left leg
+    ctx.fillRect(px + 1, py + 2, 4, 10); // right leg
+    // WiFi waves penetrating wall
+    ctx.strokeStyle = 'rgba(85,255,255,0.3)';
+    for (var i = 0; i < 3; i++) {
+      var waveR = 15 + i * 10 + Math.sin(t * 2) * 3;
       ctx.beginPath();
-      ctx.moveTo(260 + Math.cos(angle) * 14, 30 + Math.sin(angle) * 14);
-      ctx.lineTo(260 + Math.cos(angle) * 20, 30 + Math.sin(angle) * 20);
+      ctx.arc(120, 110, waveR, -0.5, 0.5);
       ctx.stroke();
     }
-    // Flowers on ground
-    var flowerColors = ['#FF5555', '#FFFF55', '#FF55FF', '#55FFFF', '#55FF55'];
-    for (var i = 0; i < 12; i++) {
-      var fx = (i * 27 + 10) % W;
-      var fy = 135 + (i * 7) % 20;
-      ctx.fillStyle = '#00AA00';
-      ctx.fillRect(fx + 1, fy, 1, 4); // stem
-      ctx.fillStyle = flowerColors[i % flowerColors.length];
-      ctx.fillRect(fx, fy - 1, 3, 2); // petals
-      ctx.fillStyle = '#FFFF55';
-      ctx.fillRect(fx + 1, fy - 1, 1, 1); // center
-    }
-    // Rainbow arc
-    var rainbowColors = ['#FF5555', '#FFAA00', '#FFFF55', '#55FF55', '#5555FF', '#AA00AA'];
-    for (var rc = 0; rc < rainbowColors.length; rc++) {
-      ctx.strokeStyle = rainbowColors[rc];
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(160, 110, 70 + rc * 3, Math.PI * 1.1, Math.PI * 1.9);
-      ctx.stroke();
-    }
-    ctx.lineWidth = 1;
-    return;
-  }
-
-  // --- MESSAGE CHUNKING FOG: heavy fog obscuring everything ---
-  if (currentEventTitle.indexOf('Chunking Fog') !== -1) {
-    // Dense fog layers
-    for (var layer = 0; layer < 3; layer++) {
-      var alpha = 0.15 + layer * 0.08;
-      ctx.fillStyle = 'rgba(170,170,170,' + alpha.toFixed(2) + ')';
-      for (var i = 0; i < 10; i++) {
-        var fogX = (i * 35 + t * (6 + layer * 4) + layer * 50) % (W + 60) - 30;
-        var fogY = 60 + layer * 30 + Math.sin(t * 0.4 + i * 0.9 + layer) * 10;
-        var fogR = 18 + layer * 8 + Math.sin(t * 0.3 + i) * 5;
-        ctx.beginPath();
-        ctx.arc(fogX, fogY, fogR, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    // Fog below obscuring ground details
-    ctx.fillStyle = 'rgba(170,170,170,0.25)';
-    ctx.fillRect(0, 110, W, 60);
     return;
   }
 }
@@ -1081,11 +1061,13 @@ function updateMusicIndicator() {
 // SYNTAX HIGHLIGHTING (EGA Colors)
 // =====================================================================
 const TS_KEYWORDS = new Set([
-  'import', 'export', 'from', 'const', 'let', 'var', 'function', 'async',
-  'await', 'return', 'if', 'else', 'for', 'while', 'new', 'typeof', 'instanceof',
-  'interface', 'type', 'class', 'extends', 'implements', 'try', 'catch', 'throw',
-  'default', 'switch', 'case', 'break', 'continue', 'true', 'false', 'null',
-  'undefined', 'void', 'of', 'in'
+  'use', 'pub', 'fn', 'let', 'mut', 'const', 'struct', 'impl', 'enum', 'match',
+  'return', 'if', 'else', 'for', 'while', 'loop', 'async', 'await', 'move',
+  'self', 'Self', 'true', 'false', 'mod', 'crate', 'super', 'where', 'trait',
+  'type', 'as', 'in', 'ref', 'static', 'extern', 'unsafe', 'break', 'continue',
+  'import', 'export', 'from', 'var', 'function', 'new', 'typeof', 'instanceof',
+  'interface', 'class', 'extends', 'implements', 'try', 'catch', 'throw',
+  'default', 'switch', 'case', 'null', 'undefined', 'void', 'of'
 ]);
 
 function escHtml(s) {
@@ -1162,7 +1144,7 @@ function renderTitleScreen() {
   setTextPanel(
     '<div style="text-align:center; padding-top:20px;">' +
     '<div style="color:#FFFF55; font-size:16px; letter-spacing:2px;">THE CODEREGON TRAIL</div>' +
-    '<div style="color:#AAAAAA; margin-top:8px;">The Gateway Trail - OpenClaw Edition</div>' +
+    '<div style="color:#AAAAAA; margin-top:8px;">The WiFi Sensing Trail - A RuView Learning Adventure</div>' +
     '<div style="margin-top:30px;" class="blink">Press SPACE BAR to begin</div>' +
     '</div>'
   );
@@ -1187,10 +1169,10 @@ function renderSetupScreen() {
     '<div style="padding:8px 20px;">' +
     '<div style="color:#55FFFF; margin-bottom:10px;">Your party of key concepts:</div>' +
     '<div style="margin-left:16px;">' +
-    '<div style="color:#55FF55;">1. Gateway Control Plane    <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">2. Channel Plugins          <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">3. Route Resolution         <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">4. Session Persistence      <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">1. CSI Pipeline             <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">2. Pose Estimation          <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">3. Vital Signs              <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">4. Edge Intelligence        <span style="color:#FF5555">' + hearts + '</span></div>' +
     '</div>' +
     '<div style="color:#55FFFF; margin-top:14px; margin-bottom:6px;">What is your profession?</div>' +
     '<div style="margin-left:16px;">' + profsHtml + '</div>' +
@@ -1358,7 +1340,7 @@ function renderWinScreen() {
   var survivors = partyHealth.filter(function(h) { return h > 0; }).length;
   var pctScore = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 100;
 
-  var conceptNames = ['Gateway Control Plane', 'Channel Plugins', 'Route Resolution', 'Session Persistence'];
+  var conceptNames = ['CSI Pipeline', 'Pose Estimation', 'Vital Signs', 'Edge Intelligence'];
 
   var masteryHtml = '';
   var weakestName = '';
@@ -1386,7 +1368,7 @@ function renderWinScreen() {
     '<div style="padding:8px 16px;">' +
     '<div style="color:#FFFF55; text-align:center; font-size:16px;">\u2605 YOU MADE IT TO RESPONSE FRONTIER! \u2605</div>' +
     '<div style="margin-top:10px; color:#AAAAAA;">' +
-    '<div>  Framework:    <span style="color:#55FFFF;">OpenClaw (The Gateway Trail)</span></div>' +
+    '<div>  Framework:    <span style="color:#55FFFF;">RuView (The WiFi Sensing Trail)</span></div>' +
     '<div>  Survivors:    <span style="color:#55FF55;">' + survivors + '/' + partyHealth.length + '</span></div>' +
     '<div>  Quiz Score:   <span style="color:#FFFF55;">' + score + '/' + totalQuestions + ' (' + pctScore + '%)</span></div>' +
     '<div>  Best Streak:  <span style="color:#FF55FF;">' + bestStreak + '</span></div>' +

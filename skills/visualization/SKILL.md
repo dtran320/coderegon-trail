@@ -6,7 +6,7 @@ version: 1.0.0
 
 # Visualization Skill
 
-Generate self-contained HTML files that present code learning as interactive retro-styled games. The primary format is the O'Reorg Trail — a pixel art Oregon Trail-inspired game where the user "travels" through a web framework's request pipeline.
+Generate self-contained HTML files that present code learning as interactive retro-styled games. The primary format is the Coderegon Trail — a pixel art Oregon Trail-inspired game where the user "travels" through a web framework's request pipeline.
 
 ## Core Principles
 
@@ -25,7 +25,7 @@ Generate self-contained HTML files that present code learning as interactive ret
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>O'Reorg Trail — [Framework Name]</title>
+  <title>Coderegon Trail — [Framework Name]</title>
   <style>/* All CSS inline */</style>
 </head>
 <body>
@@ -152,6 +152,6 @@ The game progresses through these states:
 
 ## References
 
-- `references/oreorg-trail.md` — Complete game mechanics and event catalog
+- `references/coderegon-trail.md` — Complete game mechanics and event catalog
 - `references/pixel-art-style.md` — Visual style guide, color palette, layout specs
 - `references/framework-trails.md` — Per-framework trail definitions with stops, events, and quiz data

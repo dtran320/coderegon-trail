@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Coderegon Trail - OpenClaw Edition</title>
+<title>The Coderegon Trail - Rails Edition</title>
 <style>
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 html, body {
@@ -75,7 +75,7 @@ html, body {
 }
 .shake { animation: shake 0.5s ease-in-out; }
 .code-box {
-  background: #000;
+  background: #272822;
   border: 1px solid #555555;
   padding: 6px 8px;
   margin: 6px 0;
@@ -85,10 +85,10 @@ html, body {
   font-size: 12px;
   line-height: 1.3;
   white-space: pre;
-  color: #55FF55;
+  color: #f8f8f2;
 }
 .code-box::-webkit-scrollbar { width: 6px; height: 6px; }
-.code-box::-webkit-scrollbar-track { background: #000; }
+.code-box::-webkit-scrollbar-track { background: #272822; }
 .code-box::-webkit-scrollbar-thumb { background: #555555; }
 .choice-item { cursor: pointer; padding: 2px 4px; }
 .choice-item:hover { color: #FFFF55; }
@@ -135,7 +135,7 @@ html, body {
 // =====================================================================
 // TRAIL DATA
 // =====================================================================
-const TRAIL_DATA={"framework":"openclaw","trailName":"The Gateway Trail","stops":[{"name":"Channel Outpost","subtitle":"Message Arrives","concept":"Channel Plugins","landmarkType":"town","code":{"file":"extensions/whatsapp/src/plugin.ts","content":"// extensions/whatsapp/src/plugin.ts (conceptual)\nimport { ChannelPlugin } from '@openclaw/types'\n\nexport const whatsappPlugin: ChannelPlugin = {\n  config: {\n    listAccountIds(cfg) {\n      return cfg.whatsapp?.accounts?.map(a => a.id) ?? []\n    },\n    async isConfigured(account) {\n      return !!account.phoneNumber\n    },\n    resolveAccount(cfg, id) {\n      return cfg.whatsapp.accounts.find(a => a.id === id)\n    },\n  },\n  gateway: {\n    async startAccount({ account, gateway }) {\n      const sock = makeWASocket({ auth: account.auth })\n      sock.ev.on('messages.upsert', async ({ messages }) => {\n        for (const msg of messages) {\n          await gateway.handleInbound({\n            channel: 'whatsapp',\n            peer: msg.key.remoteJid,\n            text: msg.message?.conversation,\n            accountId: account.id,\n          })\n        }\n      })\n    },\n    async stopAccount({ account }) {\n      // Graceful disconnect\n    },\n  },\n}","language":"typescript"},"narration":"Every journey starts at a channel outpost. OpenClaw connects to thirteen different messaging platforms. Each has a channel plugin following the same interface. Here's the WhatsApp plugin using Baileys to listen for messages. When a message arrives, it normalizes it into a common format and hands it to the gateway."},{"name":"Normalization Pass","subtitle":"Common Message Format","concept":"Channel Plugins","landmarkType":"camp","code":{"file":"src/channels/plugins/types.ts","content":"// src/channels/plugins/types.ts (simplified)\nexport interface ChannelPlugin {\n  config: {\n    listAccountIds(cfg: Config): string[]\n    isConfigured(account: AccountConfig): Promise<boolean>\n    resolveAccount(cfg: Config, id: string): AccountConfig\n  }\n  gateway?: {\n    startAccount(opts: StartAccountOpts): Promise<void>\n    stopAccount(opts: StopAccountOpts): Promise<void>\n  }\n}\n\n// The normalized inbound message shape:\ninterface InboundMessage {\n  channel: string\n  accountId: string\n  peer: RoutePeer\n  text: string\n  threadId?: string\n  attachments?: Media[]\n  guildId?: string\n}","language":"typescript"},"narration":"At the Normalization Pass, chaos becomes order. Every messaging platform has its own format. The ChannelPlugin interface forces them all into one shape. The gateway never needs to know whether you messaged from WhatsApp or Telegram."},{"name":"Route Resolution Fork","subtitle":"Finding the Right Agent","concept":"Route Resolution","landmarkType":"mountain","code":{"file":"src/routing/resolve-route.ts","content":"// src/routing/resolve-route.ts (simplified)\nexport function resolveAgentRoute({\n  cfg, channel, accountId, peer, guildId, teamId,\n}: ResolveRouteInput): ResolvedRoute {\n\n  for (const agent of cfg.agents.list) {\n    const routing = agent.routing\n\n    // 1. Exact peer match (highest priority)\n    const peerMatch = routing.peer?.find(\n      b => b.peer === peer.id && b.channel === channel\n    )\n    if (peerMatch) return { agentId: agent.id, matchedBy: 'peer' }\n\n    // 2. Guild/server match\n    const guildMatch = routing.guild?.find(\n      b => b.guildId === guildId && b.channel === channel\n    )\n    if (guildMatch) return { agentId: agent.id, matchedBy: 'guild' }\n\n    // 3. Account-level match\n    const accountMatch = routing.account?.find(\n      b => b.accountId === accountId && b.channel === channel\n    )\n    if (accountMatch) return { agentId: agent.id, matchedBy: 'account' }\n  }\n\n  return { agentId: cfg.agents.default, matchedBy: 'default' }\n}","language":"typescript"},"narration":"Here's where the trail forks. The resolver checks priority order: specific peer binding, then guild/server, then account, then default. One gateway can serve different agents to different people."},{"name":"Session Persistence Camp","subtitle":"Loading Conversation State","concept":"Session Persistence","landmarkType":"camp","code":{"file":"src/sessions/session-utils.ts","content":"// src/sessions/session-utils.ts (simplified)\nimport { readFile, writeFile, mkdir } from 'fs/promises'\n\nconst SESSIONS_DIR = '~/.openclaw/sessions'\n\nexport async function loadSessionEntry(\n  agentId: string,\n  sessionKey: string,\n): Promise<SessionEntry> {\n  const path = `${SESSIONS_DIR}/${agentId}/${sessionKey}.json`\n\n  try {\n    const raw = await readFile(path, 'utf-8')\n    return JSON.parse(raw)\n  } catch {\n    return {\n      sessionKey,\n      agentId,\n      transcript: [],\n      metadata: {\n        model: 'anthropic/claude-opus-4-6',\n        thinkingLevel: 'medium',\n        tokensUsed: 0,\n        createdAt: Date.now(),\n      },\n    }\n  }\n}","language":"typescript"},"narration":"Sessions are just JSON files on disk. Each agent-plus-peer combination gets its own file. If the file doesn't exist, a fresh session starts with sensible defaults. Zero database dependencies, easy backup."},{"name":"Gateway Control Ridge","subtitle":"The WebSocket Command Center","concept":"Gateway Control Plane","landmarkType":"mountain","code":{"file":"src/gateway/server-chat.ts","content":"// src/gateway/server-chat.ts (simplified)\nexport function createChatRunRegistry(gateway: GatewayServer) {\n\n  async function handleChatSend(\n    sessionEntry: SessionEntry,\n    message: InboundMessage,\n  ) {\n    sessionEntry.transcript.push({\n      role: 'user',\n      content: message.text,\n      timestamp: Date.now(),\n    })\n\n    const agentRpc = gateway.acp.getClient(sessionEntry.agentId)\n    const stream = await agentRpc.call('chat.send', {\n      sessionId: sessionEntry.sessionKey,\n      messages: sessionEntry.transcript,\n      tools: sessionEntry.metadata.enabledTools,\n      model: sessionEntry.metadata.model,\n    })\n\n    for await (const chunk of stream) {\n      if (chunk.type === 'text') {\n        gateway.broadcast('chat.stream', { text: chunk.text })\n      } else if (chunk.type === 'tool_use') {\n        const result = await executeTool(chunk.tool, chunk.input)\n        agentRpc.sendToolResult(chunk.id, result)\n      }\n    }\n    await saveSession(sessionEntry)\n  }\n\n  return { handleChatSend }\n}","language":"typescript"},"narration":"The gateway server accepts WebSocket connections from channels, the CLI, and native apps. The streaming loop handles text and tool calls differently. Text streams in real time; tool calls get executed on the gateway and results feed back."},{"name":"Agent RPC Rapids","subtitle":"Talking to the AI","concept":"Gateway Control Plane","landmarkType":"river","code":{"file":"src/acp/client.ts","content":"// src/acp/client.ts (simplified)\nexport function createAcpClient(agentId: string, wsUrl: string) {\n  const ws = new WebSocket(wsUrl)\n\n  async function* call(\n    method: string,\n    params: ChatSendParams,\n  ): AsyncGenerator<AgentChunk> {\n    const requestId = crypto.randomUUID()\n\n    ws.send(JSON.stringify({\n      jsonrpc: '2.0',\n      id: requestId,\n      method,\n      params,\n    }))\n\n    while (true) {\n      const msg = await nextMessage(ws, requestId)\n      if (msg.type === 'done') break\n      yield msg\n    }\n  }\n\n  function sendToolResult(toolCallId: string, result: ToolResult) {\n    ws.send(JSON.stringify({\n      jsonrpc: '2.0',\n      method: 'tool.result',\n      params: { toolCallId, result },\n    }))\n  }\n\n  return { call, sendToolResult }\n}","language":"typescript"},"narration":"Now we cross the RPC Rapids. The gateway and agent communicate over JSON-RPC. The agent decides what to do, but the gateway controls what actually happens on your machine. Security through architecture."},{"name":"Tool Execution Gorge","subtitle":"Running Commands on the Host","concept":"Gateway Control Plane","landmarkType":"forest","code":{"file":"src/agents/bash-tools.exec.ts","content":"// src/agents/bash-tools.exec.ts (simplified)\nexport async function executeBashTool(\n  input: { command: string },\n  context: ToolContext,\n): Promise<ToolResult> {\n  const { command } = input\n  const { sessionEntry, securityPolicy } = context\n\n  if (!securityPolicy.allowBash) {\n    return { error: 'Bash execution not permitted' }\n  }\n\n  const pty = spawn('bash', ['-c', command], {\n    cwd: sessionEntry.metadata.workingDir,\n    env: { ...process.env, ...sessionEntry.metadata.env },\n    timeout: 120_000,\n  })\n\n  let stdout = ''\n  pty.onData(data => { stdout += data })\n  const exitCode = await pty.wait()\n\n  return {\n    stdout: stdout.slice(0, 100_000),\n    exitCode,\n  }\n}","language":"typescript"},"narration":"Deep in Tool Execution Gorge, the agent's intentions become real actions. Security check first, then a real PTY with a two-minute timeout. Bash is just one tool \u2014 same pattern for browser control, canvas, and device actions."},{"name":"Response Delivery Frontier","subtitle":"Back Through the Channel","concept":"Channel Plugins","landmarkType":"town","code":{"file":"src/gateway/server-channels.ts","content":"// src/gateway/server-channels.ts (simplified)\nexport function createChannelManager(gateway: GatewayServer) {\n\n  async function deliverResponse(\n    sessionEntry: SessionEntry,\n    response: AgentResponse,\n  ) {\n    const { channel, peer, accountId } = sessionEntry.routing\n    const plugin = gateway.channels.get(channel)\n\n    const formatted = formatForChannel(channel, response.text, {\n      maxLength: getChannelLimit(channel),\n    })\n\n    for (const chunk of formatted) {\n      await plugin.send({ accountId, peer, text: chunk })\n    }\n\n    sessionEntry.transcript.push({\n      role: 'assistant',\n      content: response.text,\n      timestamp: Date.now(),\n    })\n    await saveSession(sessionEntry)\n\n    gateway.broadcast('chat.response', { text: response.text })\n  }\n\n  return { deliverResponse }\n}","language":"typescript"},"narration":"You made it! The response travels back through the same channel. Formatted for each platform's limits, chunked automatically, saved to the transcript. Message in, intelligence applied, response out. Your wagon has arrived."}],"events":[{"type":"weather","trigger":"after_stop","triggerStop":1,"title":"Protocol Storm!","text":"A storm of messages hits your gateway \u2014 WhatsApp sends phone numbers, Discord sends snowflake IDs, Slack sends workspace tokens. How do you weather this storm?","choices":[{"text":"Define a common interface that all channel plugins must implement","correct":true,"explanation":"OpenClaw's ChannelPlugin interface forces every platform into the same shape. New channels can be added without touching gateway code."},{"text":"Write a giant switch statement in the gateway for each platform","correct":false,"explanation":"That would make the gateway a tangled mess. Every new channel means modifying core code."},{"text":"Only support one messaging platform to keep things simple","correct":false,"explanation":"Multi-channel support is core to OpenClaw's value. The trick is clean abstraction through the plugin interface."}],"concept":"Channel Plugins","difficulty":"easy"},{"type":"encounter","trigger":"after_stop","triggerStop":2,"title":"A Fellow Operator Appears","text":"A seasoned operator says: 'I run three agents \u2014 personal on WhatsApp, work on Slack, social bot on Discord. One gateway.' How does it know which agent handles which message?","choices":[{"text":"Route bindings in the config map channels, peers, and guilds to agents","correct":true,"explanation":"Config bindings map at multiple levels. Priority: peer, guild, team, account, channel, then default."},{"text":"Each agent runs its own separate gateway on a different port","correct":false,"explanation":"One gateway, multiple agents. Separate gateways would mean separate configs and connections."},{"text":"The user specifies which agent to use in every message","correct":false,"explanation":"Routing is automatic and invisible. The gateway figures it out from the config bindings."}],"concept":"Route Resolution","difficulty":"easy"},{"type":"river","trigger":"after_stop","triggerStop":3,"title":"The Session State River","text":"You've reached the boundary between stateless request handling and persistent memory. Your assistant needs to remember last week's conversation across a restart. How do you cross?","choices":[{"text":"Store sessions as JSON files on disk, loaded on demand per key","correct":true,"explanation":"Each session is a JSON file at a predictable path. No database needed. The file system IS the persistence layer."},{"text":"Keep all sessions in memory with a Redis cache","correct":false,"explanation":"In-memory state is lost on restart. Redis adds an external dependency. OpenClaw is local-first."},{"text":"Store history in the AI model's context and let it remember","correct":false,"explanation":"Context windows are limited and expensive. The persistence layer is separate from inference."}],"concept":"Session Persistence","difficulty":"medium"},{"type":"misfortune","trigger":"after_stop","triggerStop":5,"title":"Runaway Process!","text":"The AI agent ran a shell command that's an infinite loop consuming 100% CPU. Your gateway is grinding to a halt!","choices":[{"text":"Tool execution needs timeouts and session security policies should gate commands","correct":true,"explanation":"Bash tools have a two-minute timeout, and security policies control what's allowed. The gateway is the security boundary."},{"text":"The agent should be smarter and never request dangerous commands","correct":false,"explanation":"Never rely on the AI as the security boundary. Defense in depth means the gateway enforces limits."},{"text":"Run all tools in the agent's process so only it crashes","correct":false,"explanation":"Tools run on the gateway because they need local machine access. The separation is a feature."}],"concept":"Gateway Control Plane","difficulty":"medium"},{"type":"river","trigger":"after_stop","triggerStop":5,"title":"The RPC River","text":"The deepest river \u2014 the boundary between gateway and agent runtime. The agent needs a browser screenshot but runs in a different process. How?","choices":[{"text":"JSON-RPC over WebSocket: agent requests, gateway executes locally","correct":true,"explanation":"The agent streams tool_use blocks, the gateway intercepts and executes. The agent could run remotely."},{"text":"The agent directly imports and calls the browser module","correct":false,"explanation":"Separate processes can't call each other's code. The RPC boundary IS the security model."},{"text":"The agent writes commands to a shared file the gateway watches","correct":false,"explanation":"File watching is slow and unreliable. WebSocket RPC gives real-time bidirectional streaming."}],"concept":"Gateway Control Plane","difficulty":"hard"},{"type":"fortune","trigger":"after_stop","triggerStop":6,"title":"Spring of Clean Architecture","text":"Your understanding of the control plane is solid! Friendly contributors join your camp and share plugin templates.","choices":[],"concept":"Channel Plugins","difficulty":"easy"},{"type":"weather","trigger":"after_stop","triggerStop":6,"title":"Message Chunking Fog","text":"Dense fog. Your assistant wrote 3000 words but WhatsApp only allows 4096 characters. The user sees a truncated response. What went wrong?","choices":[{"text":"The formatter should chunk messages based on each channel's limit","correct":true,"explanation":"WhatsApp: 4096, Discord: 2000, Slack: 40000. The delivery layer splits into properly-sized chunks."},{"text":"Tell the AI to always write short responses","correct":false,"explanation":"You can't enforce output length on LLMs. The delivery layer handles formatting."},{"text":"Switch to a channel with no message limits","correct":false,"explanation":"Multi-channel means meeting users where they are. Every channel must work correctly."}],"concept":"Channel Plugins","difficulty":"easy"}],"partyMembers":[{"name":"Gateway Control Plane","icon":"gateway","maxHealth":3},{"name":"Channel Plugins","icon":"channel","maxHealth":3},{"name":"Route Resolution","icon":"route","maxHealth":3},{"name":"Session Persistence","icon":"session","maxHealth":3}],"deathMessages":["You have died of unhandled WebSocket disconnections.","You have died of missing default routes.","You have drowned in the RPC River.","You have died of session bloat.","You have died of a runaway bash command.","You have died of unhandled plugin exceptions.","You have died of API rate limits.","You have died of dependency conflicts.","You have died of expired sessions.","You have died of Discord snowflake avalanche.","You have died of invalid routing config."]};
+const TRAIL_DATA={"framework": "rails", "trailName": "The Convention Trail", "stops": [{"name": "Rack Junction", "subtitle": "The Entry Point", "concept": "Rack Middleware", "landmarkType": "town", "code": {"file": "config.ru + config/application.rb", "content": "# config.ru\nrequire_relative \"config/environment\"\nrun Rails.application\n\n# config/application.rb\nrequire_relative \"boot\"\nrequire \"rails/all\"\n\nmodule BlogApp\n  class Application < Rails::Application\n    config.load_defaults 7.1\n\n    config.middleware.use Rack::Deflater\n    config.middleware.insert_before 0, Rack::Cors do\n      allow do\n        origins \"*\"\n        resource \"*\", headers: :any, methods: [:get, :post]\n      end\n    end\n  end\nend", "language": "ruby"}, "narration": "Every Rails journey begins at Rack Junction. That tiny config dot ru file is the actual entry point. It boots the whole framework and hands control to Rails dot application. Under the hood, Rails stacks about twenty middleware layers — session handling, cookie parsing, CSRF protection, static file serving. You can add your own, like Rack Deflater for compression. Think of Rack as the wagon hitching post. Every request passes through this stack before Rails even sees it."}, {"name": "Router Pass", "subtitle": "RESTful Resource Routing", "concept": "Convention Routing", "landmarkType": "mountain", "code": {"file": "config/routes.rb", "content": "# config/routes.rb\nRails.application.routes.draw do\n  root \"pages#home\"\n\n  resources :articles do\n    resources :comments, only: [:create, :destroy]\n    member do\n      post :publish\n    end\n    collection do\n      get :drafts\n    end\n  end\n\n  namespace :api do\n    namespace :v1 do\n      resources :users, only: [:index, :show]\n      resources :articles, only: [:index, :show, :create]\n    end\n  end\n\n  get \"up\" => \"rails/health#show\", as: :rails_health_check\nend", "language": "ruby"}, "narration": "Welcome to Router Pass. One line — resources colon articles — generates seven RESTful routes automatically. Index, show, new, create, edit, update, destroy. Nested resources give you articles slash one slash comments. The member block adds custom actions on a single record. The collection block adds actions on the whole set. Namespacing under api slash v1 keeps your API versioned and organized. Rails routing is opinionated, and that opinion saves you hundreds of lines of configuration."}, {"name": "Controller Canyon", "subtitle": "Actions and Strong Params", "concept": "ActiveRecord", "landmarkType": "camp", "code": {"file": "app/controllers/articles_controller.rb", "content": "# app/controllers/articles_controller.rb\nclass ArticlesController < ApplicationController\n  before_action :authenticate_user!\n  before_action :set_article, only: [:show, :edit, :update, :destroy]\n\n  def index\n    @articles = Article.published.includes(:author, :comments)\n                       .order(created_at: :desc)\n                       .page(params[:page])\n  end\n\n  def create\n    @article = current_user.articles.build(article_params)\n    if @article.save\n      redirect_to @article, notice: \"Article was successfully created.\"\n    else\n      render :new, status: :unprocessable_entity\n    end\n  end\n\n  private\n\n  def set_article\n    @article = Article.find(params[:id])\n  end\n\n  def article_params\n    params.require(:article).permit(:title, :body, :category_id)\n  end\nend", "language": "ruby"}, "narration": "Controller Canyon is where your request finally meets application logic. Notice the before_action callbacks at the top — they run before every action, like middleware for controllers. The set_article callback loads the record by ID so you do not repeat yourself. At the bottom, article_params is the strong parameters pattern. It whitelists exactly which fields the user can submit. Without it, someone could set any column — admin status, timestamps, anything. Strong params are your security gate."}, {"name": "Model Meadows", "subtitle": "ActiveRecord Associations and Validations", "concept": "ActiveRecord", "landmarkType": "forest", "code": {"file": "app/models/article.rb", "content": "# app/models/article.rb\nclass Article < ApplicationRecord\n  belongs_to :author, class_name: \"User\"\n  has_many :comments, dependent: :destroy\n  has_many :taggings, dependent: :destroy\n  has_many :tags, through: :taggings\n  has_one_attached :cover_image\n\n  validates :title, presence: true, length: { maximum: 200 }\n  validates :body, presence: true\n  validates :slug, uniqueness: true\n\n  scope :published, -> { where(published: true) }\n  scope :recent, -> { order(created_at: :desc).limit(10) }\n\n  before_validation :generate_slug, on: :create\n\n  def reading_time\n    (body.split.size / 200.0).ceil\n  end\n\n  private\n\n  def generate_slug\n    self.slug = title&.parameterize\n  end\nend", "language": "ruby"}, "narration": "Model Meadows is the heart of any Rails app. ActiveRecord maps your Ruby classes to database tables automatically — no XML, no config files. Associations like belongs_to and has_many define relationships in plain English. Validations ensure data integrity before anything hits the database. Scopes like published give you reusable query fragments you can chain together. The before_validation callback generates a URL slug from the title. Rails models are where your business rules live."}, {"name": "View Valley", "subtitle": "ERB Templates and Partials", "concept": "ERB Templates", "landmarkType": "desert", "code": {"file": "app/views/articles/index.html.erb", "content": "<%# app/views/articles/index.html.erb %>\n<h1>Articles</h1>\n\n<div class=\"articles-grid\">\n  <%= render partial: \"article_card\",\n             collection: @articles %>\n</div>\n\n<%= paginate @articles %>\n\n<%# app/views/articles/_article_card.html.erb %>\n<article class=\"card\">\n  <% if article_card.cover_image.attached? %>\n    <%= image_tag article_card.cover_image.variant(:thumb),\n                  class: \"card-image\" %>\n  <% end %>\n\n  <h2><%= link_to article_card.title, article_card %></h2>\n  <p class=\"meta\">\n    By <%= article_card.author.name %> |\n    <%= time_ago_in_words(article_card.created_at) %> ago |\n    <%= article_card.reading_time %> min read\n  </p>\n  <p><%= truncate(article_card.body, length: 200) %></p>\n</article>", "language": "ruby"}, "narration": "View Valley is where data becomes HTML. ERB — Embedded Ruby — lets you mix Ruby logic right into your templates. The angle-bracket-percent tags run Ruby code. The equals sign variant outputs the result. The real power here is partials. That underscore article_card file is a reusable component. Passing collection colon at-articles renders the partial once per article automatically. Rails names the local variable from the partial filename. No loops needed in the parent template. Convention saves you from boilerplate."}, {"name": "ERB Rendering Post", "subtitle": "Layouts and Helpers", "concept": "ERB Templates", "landmarkType": "camp", "code": {"file": "app/views/layouts/application.html.erb", "content": "<%# app/views/layouts/application.html.erb %>\n<!DOCTYPE html>\n<html>\n  <head>\n    <title><%= content_for?(:title) ? yield(:title) : \"BlogApp\" %></title>\n    <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n    <%= csrf_meta_tags %>\n    <%= csp_meta_tag %>\n    <%= stylesheet_link_tag \"application\",\n        \"data-turbo-track\": \"reload\" %>\n    <%= javascript_importmap_tags %>\n  </head>\n  <body>\n    <%= render \"shared/navbar\" %>\n    <% if notice.present? %>\n      <div class=\"flash-notice\"><%= notice %></div>\n    <% end %>\n    <main class=\"container\">\n      <%= yield %>\n    </main>\n    <%= render \"shared/footer\" %>\n  </body>\n</html>", "language": "ruby"}, "narration": "ERB Rendering Post is where the full page assembles. The layout wraps every view in your app. That yield keyword is the magic slot — your action’s template gets injected right there. Content_for lets child templates push content up into the layout, like setting a custom page title. Notice csrf_meta_tags — Rails automatically injects a CSRF token into every page. The csp_meta_tag adds Content Security Policy headers. Security baked in by default. Turbo handles page navigation without full reloads. The layout is the frame. Your views are the paintings inside it."}, {"name": "Response River", "subtitle": "Status Codes and Formats", "concept": "Convention Routing", "landmarkType": "river", "code": {"file": "app/controllers/api/v1/articles_controller.rb", "content": "# app/controllers/api/v1/articles_controller.rb\nmodule Api\n  module V1\n    class ArticlesController < ApplicationController\n      skip_before_action :verify_authenticity_token\n\n      def show\n        @article = Article.find(params[:id])\n        render json: @article, include: [:comments, :tags],\n               status: :ok\n      end\n\n      def create\n        @article = current_user.articles.build(article_params)\n        if @article.save\n          render json: @article, status: :created,\n                 location: api_v1_article_url(@article)\n        else\n          render json: { errors: @article.errors.full_messages },\n                 status: :unprocessable_entity\n        end\n      end\n    end\n  end\nend", "language": "ruby"}, "narration": "Response River is where your data takes its final shape. Rails can render HTML, JSON, XML, or plain text from the same controller. For API endpoints, render json serializes your model automatically. Notice the status codes — colon created maps to HTTP 201, colon unprocessable_entity to 422. Rails uses human-readable symbols instead of memorizing numbers. The location header tells API clients where to find the newly created resource. One framework, multiple response formats. That is the power of Rails respond-to conventions."}, {"name": "Response Frontier", "subtitle": "The Complete Request Cycle", "concept": "Full Lifecycle", "landmarkType": "town", "code": {"file": "The complete Rails request cycle", "content": "# The complete Rails request cycle:\n#\n# 1. Request hits config.ru -> Rack middleware stack\n#      Rack::Sendfile -> ActionDispatch::Static -> Rack::Lock\n#      -> ActionDispatch::Cookies -> ActionDispatch::Session\n#      -> ActionDispatch::Flash -> Rack::MethodOverride\n#\n# 2. ActionDispatch::Routing matches URL to controller#action\n#      GET /articles/42 -> ArticlesController#show\n#\n# 3. Controller callbacks run (before_action chain)\n#      authenticate_user! -> set_article -> show\n#\n# 4. Action executes, loads models via ActiveRecord\n#      Article.find(42) -> SQL: SELECT * FROM articles WHERE id = 42\n#\n# 5. View template renders with instance variables\n#      @article -> app/views/articles/show.html.erb\n#\n# 6. Layout wraps the rendered template\n#      application.html.erb yields the view content\n#\n# 7. Response flows back through middleware (reverse order)\n#      Headers set -> cookies written -> body compressed\n#\n# 8. Rack sends HTTP response to the client\n#      Status: 200 OK | Content-Type: text/html | Body: rendered HTML", "language": "ruby"}, "narration": "You made it to the Response Frontier! Here is the full picture. A request enters through Rack and passes through about twenty middleware layers. The router matches the URL to a controller and action. Before-action callbacks run for authentication and setup. The action loads data through ActiveRecord, which translates Ruby into SQL. Instance variables flow into ERB templates, which render inside the layout. The response then travels back through the middleware stack in reverse — setting cookies, compressing the body, adding headers. Finally, Rack delivers the HTTP response. Convention guided every step. Your wagon has arrived."}], "events": [{"type": "weather", "trigger": "after_stop", "triggerStop": 1, "title": "Routing Storm!", "text": "A storm of incoming requests is overwhelming your app. You notice that every request to slash admin slash dashboard hits your routes file, but there is no matching route. Rails is throwing RoutingError exceptions and flooding your logs.", "choices": [{"text": "Add a catch-all route at the bottom of routes.rb to handle unmatched paths gracefully", "correct": true, "explanation": "A catch-all route like get star path, to colon errors hash show prevents RoutingError exceptions from crashing your app. Placing it at the bottom ensures it only matches when no other route does. This is how production Rails apps handle four oh four pages gracefully."}, {"text": "Add more specific routes for every possible URL someone might visit", "correct": false, "explanation": "You cannot anticipate every URL someone might request. Bots and scanners hit random paths constantly. A catch-all route handles the infinite set of unmatched URLs with a single line."}, {"text": "Disable routing errors entirely in the Rails configuration", "correct": false, "explanation": "Silencing errors hides real problems. If a legitimate route is missing, you would never know. The correct approach is to handle unmatched routes explicitly with a catch-all, not to suppress the error."}], "concept": "Convention Routing", "difficulty": "easy"}, {"type": "encounter", "trigger": "after_stop", "triggerStop": 2, "title": "A Senior Developer Appears", "text": "A fellow traveler examines your controller code and asks: 'Why do you call params dot require colon article dot permit instead of just using params directly? What attack does this prevent?'", "choices": [{"text": "Mass assignment — without permit, a user could set any column like admin or role through the form", "correct": true, "explanation": "Exactly. Strong parameters are Rails’ defense against mass assignment attacks. Without them, a malicious user could add hidden form fields to set protected attributes like is_admin to true. The permit method creates an explicit whitelist of allowed fields."}, {"text": "SQL injection — params could contain raw SQL that modifies the database query", "correct": false, "explanation": "ActiveRecord already parameterizes all queries to prevent SQL injection. Strong parameters solve a different problem: controlling which model attributes a user can set through form submissions."}, {"text": "Cross-site scripting — params could contain JavaScript that runs in other users' browsers", "correct": false, "explanation": "Rails handles XSS through automatic HTML escaping in ERB templates. Strong parameters protect against mass assignment, which is about unauthorized attribute setting, not script injection."}], "concept": "ActiveRecord", "difficulty": "medium"}, {"type": "river", "trigger": "after_stop", "triggerStop": 3, "title": "The N+1 Query River", "text": "You have reached the most dangerous river on the trail. Your articles index page loads fifty articles, and for each one, the template calls article dot author dot name. Your logs show fifty-one SQL queries — one for the articles and one per author. The page takes eight seconds to load. How do you cross?", "choices": [{"text": "Use includes colon author in the controller query to eager-load the association", "correct": true, "explanation": "Article dot includes parenthesis colon author loads all authors in a single SQL query upfront. Instead of fifty-one queries, you get two — one for articles, one for all their authors. This is the standard Rails fix for N plus one queries. The bullet gem can detect these automatically in development."}, {"text": "Cache each author record in Redis so the database is only hit once per author", "correct": false, "explanation": "Caching hides the problem but does not fix it. The first request still fires fifty-one queries. And cache invalidation adds its own complexity. Eager loading with includes is the correct solution — it fixes the root cause."}, {"text": "Move the author name directly into the articles table to avoid the join entirely", "correct": false, "explanation": "Denormalizing data violates database normalization principles. When an author changes their name, you would need to update every article row. Eager loading preserves proper data modeling while eliminating the performance problem."}], "concept": "ActiveRecord", "difficulty": "medium"}, {"type": "misfortune", "trigger": "after_stop", "triggerStop": 4, "title": "XSS Vulnerability Discovered!", "text": "Disaster! A security audit reveals that one of your templates uses raw to render user-submitted HTML comments. An attacker injected a script tag that steals session cookies from every visitor. How should you fix this?", "choices": [{"text": "Remove the raw call and let Rails auto-escape all user output by default", "correct": true, "explanation": "Rails automatically escapes all ERB output through the html_safe mechanism. The angle-bracket-percent-equals tag escapes by default. Using raw or html_safe on user input bypasses this protection. Removing raw restores Rails’ built-in XSS prevention. If you need formatted content, use a sanitizer like sanitize helper."}, {"text": "Add a Content-Security-Policy header to block inline scripts", "correct": false, "explanation": "CSP headers add a layer of defense, but they do not fix the root cause. The raw call is still injecting unsanitized HTML. Some older browsers ignore CSP headers entirely. Fix the template first, then add CSP as defense in depth."}, {"text": "Validate that comments do not contain angle brackets when they are submitted", "correct": false, "explanation": "Input validation is fragile. Attackers can bypass it with URL encoding, Unicode tricks, or polyglot payloads. Rails’ output escaping is the proper defense because it handles all edge cases at render time regardless of how the data was stored."}], "concept": "ERB Templates", "difficulty": "hard"}, {"type": "fortune", "trigger": "after_stop", "triggerStop": 5, "title": "Convention Over Configuration Bonus", "text": "Your deep understanding of Rails conventions is paying off! You discovered that naming your partial underscore article_card automatically sets the local variable article_card. A group of friendly developers join your camp to share more convention tips.", "choices": [], "concept": "ERB Templates", "difficulty": "easy"}, {"type": "encounter", "trigger": "after_stop", "triggerStop": 6, "title": "A Seasoned API Developer Appears", "text": "A fellow traveler shows you their API controller. 'I namespace all my API controllers under Api V1 and use skip_before_action to disable CSRF protection for JSON endpoints. But I keep authentication.' What principle does the CSRF skip follow?", "choices": [{"text": "API endpoints use token auth instead of cookies, so CSRF protection is unnecessary and would block legitimate requests", "correct": true, "explanation": "CSRF attacks exploit browser cookies being sent automatically. API endpoints typically use Bearer tokens in the Authorization header, which browsers never send automatically. Keeping CSRF on API endpoints would reject every non-browser request. Token auth makes CSRF redundant for APIs."}, {"text": "Skipping CSRF makes the API faster because Rails does not need to verify tokens on every request", "correct": false, "explanation": "CSRF verification is extremely fast — it is a simple string comparison. Performance is not the reason to skip it. The reason is that CSRF protection is designed for cookie-based browser sessions, which APIs do not use."}, {"text": "CSRF is only needed in development to catch bugs, so production APIs can safely disable it", "correct": false, "explanation": "CSRF protection is a critical production security feature for browser-based sessions. It is disabled for APIs not because it is unimportant, but because APIs authenticate differently — with tokens instead of cookies."}], "concept": "Convention Routing", "difficulty": "hard"}, {"type": "encounter", "trigger": "after_stop", "triggerStop": 1, "title": "A Rails Guide Appears", "text": "A fellow traveler shows you a single line in routes.rb: resources :articles. 'This one line generates seven routes,' they say. What does the resources macro give you?", "choices": [{"text": "Seven RESTful routes — index, show, new, create, edit, update, and destroy — mapped to controller actions automatically", "correct": true, "explanation": "The resources macro follows REST conventions to generate a complete CRUD interface. Each route maps to a controller action by convention: GET slash articles maps to index, POST maps to create, and so on. This is Rails convention over configuration at its core."}, {"text": "A single route that accepts any HTTP method and dispatches based on the request body", "correct": false, "explanation": "Rails routes are explicit about HTTP methods. Each of the seven routes has a specific method — GET, POST, PATCH, DELETE. This separation follows REST principles and prevents accidental mutations from GET requests."}, {"text": "An auto-generated admin interface for the articles table", "correct": false, "explanation": "Rails does not generate admin interfaces automatically — that is Django's approach. The resources macro only generates routes and expects you to write the controller. Gems like ActiveAdmin provide admin panels."}], "concept": "Convention Routing", "difficulty": "easy"}, {"type": "weather", "trigger": "after_stop", "triggerStop": 2, "title": "Generator Whirlwind!", "text": "A whirlwind of files hits your project. A junior developer ran rails generate scaffold Article and it created a model, migration, controller, views, helpers, tests, and stylesheets — twenty files in one command. They are overwhelmed.", "choices": [{"text": "Use more targeted generators like rails generate model or rails generate controller to create only what you need", "correct": true, "explanation": "Scaffold generates everything at once, which is great for prototyping but overwhelming in a real project. Targeted generators like rails generate model Article title:string body:text create just the model and migration. You stay in control of what gets added to your codebase."}, {"text": "Always use scaffold and delete the files you don't need afterward", "correct": false, "explanation": "Generating files just to delete them wastes time and risks leaving behind unwanted code. Targeted generators exist precisely to give you control. Use scaffold for quick prototypes, targeted generators for production code."}, {"text": "Avoid generators entirely and create all files manually", "correct": false, "explanation": "Manual file creation means you miss Rails conventions — the correct directory structure, naming patterns, and boilerplate that generators handle. Generators ensure consistency with Rails conventions."}], "concept": "ActiveRecord", "difficulty": "easy"}, {"type": "misfortune", "trigger": "after_stop", "triggerStop": 3, "title": "Association Confusion!", "text": "Your app crashes with 'undefined method comments for Article'. You added has_many :comments to Article but forgot something. Comment records exist in the database with an article_id column, but Rails can't find them.", "choices": [{"text": "Add the belongs_to :article declaration to the Comment model — both sides of the association must be declared", "correct": true, "explanation": "Rails associations are bidirectional by convention. has_many on Article declares the 'one' side, but Comment needs belongs_to :article to declare the 'many' side. Without it, Rails doesn't know how to connect Comment back to Article via the article_id foreign key."}, {"text": "Run a migration to add a comments_id column to the articles table", "correct": false, "explanation": "The foreign key belongs on the 'many' side — comments has article_id, not the reverse. Adding comments_id to articles would be backwards. The issue isn't the schema, it's the missing belongs_to declaration."}, {"text": "Change has_many to has_one since each comment belongs to one article", "correct": false, "explanation": "has_one and has_many describe the cardinality from Article's perspective. An article has MANY comments, so has_many is correct. has_one would mean each article can only have a single comment."}], "concept": "ActiveRecord", "difficulty": "easy"}, {"type": "weather", "trigger": "after_stop", "triggerStop": 4, "title": "The Scope Fog", "text": "Dense fog rolls in. Your controller has Article.where(published: true).where('publish_date <= ?', Time.current).order(publish_date: :desc) repeated in six different actions. The code is duplicated everywhere and hard to maintain.", "choices": [{"text": "Define a scope on the model: scope :published, -> { where(published: true).where('publish_date <= ?', Time.current) }", "correct": true, "explanation": "Scopes encapsulate common query patterns as chainable, reusable methods on the model. Article.published.order(publish_date: :desc) reads clearly and the query logic lives in one place. Scopes are composable — you can chain them like Article.published.recent.featured."}, {"text": "Create a service object that wraps the query in a method", "correct": false, "explanation": "A service object for a simple query filter is over-engineering. Scopes are Rails' built-in answer for reusable query fragments. They live on the model where query logic belongs and integrate with ActiveRecord's chainable interface."}, {"text": "Store the query results in a constant at boot time so the query only runs once", "correct": false, "explanation": "Storing dynamic query results in a constant means the data is frozen at boot time. New articles would never appear until you restart the server. Scopes run fresh queries each time, which is what you want for current data."}], "concept": "ActiveRecord", "difficulty": "medium"}, {"type": "river", "trigger": "after_stop", "triggerStop": 5, "title": "The Callback River", "text": "You've reached a dangerous crossing. Your Article model has before_save, after_save, before_validation, and after_create callbacks that trigger emails, update counters, and sync to an external API. A simple update to fix a typo triggers all of them. How do you cross safely?", "choices": [{"text": "Use conditional callbacks with if: or unless: guards, and consider moving side effects to service objects for complex operations", "correct": true, "explanation": "Callbacks with guards like after_save :notify_subscribers, if: :published_changed? only fire when relevant. For complex side effects like API syncs, service objects make the flow explicit. The key principle: callbacks should be for data consistency, not business workflows."}, {"text": "Remove all callbacks and put everything in the controller", "correct": false, "explanation": "Moving all logic to controllers means duplicating it everywhere articles are saved — admin panel, background jobs, console. Some callbacks like data normalization belong on the model. The issue is indiscriminate callbacks, not callbacks as a concept."}, {"text": "Override the save method to control exactly what runs on each save", "correct": false, "explanation": "Overriding save is fragile — you need to remember to call super, and you lose the declarative clarity of named callbacks with conditions. Conditional callbacks and service objects give you the same control with better maintainability."}], "concept": "ActiveRecord", "difficulty": "hard"}, {"type": "misfortune", "trigger": "after_stop", "triggerStop": 5, "title": "Nested Route Overload!", "text": "Your routes are nested three levels deep: resources :users do resources :posts do resources :comments. URL helpers are monstrously long: edit_user_post_comment_path. The routes file is unreadable.", "choices": [{"text": "Use shallow: true to only nest routes that actually need the parent ID, flattening the rest", "correct": true, "explanation": "Shallow nesting means collection routes like index and create stay nested (they need the parent), but member routes like show, edit, update, destroy use just the resource's own ID. comments_path(post) for creating, but edit_comment_path(comment) for editing. Much cleaner URLs and helpers."}, {"text": "Remove all nesting and pass parent IDs as query parameters instead", "correct": false, "explanation": "Query parameters for parent relationships lose the RESTful URL structure that conveys resource hierarchy. Shallow nesting preserves the relationship where it matters (creation and listing) without the excessive depth."}, {"text": "Keep the deep nesting since it accurately represents the data relationships", "correct": false, "explanation": "Deep nesting generates unnecessarily long URLs and helpers. A comment doesn't need the user AND post in its edit URL — the comment ID is sufficient to find it. Shallow nesting reflects the real access patterns, not the full data hierarchy."}], "concept": "Convention Routing", "difficulty": "medium"}, {"type": "misfortune", "trigger": "after_stop", "triggerStop": 6, "title": "Thread Safety Disaster!", "text": "Your production app using Puma has a mysterious bug: users occasionally see each other's data. Your controller sets a class-level instance variable @@current_user to avoid passing the user through method calls. Under concurrent requests, this shared state is causing data leaks.", "choices": [{"text": "Never use class variables or class-level instance variables for per-request state — use Current attributes or pass state through method parameters", "correct": true, "explanation": "Class variables are shared across all threads in a process. When two requests run simultaneously, they overwrite each other's @@current_user. Rails provides CurrentAttributes (ActiveSupport::CurrentAttributes) for thread-safe per-request state, or you can simply pass the user as a parameter."}, {"text": "Switch from Puma to a single-threaded server like WEBrick to avoid the issue", "correct": false, "explanation": "Single-threaded servers solve the symptom by eliminating concurrency, but they cannot handle production traffic. The root cause is shared mutable state. Fix the architecture, don't cripple your infrastructure."}, {"text": "Add a mutex lock around the class variable to prevent simultaneous access", "correct": false, "explanation": "A mutex would prevent data races but would serialize all requests through a bottleneck — destroying concurrency benefits entirely. The fix is to not share per-request state across threads at all."}], "concept": "Rack Middleware", "difficulty": "hard"}, {"triggerStop": 3, "type": "weather", "title": "Metaprogramming Whiteout!", "text": "A blizzard of mysterious methods appears. A gem defines methods dynamically using method_missing and define_method. When a bug occurs in one of these ghost methods, the stack trace shows no source file or line number.", "choices": [{"text": "Prefer explicit method definitions and use define_method over method_missing — it creates real methods that appear in stack traces", "correct": true, "explanation": "define_method registers actual methods on the class — they show up in method lookups, respond_to?, and stack traces. method_missing is a last resort. Always define real methods where possible. If you must use method_missing, always pair it with respond_to_missing?."}, {"text": "Disable metaprogramming in production by setting a Rails configuration flag", "correct": false, "explanation": "There’s no Rails flag to disable metaprogramming — it’s a core Ruby feature used throughout Rails itself. ActiveRecord, routing, and associations all use it."}, {"text": "Add rescue blocks around every method_missing call to catch errors", "correct": false, "explanation": "Rescue blocks hide errors rather than preventing them. The problem is that method_missing creates methods invisible to introspection tools. The fix is generating real methods."}], "concept": "ActiveRecord", "difficulty": "hard"}, {"triggerStop": 4, "type": "misfortune", "title": "Callback Execution Order Bug!", "text": "Your model has both before_save and before_validation callbacks. A before_save callback normalizes the title to lowercase, but validation rejects the original uppercase title before normalization runs.", "choices": [{"text": "Move data normalization to before_validation so it runs before validators check the data", "correct": true, "explanation": "Rails callbacks run in a specific order: before_validation → validate → after_validation → before_save → save. Normalization in before_save is too late — validation already rejected the data. Put cleanup in before_validation."}, {"text": "Skip validation with save(validate: false) so the normalization can run first", "correct": false, "explanation": "Skipping validation removes all data integrity checks. You’d allow invalid data into the database. The fix is running normalization at the right lifecycle point."}, {"text": "Add a custom validator that normalizes the data inside the validation step", "correct": false, "explanation": "Validators should validate, not mutate data. Mixing mutation into validation violates single responsibility. Rails provides before_validation specifically for data cleanup."}], "concept": "ActiveRecord", "difficulty": "hard"}], "partyMembers": [{"name": "Rack Middleware", "icon": "rack", "maxHealth": 3}, {"name": "Convention Routing", "icon": "routing", "maxHealth": 3}, {"name": "ActiveRecord", "icon": "model", "maxHealth": 3}, {"name": "ERB Templates", "icon": "view", "maxHealth": 3}], "deathMessages": ["Died of N+1 query disease. Should have used dot includes.", "Lost in the convention — named the controller wrong and Rails could not find it.", "Buried under an avalanche of unpinned gem versions. Bundle install will not save you now.", "Drowned in the migration river. The schema drifted and rake db colon migrate gave up.", "Killed by mass assignment. Forgot to permit the params and the attacker became admin.", "Here lies your app. It died of unhandled ActiveRecord RecordNotFound in production.", "Your callbacks formed an infinite loop. Before_save triggered after_save triggered before_save.", "Starved waiting for the asset pipeline. Sprockets compiled for eleven hours and never finished."]};
 
 // =====================================================================
 // GAME STATE
@@ -187,21 +187,21 @@ let currentEventType = '';  // event type for canvas overlay
 let currentEventTitle = ''; // event title for canvas overlay
 
 const travelFlavors = [
-  "The WebSocket connection is strong today...",
-  "Packets flow smoothly across the middleware...",
-  "Your JSON payloads are well-formed...",
-  "The config files look clean and tidy...",
-  "A gentle breeze carries API responses...",
-  "The route resolver hums along quietly...",
-  "Session files persist without corruption...",
-  "The gateway handles traffic with grace...",
-  "Your TypeScript types provide comfort on the trail...",
-  "The event loop is calm and responsive...",
-  "A hawk circles overhead, watching your throughput...",
-  "The trail ahead is well-documented...",
-  "Your error handling is robust today...",
-  "The authentication tokens are fresh...",
-  "Your dependency tree looks healthy..."
+  "The Rack middleware stack is humming along nicely...",
+  "Your routes are RESTful and well-organized...",
+  "ActiveRecord queries execute without N+1 issues...",
+  "The convention guides your path forward...",
+  "A gentle breeze carries the scent of fresh gems...",
+  "Your migrations are up to date and reversible...",
+  "The asset pipeline compiles without complaint...",
+  "Strong parameters guard every controller action...",
+  "Your Ruby syntax is elegant and expressive today...",
+  "The test suite is green across the board...",
+  "A hawk circles overhead, watching your deploy...",
+  "The trail ahead follows convention over configuration...",
+  "Your validations catch bad data before it persists...",
+  "The CSRF tokens are fresh and properly verified...",
+  "Your ERB partials render cleanly without duplication..."
 ];
 
 // =====================================================================
@@ -374,10 +374,10 @@ function drawWagon(wx, wy) {
     ctx.fillStyle = '#553300';
     ctx.fillRect(Math.floor(wcx - 1), Math.floor(wcy - 1), 2, 2);
   }
-  // Purple flag
-  ctx.fillStyle = '#AA00AA';
+  // Red flag (Rails red)
+  ctx.fillStyle = '#CC0000';
   ctx.fillRect(Math.floor(wx + 14), Math.floor(wy - 22), 1, -7);
-  ctx.fillStyle = '#FF55FF';
+  ctx.fillStyle = '#FF5555';
   ctx.fillRect(Math.floor(wx + 15), Math.floor(wy - 29), 6, 4);
 }
 
@@ -435,8 +435,8 @@ function drawLandmark(type, x, baseY) {
       ctx.fillRect(Math.floor(x + 18), Math.floor(baseY - 2), 8, 2);
       break;
     case 'mountain':
-      drawMountain(x - 20, 60, 50, '#AA00AA', true);
-      drawMountain(x + 10, 45, 40, '#FF55FF', true);
+      drawMountain(x - 20, 60, 50, '#CC0000', true);
+      drawMountain(x + 10, 45, 40, '#FF5555', true);
       break;
     case 'river':
       ctx.fillStyle = '#AA5500';
@@ -460,6 +460,24 @@ function drawLandmark(type, x, baseY) {
       for (let i = 0; i < 6; i++) {
         drawTree(x + i * 7, baseY, 14 + (i % 3) * 3);
       }
+      break;
+    case 'desert':
+      // Sandy ground tint
+      ctx.fillStyle = '#DDAA55';
+      ctx.fillRect(Math.floor(x - 10), Math.floor(baseY - 2), 50, 4);
+      // Cactus 1
+      ctx.fillStyle = '#00AA00';
+      ctx.fillRect(Math.floor(x + 5), Math.floor(baseY - 18), 4, 18);
+      ctx.fillRect(Math.floor(x + 1), Math.floor(baseY - 14), 4, 8);
+      ctx.fillRect(Math.floor(x + 9), Math.floor(baseY - 12), 4, 6);
+      // Cactus 2 (smaller)
+      ctx.fillRect(Math.floor(x + 25), Math.floor(baseY - 12), 3, 12);
+      ctx.fillRect(Math.floor(x + 22), Math.floor(baseY - 8), 3, 4);
+      // Rocks
+      ctx.fillStyle = '#AA8855';
+      ctx.fillRect(Math.floor(x + 35), Math.floor(baseY - 3), 6, 3);
+      ctx.fillRect(Math.floor(x + 38), Math.floor(baseY - 5), 4, 2);
+      ctx.fillRect(Math.floor(x - 5), Math.floor(baseY - 2), 4, 2);
       break;
   }
 }
@@ -492,8 +510,8 @@ function drawEventOverlay(time) {
 
   var t = (time || 0) * 0.001; // seconds
 
-  // --- PROTOCOL STORM: dark sky, lightning, rain ---
-  if (currentEventTitle.indexOf('Protocol Storm') !== -1) {
+  // --- ROUTING STORM: dark sky, lightning, rain ---
+  if (currentEventTitle.indexOf('Routing Storm') !== -1) {
     // Darken sky
     ctx.fillStyle = 'rgba(0,0,50,0.45)';
     ctx.fillRect(0, 0, W, 110);
@@ -529,8 +547,8 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- FELLOW OPERATOR: person standing by campfire ---
-  if (currentEventTitle.indexOf('Fellow Operator') !== -1) {
+  // --- SENIOR DEVELOPER: person standing by campfire ---
+  if (currentEventTitle.indexOf('Senior Developer') !== -1) {
     var px = 200, py = 142;
     // Person body
     ctx.fillStyle = '#AA5500';
@@ -563,8 +581,8 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- SESSION STATE RIVER: rough rapids with white water ---
-  if (currentEventTitle.indexOf('Session State') !== -1) {
+  // --- N+1 QUERY RIVER: rough rapids with white water ---
+  if (currentEventTitle.indexOf('N+1 Query') !== -1) {
     // Extra turbulence on the river
     ctx.fillStyle = '#55FFFF';
     for (var i = 0; i < 20; i++) {
@@ -582,8 +600,8 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- RUNAWAY PROCESS: red sky, smoke, warning ---
-  if (currentEventTitle.indexOf('Runaway Process') !== -1) {
+  // --- XSS VULNERABILITY: red sky, smoke, warning ---
+  if (currentEventTitle.indexOf('XSS Vulnerability') !== -1) {
     // Red danger tint
     ctx.fillStyle = 'rgba(170,0,0,0.25)';
     ctx.fillRect(0, 0, W, H);
@@ -619,33 +637,8 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- RPC RIVER: deep blue, fog/mist over water ---
-  if (currentEventTitle.indexOf('RPC River') !== -1) {
-    // Fog layers drifting over the river
-    ctx.fillStyle = 'rgba(85,85,255,0.12)';
-    for (var i = 0; i < 6; i++) {
-      var fogX = (i * 60 + t * 12 + Math.sin(i) * 20) % (W + 40) - 20;
-      var fogY = 145 + Math.sin(t * 0.5 + i * 1.1) * 5;
-      ctx.beginPath();
-      ctx.arc(fogX, fogY, 20 + i * 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.fillStyle = 'rgba(170,170,255,0.08)';
-    for (var i = 0; i < 8; i++) {
-      var fogX = (i * 45 + t * 8) % (W + 30) - 15;
-      var fogY = 150 + Math.sin(t * 0.3 + i * 0.8) * 8;
-      ctx.beginPath();
-      ctx.arc(fogX, fogY, 15 + i * 2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // Deeper water tint
-    ctx.fillStyle = 'rgba(0,0,85,0.2)';
-    ctx.fillRect(0, 155, W, 18);
-    return;
-  }
-
-  // --- SPRING OF CLEAN ARCHITECTURE: sunny, flowers, rainbow ---
-  if (currentEventTitle.indexOf('Spring') !== -1) {
+  // --- CONVENTION OVER CONFIGURATION BONUS: sunny, flowers, rainbow ---
+  if (currentEventTitle.indexOf('Convention Over Configuration') !== -1) {
     // Bright sun
     ctx.fillStyle = '#FFFF55';
     ctx.beginPath();
@@ -674,7 +667,7 @@ function drawEventOverlay(time) {
       ctx.fillRect(fx + 1, fy - 1, 1, 1); // center
     }
     // Rainbow arc
-    var rainbowColors = ['#FF5555', '#FFAA00', '#FFFF55', '#55FF55', '#5555FF', '#AA00AA'];
+    var rainbowColors = ['#FF5555', '#FFAA00', '#FFFF55', '#55FF55', '#5555FF', '#CC0000'];
     for (var rc = 0; rc < rainbowColors.length; rc++) {
       ctx.strokeStyle = rainbowColors[rc];
       ctx.lineWidth = 2;
@@ -686,24 +679,42 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- MESSAGE CHUNKING FOG: heavy fog obscuring everything ---
-  if (currentEventTitle.indexOf('Chunking Fog') !== -1) {
-    // Dense fog layers
-    for (var layer = 0; layer < 3; layer++) {
-      var alpha = 0.15 + layer * 0.08;
-      ctx.fillStyle = 'rgba(170,170,170,' + alpha.toFixed(2) + ')';
-      for (var i = 0; i < 10; i++) {
-        var fogX = (i * 35 + t * (6 + layer * 4) + layer * 50) % (W + 60) - 30;
-        var fogY = 60 + layer * 30 + Math.sin(t * 0.4 + i * 0.9 + layer) * 10;
-        var fogR = 18 + layer * 8 + Math.sin(t * 0.3 + i) * 5;
-        ctx.beginPath();
-        ctx.arc(fogX, fogY, fogR, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    // Fog below obscuring ground details
-    ctx.fillStyle = 'rgba(170,170,170,0.25)';
-    ctx.fillRect(0, 110, W, 60);
+  // --- SEASONED API DEVELOPER: person with laptop by campfire ---
+  if (currentEventTitle.indexOf('Seasoned API Developer') !== -1) {
+    var px = 200, py = 142;
+    // Person body
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(px, py - 12, 4, 8); // torso
+    ctx.fillStyle = '#FFAA00';
+    ctx.fillRect(px, py - 15, 4, 3); // head
+    ctx.fillRect(px - 1, py - 4, 2, 5); // left leg
+    ctx.fillRect(px + 3, py - 4, 2, 5); // right leg
+    // Hat (Rails red)
+    ctx.fillStyle = '#CC0000';
+    ctx.fillRect(px - 1, py - 17, 6, 2);
+    ctx.fillRect(px, py - 19, 4, 2);
+    // Laptop
+    ctx.fillStyle = '#AAAAAA';
+    ctx.fillRect(px + 7, py - 8, 6, 4);
+    ctx.fillStyle = '#55FFFF';
+    ctx.fillRect(px + 8, py - 7, 4, 2);
+    // Campfire
+    var fx = 212, fy = 148;
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(fx - 3, fy, 2, 3);
+    ctx.fillRect(fx + 3, fy, 2, 3);
+    ctx.fillStyle = '#FF5555';
+    var flicker = Math.sin(t * 8) * 2;
+    ctx.fillRect(fx - 1, fy - 3 + Math.floor(flicker * 0.3), 4, 3);
+    ctx.fillStyle = '#FFFF55';
+    ctx.fillRect(fx, fy - 5 + Math.floor(flicker * 0.5), 2, 2);
+    ctx.fillStyle = '#FFAA00';
+    ctx.fillRect(fx - 1, fy - 2, 4, 2);
+    // Firelight glow
+    ctx.fillStyle = 'rgba(255,170,0,0.08)';
+    ctx.beginPath();
+    ctx.arc(fx + 1, fy - 2, 15, 0, Math.PI * 2);
+    ctx.fill();
     return;
   }
 }
@@ -862,20 +873,20 @@ function renderCanvas(time) {
     drawPixelCloud(cx - 20, c.y, c.w, c.h);
   }
 
-  // Far mountains (parallax 0.3x) - DARK MAGENTA signature Oregon Trail
+  // Far mountains (parallax 0.3x) - DARK RED signature Rails color
   const farOffset = scrollX * 0.3;
   for (const m of farMountains) {
     let mx = ((m.x - farOffset) % (W + 100));
     if (mx < -50) mx += W + 100;
-    drawMountain(mx - 25, m.h, m.w, '#AA00AA', false);
+    drawMountain(mx - 25, m.h, m.w, '#CC0000', false);
   }
 
-  // Near mountains (parallax 0.4x) - LIGHT MAGENTA with snow caps
+  // Near mountains (parallax 0.4x) - LIGHT RED with snow caps
   const nearOffset = scrollX * 0.4;
   for (const m of nearMountains) {
     let mx = ((m.x - nearOffset) % (W + 80));
     if (mx < -40) mx += W + 80;
-    drawMountain(mx - 20, m.h, m.w, '#FF55FF', m.snow);
+    drawMountain(mx - 20, m.h, m.w, '#FF5555', m.snow);
   }
 
   // Grass
@@ -1078,14 +1089,16 @@ function updateMusicIndicator() {
 }
 
 // =====================================================================
-// SYNTAX HIGHLIGHTING (EGA Colors)
+// SYNTAX HIGHLIGHTING (Ruby - EGA Colors)
 // =====================================================================
-const TS_KEYWORDS = new Set([
-  'import', 'export', 'from', 'const', 'let', 'var', 'function', 'async',
-  'await', 'return', 'if', 'else', 'for', 'while', 'new', 'typeof', 'instanceof',
-  'interface', 'type', 'class', 'extends', 'implements', 'try', 'catch', 'throw',
-  'default', 'switch', 'case', 'break', 'continue', 'true', 'false', 'null',
-  'undefined', 'void', 'of', 'in'
+const RUBY_KEYWORDS = new Set([
+  'def', 'end', 'class', 'module', 'do', 'if', 'else', 'elsif', 'unless',
+  'until', 'while', 'for', 'begin', 'rescue', 'ensure', 'raise', 'return',
+  'yield', 'block_given?', 'self', 'super', 'true', 'false', 'nil',
+  'and', 'or', 'not', 'in', 'then', 'require', 'require_relative',
+  'include', 'extend', 'attr_accessor', 'attr_reader', 'attr_writer',
+  'private', 'protected', 'public', 'lambda', 'proc', 'puts', 'print',
+  'new', 'case', 'when', 'break', 'next', 'redo', 'retry'
 ]);
 
 function escHtml(s) {
@@ -1094,14 +1107,14 @@ function escHtml(s) {
 
 function highlightCode(code) {
   return code.split('\n').map(function(line) {
-    if (line.trim().startsWith('//')) {
-      return '<span style="color:#555555">' + escHtml(line) + '</span>';
+    if (line.trim().startsWith('#')) {
+      return '<span style="color:#75715e">' + escHtml(line) + '</span>';
     }
     var result = '';
     var i = 0;
     while (i < line.length) {
-      // String literal
-      if (line[i] === "'" || line[i] === '"' || line[i] === '`') {
+      // String literal (double or single quotes)
+      if (line[i] === '"' || line[i] === "'") {
         var quote = line[i];
         var end = i + 1;
         while (end < line.length && line[end] !== quote) {
@@ -1109,38 +1122,66 @@ function highlightCode(code) {
           end++;
         }
         end = Math.min(end + 1, line.length);
-        result += '<span style="color:#FFFF55">' + escHtml(line.substring(i, end)) + '</span>';
+        result += '<span style="color:#e6db74">' + escHtml(line.substring(i, end)) + '</span>';
+        i = end;
+        continue;
+      }
+      // ERB tags: <% and %>
+      if (line[i] === '<' && i + 1 < line.length && line[i + 1] === '%') {
+        var end = line.indexOf('%>', i + 2);
+        if (end === -1) end = line.length - 2;
+        end += 2;
+        end = Math.min(end, line.length);
+        result += '<span style="color:#f92672">' + escHtml(line.substring(i, end)) + '</span>';
         i = end;
         continue;
       }
       // Inline comment
-      if (line[i] === '/' && i + 1 < line.length && line[i + 1] === '/') {
-        result += '<span style="color:#555555">' + escHtml(line.substring(i)) + '</span>';
+      if (line[i] === '#') {
+        result += '<span style="color:#75715e">' + escHtml(line.substring(i)) + '</span>';
         break;
       }
-      // Number
-      if (/\d/.test(line[i]) && (i === 0 || !/\w/.test(line[i - 1]))) {
-        var end2 = i;
-        while (end2 < line.length && /[\d._]/.test(line[end2])) end2++;
-        result += '<span style="color:#FF55FF">' + escHtml(line.substring(i, end2)) + '</span>';
+      // Symbol (colon followed by word)
+      if (line[i] === ':' && i + 1 < line.length && /[a-zA-Z_]/.test(line[i + 1])) {
+        var end2 = i + 1;
+        while (end2 < line.length && /[\w?!]/.test(line[end2])) end2++;
+        result += '<span style="color:#ae81ff">' + escHtml(line.substring(i, end2)) + '</span>';
         i = end2;
         continue;
       }
-      // Identifier or keyword
-      if (/[a-zA-Z_$]/.test(line[i])) {
-        var end3 = i;
-        while (end3 < line.length && /[\w$]/.test(line[end3])) end3++;
-        var word = line.substring(i, end3);
-        if (TS_KEYWORDS.has(word)) {
-          result += '<span style="color:#55FFFF">' + escHtml(word) + '</span>';
-        } else {
-          result += '<span style="color:#55FF55">' + escHtml(word) + '</span>';
-        }
+      // Instance variable (@name)
+      if (line[i] === '@' && i + 1 < line.length && /[a-zA-Z_]/.test(line[i + 1])) {
+        var end3 = i + 1;
+        while (end3 < line.length && /[\w]/.test(line[end3])) end3++;
+        result += '<span style="color:#fd971f">' + escHtml(line.substring(i, end3)) + '</span>';
         i = end3;
         continue;
       }
+      // Number
+      if (/\d/.test(line[i]) && (i === 0 || !/\w/.test(line[i - 1]))) {
+        var end4 = i;
+        while (end4 < line.length && /[\d._]/.test(line[end4])) end4++;
+        result += '<span style="color:#ae81ff">' + escHtml(line.substring(i, end4)) + '</span>';
+        i = end4;
+        continue;
+      }
+      // Identifier or keyword
+      if (/[a-zA-Z_]/.test(line[i])) {
+        var end5 = i;
+        while (end5 < line.length && /[\w?!]/.test(line[end5])) end5++;
+        var word = line.substring(i, end5);
+        if (RUBY_KEYWORDS.has(word)) {
+          result += '<span style="color:#f92672">' + escHtml(word) + '</span>';
+        } else if (end5 < line.length && line[end5] === '(') {
+          result += '<span style="color:#a6e22e">' + escHtml(word) + '</span>';
+        } else {
+          result += '<span style="color:#f8f8f2">' + escHtml(word) + '</span>';
+        }
+        i = end5;
+        continue;
+      }
       // Punctuation / operators
-      result += '<span style="color:#AAAAAA">' + escHtml(line[i]) + '</span>';
+      result += '<span style="color:#f8f8f2">' + escHtml(line[i]) + '</span>';
       i++;
     }
     return result;
@@ -1162,7 +1203,7 @@ function renderTitleScreen() {
   setTextPanel(
     '<div style="text-align:center; padding-top:20px;">' +
     '<div style="color:#FFFF55; font-size:16px; letter-spacing:2px;">THE CODEREGON TRAIL</div>' +
-    '<div style="color:#AAAAAA; margin-top:8px;">The Gateway Trail - OpenClaw Edition</div>' +
+    '<div style="color:#AAAAAA; margin-top:8px;">The Convention Trail - Rails Edition</div>' +
     '<div style="margin-top:30px;" class="blink">Press SPACE BAR to begin</div>' +
     '</div>'
   );
@@ -1187,10 +1228,10 @@ function renderSetupScreen() {
     '<div style="padding:8px 20px;">' +
     '<div style="color:#55FFFF; margin-bottom:10px;">Your party of key concepts:</div>' +
     '<div style="margin-left:16px;">' +
-    '<div style="color:#55FF55;">1. Gateway Control Plane    <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">2. Channel Plugins          <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">3. Route Resolution         <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">4. Session Persistence      <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">1. Rack Middleware             <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">2. Convention Routing          <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">3. ActiveRecord                <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">4. ERB Templates               <span style="color:#FF5555">' + hearts + '</span></div>' +
     '</div>' +
     '<div style="color:#55FFFF; margin-top:14px; margin-bottom:6px;">What is your profession?</div>' +
     '<div style="margin-left:16px;">' + profsHtml + '</div>' +
@@ -1219,7 +1260,7 @@ function renderStopScreen() {
     '<div style="padding:4px 12px;">' +
     '<div style="color:#FFFF55; text-align:center; font-size:14px;">\u2550\u2550 ' + escHtml(stop.name) + ' \u2014 ' + escHtml(stop.subtitle) + ' \u2550\u2550</div>' +
     '<div style="color:#555555; text-align:center; font-size:11px; margin-bottom:4px;">[' + escHtml(stop.concept) + ']</div>' +
-    '<div style="border:1px solid #555555; padding:2px 4px; margin:4px 0 2px 0; font-size:11px; color:#AAAAAA;">\u250C\u2500 ' + escHtml(stop.code.file) + ' \u2500\u2500\u2500</div>' +
+    '<div style="border:1px solid #3e3d32; padding:2px 4px; margin:4px 0 2px 0; font-size:11px; color:#75715e;">\u250C\u2500 ' + escHtml(stop.code.file) + ' \u2500\u2500\u2500</div>' +
     '<div class="code-box">' + codeHtml + '</div>' +
     '<div style="color:#AAAAAA; margin:6px 0; line-height:1.4; font-size:13px;">' + escHtml(stop.narration) + '</div>' +
     '<div style="margin-top:8px;" id="stop-choices">' +
@@ -1252,6 +1293,13 @@ function renderEventScreen(event) {
     headerColor = '#55FF55';
   }
 
+  var diffBadge = '';
+  if (event.difficulty) {
+    var diffColors = { easy: '#55FF55', medium: '#FFFF55', hard: '#FF5555' };
+    var diffColor = diffColors[event.difficulty] || '#AAAAAA';
+    diffBadge = ' <span style="display:inline-block;padding:1px 6px;border:1px solid ' + diffColor + ';color:' + diffColor + ';font-size:10px;margin-left:8px;border-radius:2px;">' + event.difficulty.toUpperCase() + '</span>';
+  }
+
   var choicesHtml = '';
   if (event.choices.length > 0 && !eventAnswered) {
     var labels = ['A', 'B', 'C', 'D'];
@@ -1271,7 +1319,7 @@ function renderEventScreen(event) {
 
   setTextPanel(
     '<div style="padding:4px 12px;">' +
-    '<div style="color:' + headerColor + '; font-size:14px; text-align:center;">' + typeLabel + ' \u2014 ' + escHtml(event.title) + '</div>' +
+    '<div style="color:' + headerColor + '; font-size:14px; text-align:center;">' + typeLabel + ' \u2014 ' + escHtml(event.title) + diffBadge + '</div>' +
     '<div style="color:#FFFFFF; margin:8px 0; line-height:1.4;">' + escHtml(event.text) + '</div>' +
     '<div id="event-choices">' + choicesHtml + '</div>' +
     '<div id="event-result"></div>' +
@@ -1320,10 +1368,6 @@ function renderDeathScreen() {
   if (techDebtDeath) {
     var techDebtMsgs = [
       'You have died of tech debt dysentery.',
-      // 'You have died of refactoring dysentery.',
-      // 'You have died of unresolved TODOs.',
-      // 'You have died of scope creep.',
-      // 'You have died of dependency bloat.',
     ];
     deathMsg = techDebtMsgs[Math.floor(Math.random() * techDebtMsgs.length)];
     techDebtDeath = false;
@@ -1358,7 +1402,7 @@ function renderWinScreen() {
   var survivors = partyHealth.filter(function(h) { return h > 0; }).length;
   var pctScore = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 100;
 
-  var conceptNames = ['Gateway Control Plane', 'Channel Plugins', 'Route Resolution', 'Session Persistence'];
+  var conceptNames = ['Rack Middleware', 'Convention Routing', 'ActiveRecord', 'ERB Templates'];
 
   var masteryHtml = '';
   var weakestName = '';
@@ -1386,7 +1430,7 @@ function renderWinScreen() {
     '<div style="padding:8px 16px;">' +
     '<div style="color:#FFFF55; text-align:center; font-size:16px;">\u2605 YOU MADE IT TO RESPONSE FRONTIER! \u2605</div>' +
     '<div style="margin-top:10px; color:#AAAAAA;">' +
-    '<div>  Framework:    <span style="color:#55FFFF;">OpenClaw (The Gateway Trail)</span></div>' +
+    '<div>  Framework:    <span style="color:#55FFFF;">Rails (The Convention Trail)</span></div>' +
     '<div>  Survivors:    <span style="color:#55FF55;">' + survivors + '/' + partyHealth.length + '</span></div>' +
     '<div>  Quiz Score:   <span style="color:#FFFF55;">' + score + '/' + totalQuestions + ' (' + pctScore + '%)</span></div>' +
     '<div>  Best Streak:  <span style="color:#FF55FF;">' + bestStreak + '</span></div>' +
@@ -1521,7 +1565,10 @@ function advanceFromTravel() {
 
   // Collect events for the current stop (triggerStop is 1-indexed relative to stop we just visited)
   // Events trigger BEFORE showing the stop
-  pendingEvents = TRAIL_DATA.events.filter(function(e) { return e.triggerStop === currentStop; });
+  var DIFFICULTY_TIERS = [['easy'],['easy','medium'],['medium','hard'],['hard']];
+  var allowedTiers = DIFFICULTY_TIERS[difficulty] || ['easy','medium','hard'];
+  var allStopEvents = TRAIL_DATA.events.filter(function(e) { return e.triggerStop === currentStop; });
+  pendingEvents = allStopEvents.filter(function(e) { return e.type === 'fortune' || !e.difficulty || allowedTiers.indexOf(e.difficulty) !== -1; });
   currentEventIndex = 0;
 
   if (pendingEvents.length > 0) {
