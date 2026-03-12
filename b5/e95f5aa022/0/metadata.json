@@ -1,0 +1,37 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "b5e95f5aa022",
+  "session_id": "1b14dee8-4899-4f40-8e83-0847e438c6b2",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-12T16:16:59.448923Z",
+  "branch": "feature/proof-of-understanding",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".diff-review/trail-pr-coderegon.html",
+    "CLAUDE.md",
+    "agents/pr-trail-extractor.md",
+    "examples/trail-openclaw.html",
+    "skills/visualization/references/coderegon-trail.md",
+    "skills/visualization/references/pr-trail.md"
+  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "2cbc219a-e643-4748-b71c-b05865913fd2",
+  "checkpoint_transcript_start": 430,
+  "transcript_lines_at_start": 430,
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 308373,
+    "cache_read_tokens": 2126669,
+    "output_tokens": 6751,
+    "api_call_count": 16
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-12T16:16:59.303738Z",
+    "agent_lines": 204,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 2193,
+    "total_committed": 204,
+    "agent_percentage": 100
+  }
+}

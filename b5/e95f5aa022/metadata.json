@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "b5e95f5aa022",
+  "strategy": "manual-commit",
+  "branch": "feature/proof-of-understanding",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".diff-review/trail-pr-coderegon.html",
+    "CLAUDE.md",
+    "agents/pr-trail-extractor.md",
+    "examples/trail-openclaw.html",
+    "skills/visualization/references/coderegon-trail.md",
+    "skills/visualization/references/pr-trail.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/b5/e95f5aa022/0/metadata.json",
+      "transcript": "/b5/e95f5aa022/0/full.jsonl",
+      "context": "/b5/e95f5aa022/0/context.md",
+      "content_hash": "/b5/e95f5aa022/0/content_hash.txt",
+      "prompt": "/b5/e95f5aa022/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 308373,
+    "cache_read_tokens": 2126669,
+    "output_tokens": 6751,
+    "api_call_count": 16
+  }
+}
