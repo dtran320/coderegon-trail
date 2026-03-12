@@ -46,9 +46,6 @@ scripts/           Shell infrastructure
   tts-elevenlabs.js  Node.js CLI for ElevenLabs TTS API
   fly-pause.sh       TTS duration estimator + pause for fly-through auto-advance
   open-viz.sh        Write HTML viz file and open in browser
-  tts.sh             Universal TTS wrapper (macOS say + OpenAI API fallback)
-  fly-pause.sh       TTS duration estimator + pause for fly-through auto-advance
-  open-viz.sh        Write HTML viz file and open in browser
   lib/config.sh      Config file loader (JSON via jq)
   lib/utils.sh       Shared shell utilities
 
