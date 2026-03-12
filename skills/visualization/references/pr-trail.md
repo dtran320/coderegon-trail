@@ -116,3 +116,14 @@ Framework trail stops show pipeline stages ("The Entry Point", "Middleware Pass"
 | "Route Resolution" | "API Surface Changes" |
 
 PR stop subtitles should describe the nature of the change group: "Authentication Refactor", "New Endpoint", "Schema Migration", "Test Coverage", etc.
+
+## Proof of Understanding (PR Mode)
+
+PR mode games include the standard Proof of Understanding feature described in `coderegon-trail.md`. Use these PR-specific field values:
+
+- Section header: `## PR Understanding Proof`
+- Identity row label: `PR`
+- Identity row value: `[${TRAIL_DATA.prSource} — ${TRAIL_DATA.prTitle}](${TRAIL_DATA.prUrl || '#'})`
+- Hash seed uses `TRAIL_DATA.prSource` as the identity component
+
+The `TRAIL_DATA` object for PR mode should include a `prUrl` field (the GitHub PR URL) so the proof link is clickable.

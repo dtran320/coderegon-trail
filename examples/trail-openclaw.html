@@ -1358,7 +1358,7 @@ function renderWinScreen() {
   var survivors = partyHealth.filter(function(h) { return h > 0; }).length;
   var pctScore = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 100;
 
-  var conceptNames = ['Gateway Control Plane', 'Channel Plugins', 'Route Resolution', 'Session Persistence'];
+  var conceptNames = TRAIL_DATA.partyMembers.map(function(p) { return p.name; });
 
   var masteryHtml = '';
   var weakestName = '';
@@ -1395,9 +1395,90 @@ function renderWinScreen() {
     '<div style="margin-top:10px; color:#FFFF55;">  Concept Mastery:</div>' +
     '<div>' + masteryHtml + '</div>' +
     '<div style="margin-top:10px; color:#55FF55; text-align:center;">' + tip + '</div>' +
-    '<div style="margin-top:14px; text-align:center;" class="blink">Press SPACE BAR to play again</div>' +
+    '<div style="margin-top:12px; text-align:center;">' +
+    '<button onclick="copyProofToClipboard()" style="background:#003300; border:1px solid #55FF55; color:#55FF55; font-family:monospace; font-size:13px; padding:4px 14px; cursor:pointer;">[ Copy Proof of Understanding ]</button>' +
+    '</div>' +
+    '<div style="margin-top:8px; text-align:center; color:#555555; font-size:12px;">Press C to copy  |  Press SPACE to play again</div>' +
     '</div>'
   );
+}
+
+// =====================================================================
+// PROOF OF UNDERSTANDING
+// =====================================================================
+function generateHash() {
+  var survivors = partyHealth.filter(function(h) { return h > 0; }).length;
+  var identity = (TRAIL_DATA.trailTheme === 'pr')
+    ? (TRAIL_DATA.prSource || TRAIL_DATA.framework)
+    : TRAIL_DATA.framework;
+  var raw = identity + score + totalQuestions + survivors + Date.now();
+  try { return btoa(raw).substring(0, 6); } catch(e) { return 'xxxxxx'; }
+}
+
+function generateProofMarkdown() {
+  var survivors = partyHealth.filter(function(h) { return h > 0; }).length;
+  var pct = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 100;
+  var isPR = TRAIL_DATA.trailTheme === 'pr';
+  var header = isPR ? '## PR Understanding Proof' : '## Trail Understanding Proof';
+  var identityLabel = isPR ? 'PR' : 'Framework';
+  var identityValue = isPR
+    ? '[' + (TRAIL_DATA.prSource || '') + ' \u2014 ' + (TRAIL_DATA.prTitle || '') + '](' + (TRAIL_DATA.prUrl || '#') + ')'
+    : TRAIL_DATA.trailName;
+  var date = new Date().toISOString().slice(0, 10);
+  var hash = generateHash();
+
+  var md = header + '\n\n';
+  md += '| Field | Value |\n|-------|-------|\n';
+  md += '| ' + identityLabel + ' | ' + identityValue + ' |\n';
+  md += '| Score | ' + score + '/' + totalQuestions + ' (' + pct + '%) |\n';
+  md += '| Survivors | ' + survivors + '/4 |\n';
+  md += '| Best Streak | ' + bestStreak + ' |\n';
+  md += '| Date | ' + date + ' |\n\n';
+  md += '### Concept Mastery\n';
+  for (var i = 0; i < TRAIL_DATA.partyMembers.length; i++) {
+    var name = TRAIL_DATA.partyMembers[i].name;
+    var hp = partyHealth[i];
+    var maxHp = TRAIL_DATA.partyMembers[i].maxHealth;
+    var stars, summary;
+    if (hp >= maxHp) { stars = '\u2B50\u2B50\u2B50'; summary = '(all correct)'; }
+    else if (hp > 0) { stars = '\u2B50\u2B50'; summary = '(mostly correct)'; }
+    else { stars = '\u2B50'; summary = '(needs review)'; }
+    md += '- ' + stars + ' ' + name + ' ' + summary + '\n';
+  }
+  md += '\n*Coderegon Trail | Hash: `' + hash + '`*\n';
+  return md;
+}
+
+function copyProofToClipboard() {
+  var md = generateProofMarkdown();
+  function showFeedback() {
+    var fb = document.getElementById('copy-feedback');
+    if (!fb) {
+      fb = document.createElement('div');
+      fb.id = 'copy-feedback';
+      fb.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#003300;border:1px solid #55FF55;color:#55FF55;padding:6px 16px;font-family:monospace;font-size:13px;z-index:999;';
+      document.body.appendChild(fb);
+    }
+    fb.textContent = 'Copied to clipboard!';
+    setTimeout(function() { if (fb.parentNode) fb.parentNode.removeChild(fb); }, 2000);
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(md).then(showFeedback).catch(function() {
+      fallbackCopy(md); showFeedback();
+    });
+  } else {
+    fallbackCopy(md); showFeedback();
+  }
+}
+
+function fallbackCopy(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } catch(e) {}
+  document.body.removeChild(ta);
 }
 
 // =====================================================================
@@ -1871,6 +1952,11 @@ document.addEventListener('keydown', function(e) {
       break;
 
     case STATES.WIN:
+      if (key === 'c' || key === 'C') {
+        e.preventDefault();
+        copyProofToClipboard();
+        return;
+      }
       if (key === ' ' || key === 'Enter') {
         e.preventDefault();
         resetGame();

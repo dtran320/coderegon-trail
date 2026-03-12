@@ -156,6 +156,7 @@ TRAIL_DATA:
   "winDestination": "The Merge Frontier",
   "prSource": "PR #123",
   "prTitle": "Add JWT authentication",
+  "prUrl": "https://github.com/org/repo/pull/123",
   "stops": [
     {
       "name": "Trailhead",
