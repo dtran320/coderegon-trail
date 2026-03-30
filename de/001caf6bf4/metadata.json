@@ -3,13 +3,15 @@
   "checkpoint_id": "de001caf6bf4",
   "strategy": "manual-commit",
   "branch": "feature/proof-of-understanding",
-  "checkpoints_count": 4,
+  "checkpoints_count": 7,
   "files_touched": [
     ".claude/commands",
     ".claude/commands/diff-review.md",
     ".claude/commands/fly-visual.md",
     ".claude/commands/walkthrough.md",
-    ".claude/settings.local.json"
+    ".claude/settings.local.json",
+    ".orphaned_at",
+    "gstack/index.html"
   ],
   "sessions": [
     {
@@ -25,13 +27,20 @@
       "context": "/de/001caf6bf4/1/context.md",
       "content_hash": "/de/001caf6bf4/1/content_hash.txt",
       "prompt": "/de/001caf6bf4/1/prompt.txt"
+    },
+    {
+      "metadata": "/de/001caf6bf4/2/metadata.json",
+      "transcript": "/de/001caf6bf4/2/full.jsonl",
+      "context": "/de/001caf6bf4/2/context.md",
+      "content_hash": "/de/001caf6bf4/2/content_hash.txt",
+      "prompt": "/de/001caf6bf4/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 3823,
-    "cache_creation_tokens": 228366,
-    "cache_read_tokens": 1489624,
-    "output_tokens": 10258,
-    "api_call_count": 55
+    "input_tokens": 7916,
+    "cache_creation_tokens": 572144,
+    "cache_read_tokens": 5992473,
+    "output_tokens": 40715,
+    "api_call_count": 113
   }
 }

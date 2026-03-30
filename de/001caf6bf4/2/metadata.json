@@ -1,0 +1,35 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "de001caf6bf4",
+  "session_id": "7049de5e-2483-4a5b-b579-518b6118fd9a",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-30T22:00:39.646429Z",
+  "branch": "feature/proof-of-understanding",
+  "checkpoints_count": 3,
+  "files_touched": [
+    ".claude/commands",
+    ".claude/commands/diff-review.md",
+    ".claude/commands/fly-visual.md",
+    ".claude/commands/walkthrough.md",
+    ".orphaned_at",
+    "gstack/index.html"
+  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "404f1ec0-1056-42e4-bcf3-7886364a9311",
+  "token_usage": {
+    "input_tokens": 4093,
+    "cache_creation_tokens": 343778,
+    "cache_read_tokens": 4502849,
+    "output_tokens": 30457,
+    "api_call_count": 58
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-30T22:00:39.535176Z",
+    "agent_lines": 1090,
+    "human_added": 1603,
+    "human_modified": 10,
+    "human_removed": 0,
+    "total_committed": 2703,
+    "agent_percentage": 40.32556418793933
+  }
+}
