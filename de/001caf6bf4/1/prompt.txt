@@ -1,0 +1,25 @@
+We have some commands in this repo that aren't installing. can we debug
+
+---
+
+let's symlink
+
+---
+
+[Request interrupted by user for tool use]
+
+---
+
+sorry what's in ../commands?
+
+---
+
+ah yes
+
+---
+
+oh does that only make it show up in THIS repo? I want it across all repos
+
+---
+
+yes
