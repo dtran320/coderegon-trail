@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "de001caf6bf4",
+  "strategy": "manual-commit",
+  "branch": "feature/proof-of-understanding",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".claude/settings.local.json"
+  ],
+  "sessions": [
+    {
+      "metadata": "/de/001caf6bf4/0/metadata.json",
+      "transcript": "/de/001caf6bf4/0/full.jsonl",
+      "context": "/de/001caf6bf4/0/context.md",
+      "content_hash": "/de/001caf6bf4/0/content_hash.txt",
+      "prompt": "/de/001caf6bf4/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 3795,
+    "cache_creation_tokens": 196977,
+    "cache_read_tokens": 1112534,
+    "output_tokens": 7883,
+    "api_call_count": 38
+  }
+}
