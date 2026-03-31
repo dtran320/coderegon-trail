@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "9bca5a6af459",
+  "strategy": "manual-commit",
+  "branch": "feature/proof-of-understanding",
+  "checkpoints_count": 10,
+  "files_touched": [
+    ".claude/commands/diff-review.md",
+    ".claude/commands/fly-visual.md",
+    ".claude/commands/walkthrough.md",
+    "gstack/index.html"
+  ],
+  "sessions": [
+    {
+      "metadata": "/9b/ca5a6af459/0/metadata.json",
+      "transcript": "/9b/ca5a6af459/0/full.jsonl",
+      "context": "/9b/ca5a6af459/0/context.md",
+      "content_hash": "/9b/ca5a6af459/0/content_hash.txt",
+      "prompt": "/9b/ca5a6af459/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 48,
+    "cache_creation_tokens": 333018,
+    "cache_read_tokens": 4063703,
+    "output_tokens": 8058,
+    "api_call_count": 28
+  }
+}
