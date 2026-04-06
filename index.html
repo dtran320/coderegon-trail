@@ -4,181 +4,881 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>The Coderegon Trail</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://esm.sh/three@0.171.0"
+  }
+}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-html, body {
-  height: 100%;
-  background: #0a0a0a;
-  color: #e2e8f0;
-  font-family: 'SF Mono', 'Fira Code', 'Consolas', 'Courier New', monospace;
+html, body { height: 100%; overflow: hidden; background: #060608; }
+canvas#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* ── Disk Info HUD ── */
+#hud {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 10;
+  pointer-events: none; display: flex; justify-content: center;
+  padding: 0 24px 32px;
 }
-body {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 60px 20px;
+#hud-inner {
+  pointer-events: auto;
+  background: linear-gradient(180deg, rgba(20,18,14,0) 0%, rgba(20,18,14,0.88) 30%, rgba(20,18,14,0.96) 100%);
+  backdrop-filter: blur(8px);
+  padding: 48px 48px 32px; max-width: 640px; width: 100%; text-align: center;
+  border-radius: 12px 12px 0 0;
 }
-h1 {
-  font-size: 32px;
-  letter-spacing: 4px;
-  color: #FFFF55;
-  text-align: center;
-  margin-bottom: 8px;
+#hud .disk-number {
+  font: 700 11px/1 'Space Mono', monospace;
+  letter-spacing: 3px; text-transform: uppercase;
+  color: rgba(255,255,255,0.3); margin-bottom: 10px;
 }
-.subtitle {
-  color: #6272a4;
-  font-size: 14px;
-  text-align: center;
-  margin-bottom: 48px;
+#hud .trail-name {
+  font: 700 28px/1.15 'Silkscreen', monospace;
+  color: #fff; margin-bottom: 6px;
+  transition: color 0.4s;
 }
-.trails {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  width: 100%;
-  max-width: 600px;
+#hud .trail-sub {
+  font: 400 15px/1.4 'Space Mono', monospace;
+  color: rgba(255,255,255,0.5); margin-bottom: 20px;
 }
-.trail-card {
-  display: block;
-  background: #1a1a2e;
-  border: 2px solid #333;
-  border-radius: 4px;
-  padding: 20px 24px;
-  text-decoration: none;
-  color: #e2e8f0;
-  transition: border-color 0.2s, background 0.2s;
+#hud .controls {
+  display: flex; align-items: center; justify-content: center; gap: 24px;
 }
-.trail-card:hover {
-  border-color: #63b3ed;
-  background: #1e2235;
+#hud .nav-btn {
+  background: none; border: 2px solid rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.5); font: 700 18px/1 'Space Mono', monospace;
+  width: 44px; height: 44px; border-radius: 50%; cursor: pointer;
+  transition: all 0.2s; display: flex; align-items: center; justify-content: center;
 }
-.trail-card .name {
-  font-size: 18px;
-  font-weight: bold;
-  margin-bottom: 4px;
+#hud .nav-btn:hover { border-color: rgba(255,255,255,0.4); color: #fff; background: rgba(255,255,255,0.05); }
+#hud .play-btn {
+  background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.25);
+  color: #fff; font: 700 13px/1 'Space Mono', monospace;
+  padding: 12px 32px; border-radius: 6px; cursor: pointer;
+  letter-spacing: 2px; text-transform: uppercase;
+  transition: all 0.2s;
 }
-.trail-card .desc {
-  font-size: 13px;
-  color: #6272a4;
+#hud .play-btn:hover { background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.5); }
+#hud .dots {
+  display: flex; gap: 6px; justify-content: center; margin-top: 16px;
 }
-.trail-card .tag {
-  display: inline-block;
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 2px;
-  margin-top: 8px;
+#hud .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: rgba(255,255,255,0.15); transition: all 0.3s;
 }
-.tag-live {
-  background: #1a3a2a;
-  color: #48bb78;
-  border: 1px solid #48bb78;
+#hud .dot.active { background: rgba(255,255,255,0.7); transform: scale(1.3); }
+
+/* ── Fallback ── */
+#fallback {
+  display: none; height: 100%; overflow-y: auto;
+  background: #060608; color: #e2e8f0; padding: 60px 20px;
+  font-family: 'Space Mono','Courier New',monospace;
+  flex-direction: column; align-items: center;
 }
-.tag-soon {
-  background: #2d2d1a;
-  color: #ecc94b;
-  border: 1px solid #ecc94b;
-}
-.footer {
-  margin-top: 48px;
-  font-size: 12px;
-  color: #4a5568;
-  text-align: center;
-  line-height: 1.8;
-}
-.footer a {
-  color: #63b3ed;
-  text-decoration: none;
-}
-.footer a:hover {
-  text-decoration: underline;
-}
+#fallback h1 { font: 700 28px 'Silkscreen',monospace; letter-spacing: 4px; color: #FFFF55; text-align: center; margin-bottom: 8px; }
+#fallback .subtitle { color: rgba(255,255,255,0.4); font-size: 14px; text-align: center; margin-bottom: 40px; }
+#fallback .trails { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 560px; margin: 0 auto; }
+#fallback .tc { display: block; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 16px 20px; text-decoration: none; color: #e2e8f0; transition: all .2s; }
+#fallback .tc:hover { border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.06); }
+#fallback .tc .n { font-size: 15px; font-weight: bold; margin-bottom: 2px; }
+#fallback .tc .d { font-size: 12px; color: rgba(255,255,255,0.4); }
 </style>
 </head>
 <body>
-<h1>THE CODEREGON TRAIL</h1>
-<p class="subtitle">Learn codebases by surviving the trail</p>
+<canvas id="scene"></canvas>
 
-<h2 style="color:#6272a4;font-size:13px;letter-spacing:2px;margin-bottom:12px;text-transform:uppercase;">Web Framework Trails</h2>
-<div class="trails">
-  <a href="rails/" class="trail-card" style="border-color:#CC0000">
-    <div class="name" style="color:#FF5555">The Convention Trail</div>
-    <div class="desc">Ruby on Rails — Rack middleware, RESTful routing, ActiveRecord, ERB templates, and the full request cycle</div>
-    <span class="tag tag-live">PLAY NOW</span>
-  </a>
-
-  <a href="django/" class="trail-card" style="border-color:#0C4B33">
-    <div class="name" style="color:#2BA977">The WSGI Wagon Trail</div>
-    <div class="desc">Django — WSGI entry, middleware stack, URLconf, views, ORM QuerySets, template inheritance, and responses</div>
-    <span class="tag tag-live">PLAY NOW</span>
-  </a>
-
-  <a href="express/" class="trail-card" style="border-color:#F7DF1E">
-    <div class="name" style="color:#FFFF55">The Middleware Prairie</div>
-    <div class="desc">Express.js — body parsing, CORS, JWT auth, routing, controllers, services, and error handling</div>
-    <span class="tag tag-live">PLAY NOW</span>
-  </a>
-
-  <a href="react/" class="trail-card" style="border-color:#61DAFB">
-    <div class="name" style="color:#61DAFB">The Component Canyon</div>
-    <div class="desc">React/Vite — component tree, client-side routing, hooks, state management, and virtual DOM reconciliation</div>
-    <span class="tag tag-live">PLAY NOW</span>
-  </a>
-
-  <a href="laravel/" class="trail-card" style="border-color:#FF2D20">
-    <div class="name" style="color:#FF5555">The Artisan Trail</div>
-    <div class="desc">Laravel — service container, middleware, Eloquent ORM, Blade templates, and JSON resources</div>
-    <span class="tag tag-live">PLAY NOW</span>
-  </a>
-
-  <a href="openclaw/" class="trail-card">
-    <div class="name">The Gateway Trail</div>
-    <div class="desc">OpenClaw — channel plugins, route resolution, session persistence, WebSocket RPC, and tool execution</div>
-    <span class="tag tag-live">PLAY NOW</span>
-  </a>
+<div id="hud">
+  <div id="hud-inner">
+    <div class="disk-number">DISK 1 OF 12</div>
+    <div class="trail-name">The Convention Trail</div>
+    <div class="trail-sub">Ruby on Rails</div>
+    <div class="controls">
+      <button class="nav-btn" id="prev-btn" aria-label="Previous">&larr;</button>
+      <button class="play-btn" id="play-btn">INSERT DISK</button>
+      <button class="nav-btn" id="next-btn" aria-label="Next">&rarr;</button>
+    </div>
+    <div class="dots" id="dots"></div>
+  </div>
 </div>
 
-<h2 style="color:#6272a4;font-size:13px;letter-spacing:2px;margin:32px 0 12px;text-transform:uppercase;">Codebase Trails</h2>
-<div class="trails">
-  <a href="qmd/" class="trail-card">
-    <div class="name">The Hybrid Search Trail</div>
-    <div class="desc">QMD — BM25 keyword search, vector embeddings, RRF fusion, and LLM re-ranking</div>
-    <span class="tag tag-live">PLAY NOW</span>
-  </a>
-
-  <a href="pi-mono/" class="trail-card">
-    <div class="name">The Agent Loop Trail</div>
-    <div class="desc">Pi Mono — unified LLM API, tool calling, agent loop, and session persistence</div>
-    <span class="tag tag-live">PLAY NOW</span>
-  </a>
-
-  <a href="ruview/" class="trail-card">
-    <div class="name">The WiFi Sensing Trail</div>
-    <div class="desc">RuView — CSI capture, pose estimation, vital sign detection, and through-wall sensing</div>
-    <span class="tag tag-live">PLAY NOW</span>
-  </a>
-
-  <a href="shannon/" class="trail-card">
-    <div class="name">The Exploit Trail</div>
-    <div class="desc">Shannon — reconnaissance, injection testing, auth bypass, and proof-by-exploitation</div>
-    <span class="tag tag-live">PLAY NOW</span>
-  </a>
-
-  <a href="spacetimedb/" class="trail-card">
-    <div class="name">The Spacetime Trail</div>
-    <div class="desc">SpacetimeDB — WASM modules, reducers, incremental subscriptions, and real-time sync</div>
-    <span class="tag tag-live">PLAY NOW</span>
-  </a>
-
-  <a href="superpowers/" class="trail-card">
-    <div class="name">The Superpowers Trail</div>
-    <div class="desc">Superpowers — hard-gate enforcement, subagent-driven dev, TDD discipline, and skills workflows</div>
-    <span class="tag tag-live">PLAY NOW</span>
-  </a>
+<div id="fallback">
+  <h1>THE CODEREGON TRAIL</h1>
+  <p class="subtitle">Learn codebases by surviving the trail</p>
+  <div class="trails">
+    <a href="rails/" class="tc"><div class="n" style="color:#FF5555">The Convention Trail</div><div class="d">Ruby on Rails</div></a>
+    <a href="django/" class="tc"><div class="n" style="color:#2BA977">The WSGI Wagon Trail</div><div class="d">Django</div></a>
+    <a href="express/" class="tc"><div class="n" style="color:#FFFF55">The Middleware Prairie</div><div class="d">Express.js</div></a>
+    <a href="react/" class="tc"><div class="n" style="color:#61DAFB">The Component Canyon</div><div class="d">React</div></a>
+    <a href="laravel/" class="tc"><div class="n" style="color:#FF5555">The Artisan Trail</div><div class="d">Laravel</div></a>
+    <a href="openclaw/" class="tc"><div class="n">The Gateway Trail</div><div class="d">OpenClaw</div></a>
+    <a href="qmd/" class="tc"><div class="n">The Hybrid Search Trail</div><div class="d">QMD</div></a>
+    <a href="pi-mono/" class="tc"><div class="n">The Agent Loop Trail</div><div class="d">Pi Mono</div></a>
+    <a href="ruview/" class="tc"><div class="n">The WiFi Sensing Trail</div><div class="d">RuView</div></a>
+    <a href="shannon/" class="tc"><div class="n">The Exploit Trail</div><div class="d">Shannon</div></a>
+    <a href="spacetimedb/" class="tc"><div class="n">The Spacetime Trail</div><div class="d">SpacetimeDB</div></a>
+    <a href="superpowers/" class="tc"><div class="n">The Superpowers Trail</div><div class="d">Superpowers</div></a>
+  </div>
 </div>
 
-<div class="footer">
-  A <a href="https://github.com/dtran320/coderegon-trail">Claude Code plugin</a> for learning codebases through play<br>
-  Install: <code>claude plugins add dtran320/coderegon-trail</code>
-</div>
+<script type="module">
+import * as THREE from 'three';
+
+// ============================================================
+// TRAIL DATA
+// ============================================================
+const TRAILS = [
+  { name: "The Convention Trail", subtitle: "Ruby on Rails", href: "rails/", color: "#CC0000" },
+  { name: "The WSGI Wagon Trail", subtitle: "Django", href: "django/", color: "#2BA977" },
+  { name: "The Middleware Prairie", subtitle: "Express.js", href: "express/", color: "#F7DF1E" },
+  { name: "The Component Canyon", subtitle: "React", href: "react/", color: "#61DAFB" },
+  { name: "The Artisan Trail", subtitle: "Laravel", href: "laravel/", color: "#FF2D20" },
+  { name: "The Gateway Trail", subtitle: "OpenClaw", href: "openclaw/", color: "#8B95A2" },
+  { name: "The Hybrid Search Trail", subtitle: "QMD", href: "qmd/", color: "#A78BFA" },
+  { name: "The Agent Loop Trail", subtitle: "Pi Mono", href: "pi-mono/", color: "#60A5FA" },
+  { name: "The WiFi Sensing Trail", subtitle: "RuView", href: "ruview/", color: "#34D399" },
+  { name: "The Exploit Trail", subtitle: "Shannon", href: "shannon/", color: "#F87171" },
+  { name: "The Spacetime Trail", subtitle: "SpacetimeDB", href: "spacetimedb/", color: "#FBBF24" },
+  { name: "The Superpowers Trail", subtitle: "Superpowers", href: "superpowers/", color: "#C084FC" },
+];
+
+// ============================================================
+// HUD
+// ============================================================
+const hud = document.getElementById('hud');
+const hudName = hud.querySelector('.trail-name');
+const hudSub = hud.querySelector('.trail-sub');
+const hudNum = hud.querySelector('.disk-number');
+const dotsEl = document.getElementById('dots');
+const prevBtn = document.getElementById('prev-btn');
+const nextBtn = document.getElementById('next-btn');
+const playBtn = document.getElementById('play-btn');
+
+// Build dots
+TRAILS.forEach((_, i) => {
+  const dot = document.createElement('div');
+  dot.className = 'dot' + (i === 0 ? ' active' : '');
+  dotsEl.appendChild(dot);
+});
+const dots = dotsEl.querySelectorAll('.dot');
+
+function updateHUD(idx) {
+  const t = TRAILS[idx];
+  hudName.textContent = t.name;
+  hudName.style.color = t.color === '#F7DF1E' ? '#FFE066' : (t.color === '#8B95A2' ? '#C8D0DC' : t.color);
+  hudSub.textContent = t.subtitle;
+  hudNum.textContent = `DISK ${idx + 1} OF ${TRAILS.length}`;
+  dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+}
+
+// ============================================================
+// SCENE SETUP
+// ============================================================
+const canvas = document.getElementById('scene');
+let renderer, scene, camera;
+
+try {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+} catch (e) {
+  document.getElementById('fallback').style.display = 'flex';
+  canvas.style.display = 'none';
+  hud.style.display = 'none';
+  throw e;
+}
+
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.6;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+scene = new THREE.Scene();
+scene.background = new THREE.Color('#2a2520');
+
+camera = new THREE.PerspectiveCamera(36, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0.0, 3.0, 6.0);
+camera.lookAt(0.0, 0.7, 0);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ============================================================
+// LIGHTING
+// ============================================================
+// Bright ambient — well-lit room like the reference photo
+const ambientLight = new THREE.AmbientLight('#e8e0d0', 1.0);
+scene.add(ambientLight);
+
+// Warm key light from brass desk lamp
+const deskLamp = new THREE.SpotLight('#FFD080', 60, 14, Math.PI / 3.5, 0.5, 1.0);
+deskLamp.position.set(2.8, 3.8, 1.5);
+deskLamp.target.position.set(0, 0.3, 0.5);
+deskLamp.castShadow = true;
+deskLamp.shadow.mapSize.set(1024, 1024);
+deskLamp.shadow.camera.near = 1;
+deskLamp.shadow.camera.far = 10;
+scene.add(deskLamp);
+scene.add(deskLamp.target);
+
+// Overhead room fill — simulates ceiling light
+const roomLight = new THREE.DirectionalLight('#f0ebe0', 0.8);
+roomLight.position.set(-1, 5, 3);
+scene.add(roomLight);
+
+// CRT glow
+const monitorGlow = new THREE.PointLight('#33FF33', 1.0, 3, 2);
+monitorGlow.position.set(0, 2.0, 0.4);
+scene.add(monitorGlow);
+
+// Drive LED
+const driveLED = new THREE.PointLight('#FF0000', 0, 1.5, 2);
+driveLED.position.set(1.55, 1.05, 0.65);
+scene.add(driveLED);
+
+// Fill from camera direction so disks are readable
+const camFill = new THREE.DirectionalLight('#f5f0e8', 0.5);
+camFill.position.set(0, 3, 6);
+scene.add(camFill);
+
+// ============================================================
+// MATERIALS
+// ============================================================
+// Cream-white Apple IIe colors (like the reference photo)
+const beigeMat = new THREE.MeshStandardMaterial({ color: '#DDD8C8', roughness: 0.5, metalness: 0.02 });
+const darkBeigeMat = new THREE.MeshStandardMaterial({ color: '#CCC7B5', roughness: 0.6, metalness: 0.02 });
+// Light maple desk (warm wood, not dark)
+const woodMat = new THREE.MeshStandardMaterial({ color: '#C4A67A', roughness: 0.7 });
+const darkWoodMat = new THREE.MeshStandardMaterial({ color: '#B08E64', roughness: 0.8 });
+// Crate — darker wood accent
+const crateMat = new THREE.MeshStandardMaterial({ color: '#8B6844', roughness: 0.75 });
+const crateInnerMat = new THREE.MeshStandardMaterial({ color: '#6B4E30', roughness: 0.9 });
+const darkSlotMat = new THREE.MeshStandardMaterial({ color: '#0a0a0a', roughness: 1 });
+// Brass lamp
+const metalMat = new THREE.MeshStandardMaterial({ color: '#C8A84E', roughness: 0.2, metalness: 0.9 });
+const keyMat = new THREE.MeshStandardMaterial({ color: '#C8C0B0', roughness: 0.6, metalness: 0.05 });
+
+// ============================================================
+// DESK
+// ============================================================
+function buildDesk() {
+  const g = new THREE.Group();
+  const top = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.15, 3.2), woodMat);
+  top.receiveShadow = true; top.castShadow = true;
+  g.add(top);
+  const legGeo = new THREE.BoxGeometry(0.15, 2, 0.15);
+  [[-3, -1, -1.4], [3, -1, -1.4], [-3, -1, 1.4], [3, -1, 1.4]].forEach(([x, y, z]) => {
+    const leg = new THREE.Mesh(legGeo, darkWoodMat);
+    leg.position.set(x, y, z); leg.castShadow = true;
+    g.add(leg);
+  });
+  return g;
+}
+
+// ============================================================
+// APPLE IIe
+// ============================================================
+function buildComputer() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.45, 1.8), beigeMat);
+  body.position.set(0, 0.225, 0); body.castShadow = true; body.receiveShadow = true;
+  g.add(body);
+  const well = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.04, 1.0), darkBeigeMat);
+  well.position.set(0, 0.46, 0.2);
+  g.add(well);
+  const keyGeo = new THREE.BoxGeometry(0.08, 0.03, 0.08);
+  for (let row = 0; row < 5; row++) {
+    const n = row === 4 ? 6 : 12;
+    const sx = -(n - 1) * 0.12 / 2;
+    for (let col = 0; col < n; col++) {
+      const k = new THREE.Mesh(keyGeo, keyMat);
+      k.position.set(sx + col * 0.12 + (row === 4 ? 0.1 : 0), 0.49, -0.15 + row * 0.18);
+      g.add(k);
+    }
+  }
+  for (let i = 0; i < 4; i++) {
+    const v = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.015, 0.01), darkBeigeMat);
+    v.position.set(0, 0.2 + i * 0.06, -0.901);
+    g.add(v);
+  }
+  g.position.set(0, 0.08, -0.15);
+  return g;
+}
+
+// ============================================================
+// MONITOR + CRT
+// ============================================================
+let crtCanvas, crtCtx, crtTexture, crtState;
+
+function createCRTTexture() {
+  crtCanvas = document.createElement('canvas');
+  crtCanvas.width = 512; crtCanvas.height = 384;
+  crtCtx = crtCanvas.getContext('2d');
+  crtTexture = new THREE.CanvasTexture(crtCanvas);
+  crtTexture.minFilter = THREE.LinearFilter;
+  crtState = { mode: 'idle', cursor: true, progress: 0, trailName: '', trailSubtitle: '', trailColor: '', time: 0 };
+  updateCRT(0);
+  return crtTexture;
+}
+
+function updateCRT(dt) {
+  crtState.time += dt;
+  const ctx = crtCtx, w = 512, h = 384;
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
+  ctx.textBaseline = 'top';
+  const green = '#33FF33', dim = '#1a8a1a';
+
+  if (crtState.mode === 'idle') {
+    ctx.font = 'bold 24px "Courier New",monospace'; ctx.fillStyle = green; ctx.textAlign = 'center';
+    ctx.fillText('THE CODEREGON TRAIL', w / 2, 70);
+    ctx.font = '15px "Courier New",monospace'; ctx.fillStyle = dim;
+    ctx.fillText('Learn codebases by surviving the trail', w / 2, 108);
+    ctx.fillStyle = green; ctx.fillText('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', w / 2, 145);
+    ctx.textAlign = 'left'; ctx.font = 'bold 18px "Courier New",monospace';
+    const cur = Math.floor(crtState.time * 1.8) % 2 === 0 ? '█' : ' ';
+    ctx.fillText(']SELECT DISK' + cur, 36, 190);
+    ctx.font = '13px "Courier New",monospace'; ctx.fillStyle = dim;
+    ctx.fillText('← →  BROWSE DISKS', 36, 235);
+    ctx.fillText('ENTER  INSERT & PLAY', 36, 258);
+    ctx.fillText('12 TRAILS AVAILABLE', 36, 295);
+
+  } else if (crtState.mode === 'preview') {
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 22px "Courier New",monospace'; ctx.fillStyle = green;
+    ctx.fillText(crtState.trailName.toUpperCase(), w / 2, 65);
+    ctx.font = '15px "Courier New",monospace'; ctx.fillStyle = dim;
+    ctx.fillText(crtState.trailSubtitle, w / 2, 100);
+    ctx.fillStyle = green; ctx.fillText('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', w / 2, 135);
+    ctx.textAlign = 'left'; ctx.font = '14px "Courier New",monospace'; ctx.fillStyle = dim;
+    ctx.fillText('TRAIL OVERVIEW', 36, 175);
+    ctx.fillText('━━━━━━━━━━━━━━', 36, 195);
+    ctx.fillStyle = green; ctx.font = '13px "Courier New",monospace';
+    ctx.fillText('STOPS: 8 PIPELINE STAGES', 36, 225);
+    ctx.fillText('EVENTS: QUIZ ENCOUNTERS', 36, 248);
+    ctx.fillText('PARTY: 4 FRAMEWORK CONCEPTS', 36, 271);
+    ctx.font = 'bold 16px "Courier New",monospace';
+    const cur = Math.floor(crtState.time * 1.8) % 2 === 0 ? '█' : ' ';
+    ctx.fillText(']PRESS ENTER TO PLAY' + cur, 36, 315);
+
+  } else if (crtState.mode === 'loading') {
+    ctx.textAlign = 'left'; ctx.font = 'bold 16px "Courier New",monospace'; ctx.fillStyle = green;
+    ctx.fillText(']LOAD "' + crtState.trailName.toUpperCase() + '"', 36, 50);
+    ctx.font = '13px "Courier New",monospace'; ctx.fillStyle = dim;
+    const p = crtState.progress;
+    ctx.fillText('SEARCHING TRACK $12, SECTOR $07...', 36, 88);
+    if (p > 0.15) { ctx.fillStyle = green; ctx.fillText('READ OK.', 36, 112); }
+    if (p > 0.35) { ctx.fillStyle = dim; ctx.fillText('LOADING DATA STRUCTURES...', 36, 136); }
+    if (p > 0.55) { ctx.fillStyle = dim; ctx.fillText('INITIALIZING TRAIL MAP...', 36, 160); }
+    if (p > 0.75) { ctx.fillStyle = green; ctx.fillText('PROVISIONING PARTY...', 36, 184); }
+    // Progress bar
+    ctx.fillStyle = green;
+    const bx = 36, by = 220, bw = 440, bh = 22;
+    ctx.strokeStyle = green; ctx.lineWidth = 2; ctx.strokeRect(bx, by, bw, bh);
+    ctx.fillRect(bx, by, Math.floor(bw * Math.min(p, 1)), bh);
+    ctx.font = 'bold 14px "Courier New",monospace';
+    ctx.fillStyle = p < 0.45 ? green : '#000'; ctx.textAlign = 'center';
+    ctx.fillText(Math.floor(Math.min(p, 1) * 100) + '%', bx + bw / 2, by + 4);
+    if (p >= 1) {
+      ctx.fillStyle = green; ctx.textAlign = 'left';
+      ctx.font = 'bold 18px "Courier New",monospace';
+      ctx.fillText(']RUN', 36, 270);
+    }
+  }
+
+  // Scanlines + vignette
+  ctx.fillStyle = 'rgba(0,0,0,0.12)';
+  for (let y = 0; y < h; y += 3) ctx.fillRect(0, y, w, 1);
+  const grad = ctx.createRadialGradient(w / 2, h / 2, w * 0.28, w / 2, h / 2, w * 0.72);
+  grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, 'rgba(0,0,0,0.45)');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, w, h);
+  crtTexture.needsUpdate = true;
+}
+
+function buildMonitor() {
+  const g = new THREE.Group();
+  const tex = createCRTTexture();
+  const bezel = new THREE.Mesh(new THREE.BoxGeometry(2.1, 1.7, 0.2), beigeMat);
+  bezel.position.set(0, 0.85, 0); bezel.castShadow = true; g.add(bezel);
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.9, 1.5, 1.2), beigeMat);
+  body.position.set(0, 0.85, -0.7); body.castShadow = true; g.add(body);
+  const screenMat = new THREE.MeshStandardMaterial({ map: tex, emissive: '#33FF33', emissiveIntensity: 0.12, emissiveMap: tex, roughness: 0.3 });
+  const scr = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.2), screenMat);
+  scr.position.set(0, 0.85, 0.11); g.add(scr);
+  const border = new THREE.Mesh(new THREE.PlaneGeometry(1.75, 1.35), new THREE.MeshStandardMaterial({ color: '#111', roughness: 1 }));
+  border.position.set(0, 0.85, 0.099); g.add(border);
+  const stand = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.12, 0.6), beigeMat);
+  stand.position.set(0, -0.02, -0.1); stand.castShadow = true; g.add(stand);
+  g.position.set(0, 0.61, -0.3);
+  return g;
+}
+
+// ============================================================
+// DISK II DRIVE
+// ============================================================
+function buildDrive() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.35, 1.1), beigeMat);
+  body.position.set(0, 0.175, 0); body.castShadow = true; body.receiveShadow = true; g.add(body);
+  const slot = new THREE.Mesh(new THREE.PlaneGeometry(0.65, 0.04), darkSlotMat);
+  slot.position.set(0, 0.22, 0.551); g.add(slot);
+  const latch = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.02), metalMat);
+  latch.position.set(0.35, 0.12, 0.551); g.add(latch);
+  const ledMat = new THREE.MeshStandardMaterial({ color: '#330000', roughness: 0.5, emissive: '#000000' });
+  const led = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 8), ledMat);
+  led.position.set(-0.4, 0.3, 0.551); g.add(led);
+  g.userData.led = led; g.userData.ledMat = ledMat;
+  g.position.set(1.55, 0.08, 0.0);
+  return g;
+}
+
+// ============================================================
+// RECORD CRATE
+// ============================================================
+function buildCrate() {
+  const g = new THREE.Group();
+  const w = 1.6, h = 0.8, d = 0.7, t = 0.06;
+  // Planks — back
+  const back = new THREE.Mesh(new THREE.BoxGeometry(w, h, t), crateMat);
+  back.position.set(0, h / 2, -d / 2); back.castShadow = true; g.add(back);
+  // Bottom
+  const bot = new THREE.Mesh(new THREE.BoxGeometry(w, t, d), crateInnerMat);
+  bot.position.set(0, t / 2, 0); bot.receiveShadow = true; g.add(bot);
+  // Sides
+  const sideGeo = new THREE.BoxGeometry(t, h, d);
+  [-1, 1].forEach(s => {
+    const side = new THREE.Mesh(sideGeo, crateMat);
+    side.position.set(s * w / 2, h / 2, 0); side.castShadow = true; g.add(side);
+  });
+  // Front lip — low so disks peek out
+  const lip = new THREE.Mesh(new THREE.BoxGeometry(w, h * 0.35, t), crateMat);
+  lip.position.set(0, h * 0.175, d / 2); g.add(lip);
+  // Horizontal slat detail on front
+  const slat = new THREE.Mesh(new THREE.BoxGeometry(w - 0.1, 0.03, 0.005), new THREE.MeshStandardMaterial({ color: '#5A3820', roughness: 0.9 }));
+  slat.position.set(0, h * 0.28, d / 2 + 0.031); g.add(slat);
+  g.position.set(-1.6, 0.08, 0.8);
+  return g;
+}
+
+// ============================================================
+// DESK LAMP
+// ============================================================
+function buildLamp() {
+  const g = new THREE.Group();
+  // Brass base — wider, like the reference
+  const brassMat = new THREE.MeshStandardMaterial({ color: '#C8A030', roughness: 0.15, metalness: 0.95 });
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.35, 0.06, 16), brassMat);
+  base.position.set(0, 0.03, 0); base.castShadow = true; g.add(base);
+  // Brass arm
+  const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.8, 8), brassMat);
+  arm.position.set(0, 0.95, -0.4); arm.rotation.x = 0.25; arm.castShadow = true; g.add(arm);
+  // Brass dome shade (hemisphere, not cone) — like the reference photo
+  const shadeGeo = new THREE.SphereGeometry(0.35, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+  const shadeMat = new THREE.MeshStandardMaterial({ color: '#C8A030', roughness: 0.15, metalness: 0.95, side: THREE.DoubleSide });
+  const shade = new THREE.Mesh(shadeGeo, shadeMat);
+  shade.position.set(0, 1.75, -0.55); shade.rotation.x = Math.PI; shade.castShadow = true; g.add(shade);
+  // Warm bulb
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), new THREE.MeshStandardMaterial({ color: '#FFD080', emissive: '#FFD080', emissiveIntensity: 2.5, roughness: 1 }));
+  bulb.position.set(0, 1.6, -0.55); g.add(bulb);
+  g.position.set(2.7, 0.08, 0.3);
+  return g;
+}
+
+// ============================================================
+// FLOPPY DISKS — Carousel
+// ============================================================
+const diskGroups = [];
+let selectedIndex = 0;
+let targetIndex = 0;
+let animatingDisk = null;
+let carouselT = 0; // smooth interpolation
+
+function createDiskTexture(name, subtitle, color) {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 512;
+  const ctx = c.getContext('2d');
+
+  // Black disk jacket
+  ctx.fillStyle = '#111';
+  ctx.fillRect(0, 0, 512, 512);
+
+  // Subtle edge bevel
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 2; ctx.strokeRect(4, 4, 504, 504);
+
+  // Hub cutout (centered, bottom half)
+  ctx.beginPath(); ctx.arc(256, 310, 38, 0, Math.PI * 2);
+  ctx.fillStyle = '#222'; ctx.fill();
+  ctx.beginPath(); ctx.arc(256, 310, 35, 0, Math.PI * 2);
+  ctx.fillStyle = '#0a0a0a'; ctx.fill();
+
+  // Label area — colored rectangle, upper portion
+  const lx = 40, ly = 30, lw = 432, lh = 230;
+  ctx.fillStyle = color;
+  ctx.fillRect(lx, ly, lw, lh);
+
+  // Label border
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 2;
+  ctx.strokeRect(lx + 3, ly + 3, lw - 6, lh - 6);
+
+  // Ruled lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1;
+  for (let y = ly + 50; y < ly + lh - 20; y += 22) {
+    ctx.beginPath(); ctx.moveTo(lx + 20, y); ctx.lineTo(lx + lw - 20, y); ctx.stroke();
+  }
+
+  // Title text
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = 'bold 32px "Courier New",monospace';
+  const words = name.split(' ');
+  let lines = [], line = '';
+  words.forEach(w => {
+    if ((line + ' ' + w).trim().length > 18) { lines.push(line.trim()); line = w; }
+    else line = (line + ' ' + w).trim();
+  });
+  if (line) lines.push(line);
+  const textY = ly + 85 - (lines.length - 1) * 20;
+  lines.forEach((l, i) => ctx.fillText(l, 256, textY + i * 42));
+
+  // Subtitle
+  ctx.font = '22px "Courier New",monospace';
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  ctx.fillText(subtitle, 256, ly + lh - 35);
+
+  // Write-protect notch
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(468, 120, 30, 50);
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1;
+  ctx.strokeRect(468, 120, 30, 50);
+
+  return new THREE.CanvasTexture(c);
+}
+
+function buildAllDisks(crateGroup) {
+  const cratePos = crateGroup.position;
+
+  TRAILS.forEach((trail, i) => {
+    const g = new THREE.Group();
+
+    // Disk body — black back
+    const backGeo = new THREE.BoxGeometry(0.9, 0.9, 0.012);
+    const backMesh = new THREE.Mesh(backGeo, new THREE.MeshStandardMaterial({ color: '#111', roughness: 0.8 }));
+    backMesh.castShadow = true;
+    g.add(backMesh);
+
+    // Label face — front plane with full disk texture
+    const tex = createDiskTexture(trail.name, trail.subtitle, trail.color);
+    const frontMat = new THREE.MeshStandardMaterial({
+      map: tex, emissiveMap: tex, emissive: '#ffffff', emissiveIntensity: 0.4, roughness: 0.5
+    });
+    const frontMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.9), frontMat);
+    frontMesh.position.z = 0.007;
+    g.add(frontMesh);
+
+    g.userData = { ...trail, index: i, frontMat };
+    diskGroups.push(g);
+    scene.add(g);
+  });
+}
+
+// Position disks in a carousel around the crate
+function updateDiskPositions(smooth) {
+  const crateX = -1.6, crateY = 0.08, crateZ = 0.8;
+  const count = TRAILS.length;
+
+  diskGroups.forEach((g, i) => {
+    // Skip the disk being inserted into the drive
+    if (g === animatingDisk) return;
+
+    // Distance from selected (wrapping)
+    let diff = i - carouselT;
+
+    // Target positions based on distance from selected
+    const absDiff = Math.abs(diff);
+
+    // Only show disks within range of +-3
+    if (absDiff > 3.5) {
+      g.visible = false;
+      return;
+    }
+    g.visible = true;
+
+    // Selected disk: pulled forward and centered
+    // Others: stacked in crate, slightly fanned
+    let tx, ty, tz, ry, rx;
+
+    if (absDiff < 0.05) {
+      // Selected — pulled out, angled toward camera
+      tx = crateX + 0.15;
+      ty = crateY + 0.65;
+      tz = crateZ + 0.8;
+      ry = 0.15;
+      rx = -0.05;
+    } else {
+      // In crate — stacked with slight spacing
+      tx = crateX + diff * 0.04;
+      ty = crateY + 0.52;
+      tz = crateZ - 0.05 + diff * 0.02;
+      ry = diff * 0.06;
+      rx = -0.12;
+    }
+
+    // Fade opacity for far disks
+    const opacity = Math.max(0, 1 - absDiff * 0.25);
+    g.userData.frontMat.opacity = opacity;
+    g.userData.frontMat.transparent = opacity < 1;
+
+    if (smooth) {
+      const spd = 0.12;
+      g.position.x += (tx - g.position.x) * spd;
+      g.position.y += (ty - g.position.y) * spd;
+      g.position.z += (tz - g.position.z) * spd;
+      g.rotation.y += (ry - g.rotation.y) * spd;
+      g.rotation.x += (rx - g.rotation.x) * spd;
+    } else {
+      g.position.set(tx, ty, tz);
+      g.rotation.set(rx, ry, 0);
+    }
+  });
+}
+
+// ============================================================
+// BUILD SCENE
+// ============================================================
+scene.add(buildDesk());
+scene.add(buildComputer());
+const monitor = buildMonitor(); scene.add(monitor);
+const drive = buildDrive(); scene.add(drive);
+const crate = buildCrate(); scene.add(crate);
+buildAllDisks(crate);
+scene.add(buildLamp());
+
+updateDiskPositions(false);
+updateHUD(0);
+setCRTPreview(0);
+
+// ============================================================
+// TWEEN SYSTEM
+// ============================================================
+const tweens = [];
+function easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+
+class Tween {
+  constructor(target, prop, from, to, duration, ease = easeInOutCubic, delay = 0) {
+    this.target = target; this.prop = prop; this.from = from; this.to = to;
+    this.duration = duration; this.ease = ease; this.elapsed = -delay;
+    this.done = false; this.onComplete = null;
+  }
+  update(dt) {
+    if (this.done) return true;
+    this.elapsed += dt;
+    if (this.elapsed < 0) return false;
+    const t = Math.min(this.elapsed / this.duration, 1);
+    this.target[this.prop] = this.from + (this.to - this.from) * this.ease(t);
+    if (t >= 1) { this.done = true; if (this.onComplete) this.onComplete(); return true; }
+    return false;
+  }
+}
+
+function addTween(target, prop, from, to, dur, ease, delay) {
+  const tw = new Tween(target, prop, from, to, dur, ease, delay);
+  tweens.push(tw); return tw;
+}
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+let isAnimating = false;
+let cameraZooming = false;
+const cameraLookTarget = new THREE.Vector3(0, 0.7, 0);
+// Screen world position: monitor group at (0, 0.61, -0.3), screen at (0, 0.85, 0.11) within
+const screenCenter = new THREE.Vector3(0, 1.46, -0.19);
+
+function navigate(dir) {
+  if (isAnimating) return;
+  targetIndex = Math.max(0, Math.min(TRAILS.length - 1, selectedIndex + dir));
+  if (targetIndex === selectedIndex) return;
+  selectedIndex = targetIndex;
+  updateHUD(selectedIndex);
+  setCRTPreview(selectedIndex);
+}
+
+function setCRTPreview(idx) {
+  const t = TRAILS[idx];
+  crtState.mode = 'preview';
+  crtState.trailName = t.name;
+  crtState.trailSubtitle = t.subtitle;
+  crtState.trailColor = t.color;
+}
+
+prevBtn.addEventListener('click', () => navigate(-1));
+nextBtn.addEventListener('click', () => navigate(1));
+playBtn.addEventListener('click', () => { if (!isAnimating) insertDisk(diskGroups[selectedIndex]); });
+
+// Keyboard
+window.addEventListener('keydown', (e) => {
+  if (isAnimating) return;
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); navigate(-1); }
+  else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); navigate(1); }
+  else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); insertDisk(diskGroups[selectedIndex]); }
+});
+
+// Scroll wheel
+let scrollAccum = 0;
+canvas.addEventListener('wheel', (e) => {
+  if (isAnimating) return;
+  e.preventDefault();
+  scrollAccum += e.deltaY;
+  if (Math.abs(scrollAccum) > 50) {
+    navigate(scrollAccum > 0 ? 1 : -1);
+    scrollAccum = 0;
+  }
+}, { passive: false });
+
+// Click on disk in 3D
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2(-999, -999);
+canvas.addEventListener('pointermove', (e) => {
+  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+});
+canvas.addEventListener('pointerdown', () => {
+  if (isAnimating) return;
+  raycaster.setFromCamera(mouse, camera);
+  const allMeshes = [];
+  diskGroups.forEach(g => g.traverse(c => { if (c.isMesh) { c.userData._dg = g; allMeshes.push(c); } }));
+  const hits = raycaster.intersectObjects(allMeshes, false);
+  if (hits.length > 0) {
+    const clickedDisk = hits[0].object.userData._dg;
+    const idx = clickedDisk.userData.index;
+    if (idx === selectedIndex) {
+      insertDisk(clickedDisk);
+    } else {
+      const diff = idx - selectedIndex;
+      navigate(diff > 0 ? 1 : -1);
+      // If more than 1 step, keep navigating
+      if (Math.abs(diff) > 1) {
+        selectedIndex = idx;
+        targetIndex = idx;
+        updateHUD(idx);
+        setCRTPreview(idx);
+      }
+    }
+  }
+});
+
+// ============================================================
+// DISK INSERTION
+// ============================================================
+function insertDisk(disk) {
+  isAnimating = true;
+  animatingDisk = disk;
+  hud.style.opacity = '0';
+  hud.style.transition = 'opacity 0.3s';
+  hud.style.pointerEvents = 'none';
+
+  const driveSlot = drive.position.clone();
+  driveSlot.y += 0.22;
+  driveSlot.z += 0.3;
+
+  const startY = disk.position.y;
+  // Phase 1: Lift
+  addTween(disk.position, 'y', startY, startY + 0.8, 0.4);
+  addTween(disk.rotation, 'x', disk.rotation.x, 0, 0.35);
+  addTween(disk.rotation, 'y', disk.rotation.y, 0, 0.35);
+
+  // Phase 2: Fly to drive
+  addTween(disk.position, 'x', disk.position.x, driveSlot.x, 0.5, easeInOutCubic, 0.45);
+  addTween(disk.position, 'y', startY + 0.8, driveSlot.y + 0.5, 0.25, easeInOutCubic, 0.45);
+  addTween(disk.position, 'y', driveSlot.y + 0.5, driveSlot.y, 0.3, easeInOutCubic, 0.7);
+  addTween(disk.position, 'z', disk.position.z, driveSlot.z, 0.5, easeInOutCubic, 0.45);
+  addTween(disk.rotation, 'x', 0, -Math.PI / 2, 0.4, easeInOutCubic, 0.45);
+
+  // Phase 3: Insert
+  const ins = addTween(disk.position, 'z', driveSlot.z, driveSlot.z - 0.6, 0.4, easeInOutCubic, 1.1);
+  ins.onComplete = () => startLoading(disk);
+}
+
+let ledBlinkInterval = null;
+function startLoading(disk) {
+  const ledMat = drive.userData.ledMat;
+  let ledOn = true;
+  ledBlinkInterval = setInterval(() => {
+    ledOn = !ledOn;
+    ledMat.emissive.set(ledOn ? '#FF0000' : '#000');
+    ledMat.emissiveIntensity = ledOn ? 3 : 0;
+    driveLED.intensity = ledOn ? 1.5 : 0;
+  }, 150);
+
+  crtState.mode = 'loading';
+  crtState.trailName = disk.userData.name;
+  crtState.progress = 0;
+
+  // Zoom camera into the CRT screen
+  cameraZooming = true;
+  const camStart = camera.position.clone();
+  const lookStart = cameraLookTarget.clone();
+  // Target: right in front of the screen, close enough to fill the viewport
+  addTween(camera.position, 'x', camStart.x, screenCenter.x, 2.2, easeInOutCubic, 0.3);
+  addTween(camera.position, 'y', camStart.y, screenCenter.y + 0.05, 2.2, easeInOutCubic, 0.3);
+  addTween(camera.position, 'z', camStart.z, screenCenter.z + 1.2, 2.2, easeInOutCubic, 0.3);
+  addTween(cameraLookTarget, 'x', lookStart.x, screenCenter.x, 1.8, easeInOutCubic, 0.2);
+  addTween(cameraLookTarget, 'y', lookStart.y, screenCenter.y, 1.8, easeInOutCubic, 0.2);
+  addTween(cameraLookTarget, 'z', lookStart.z, screenCenter.z, 1.8, easeInOutCubic, 0.2);
+
+  const dur = 3.0, t0 = performance.now();
+  (function tick() {
+    crtState.progress = Math.min((performance.now() - t0) / 1000 / dur, 1);
+    if (crtState.progress < 1) return requestAnimationFrame(tick);
+    setTimeout(() => {
+      clearInterval(ledBlinkInterval);
+      drive.userData.ledMat.emissive.set('#000');
+      driveLED.intensity = 0;
+      window.location.href = disk.userData.href;
+    }, 500);
+  })();
+}
+
+// ============================================================
+// MAIN LOOP
+// ============================================================
+const clock = new THREE.Clock();
+let elapsed = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.1);
+  elapsed += dt;
+
+  // Tweens
+  for (let i = tweens.length - 1; i >= 0; i--) if (tweens[i].update(dt)) tweens.splice(i, 1);
+
+  // Smooth carousel interpolation
+  carouselT += (selectedIndex - carouselT) * 0.1;
+  updateDiskPositions(true);
+
+  // Camera
+  if (cameraZooming) {
+    camera.lookAt(cameraLookTarget);
+  } else {
+    camera.position.x = 0.0 + Math.sin(elapsed * 0.25) * 0.04;
+    camera.position.y = 3.0 + Math.sin(elapsed * 0.18 + 1) * 0.025;
+  }
+
+  // Lamp flicker
+  deskLamp.intensity = 60 + Math.sin(elapsed * 7.3) * 0.5;
+  monitorGlow.intensity = 1.2 + Math.sin(elapsed * 1.5) * 0.12;
+
+  updateCRT(dt);
+  renderer.render(scene, camera);
+}
+
+try { animate(); console.log('Scene started, objects:', scene.children.length); } catch(e) { console.error('Scene error:', e); }
+</script>
 </body>
 </html>
