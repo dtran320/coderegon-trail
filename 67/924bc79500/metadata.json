@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "67924bc79500",
+  "strategy": "manual-commit",
+  "branch": "worktree-threejs",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "index.html"
+  ],
+  "sessions": [
+    {
+      "metadata": "/67/924bc79500/0/metadata.json",
+      "transcript": "/67/924bc79500/0/full.jsonl",
+      "context": "/67/924bc79500/0/context.md",
+      "content_hash": "/67/924bc79500/0/content_hash.txt",
+      "prompt": "/67/924bc79500/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 47,
+    "cache_creation_tokens": 24097,
+    "cache_read_tokens": 6007468,
+    "output_tokens": 6633,
+    "api_call_count": 36
+  }
+}
