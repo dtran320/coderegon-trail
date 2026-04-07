@@ -209,6 +209,9 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
+// Reset fully if restored from bfcache (back button after navigation)
+window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
+
 // ============================================================
 // LIGHTING
 // ============================================================
@@ -837,9 +840,18 @@ function startLoading(disk) {
     if (crtState.progress < 1) return requestAnimationFrame(tick);
     setTimeout(() => {
       clearInterval(ledBlinkInterval);
+      ledBlinkInterval = null;
       drive.userData.ledMat.emissive.set('#000');
       driveLED.intensity = 0;
       window.location.href = disk.userData.href;
+      // Reset state in case navigation doesn't unload (bfcache, 404 stay-on-page)
+      setTimeout(() => {
+        isAnimating = false;
+        cameraZooming = false;
+        animatingDisk = null;
+        hud.style.opacity = '1';
+        hud.style.pointerEvents = '';
+      }, 1000);
     }, 500);
   })();
 }
