@@ -1,0 +1,28 @@
+1) we shouldn't toggle from music off to music on when starting a game
+2) [Image #1]
+
+Can we use shiki to style the code
+
+---
+
+[Image: source: /Users/flowclub/Desktop/SCR-20260407-offp.png]
+
+---
+
+can we open this locally
+
+---
+
+Can clicking on the code block expand it? And give a hint to the user for this
+
+---
+
+When we expand, it should also cover the game part of the screen
+
+---
+
+when the text panle goes full screen but then we navigate to the next screne, it should re-minimize to show the game again
+
+---
+
+commit

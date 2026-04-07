@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "4c5688327a68",
+  "session_id": "73cf56c9-2a51-4d1a-8f5b-636f32cc2d5c",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-07T23:43:40.03188Z",
+  "branch": "feature/proof-of-understanding",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "examples/trail-openclaw.html",
+    "skills/visualization/SKILL.md"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 67,
+    "cache_creation_tokens": 65504,
+    "cache_read_tokens": 2725657,
+    "output_tokens": 14820,
+    "api_call_count": 55
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-07T23:43:39.866988Z",
+    "agent_lines": 75,
+    "human_added": 5,
+    "human_modified": 2,
+    "human_removed": 0,
+    "total_committed": 82,
+    "agent_percentage": 91.46341463414635
+  }
+}
