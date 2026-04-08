@@ -10,7 +10,7 @@ Generate self-contained HTML files that present code learning as interactive ret
 
 ## Core Principles
 
-1. **Self-Contained** — Every game is a single HTML file with inline CSS, JS, and assets. No external dependencies. No CDN links. No build step.
+1. **Shared Engine** — Each game HTML defines only its TRAIL_DATA and per-game overrides. The shared `engine.js` at the repo root handles all rendering, state, audio, and UI. No build step. The only CDN dependency is Shiki for syntax highlighting (loaded async with fallback).
 2. **Educational** — The game mechanics ARE the learning. Trail stops map to real framework stages. Events are quiz questions in disguise. Party members represent concepts to master.
 3. **Retro Aesthetic** — Pixel art, 8-bit color palettes, monospace code panels, CRT scanline effects. Evocative of 1990s educational games.
 4. **Actually Fun** — Humor in death messages, satisfying progression, meaningful choices. The game should make you want to finish the trail.
@@ -19,6 +19,8 @@ Generate self-contained HTML files that present code learning as interactive ret
 
 ### Structure
 
+Each game is a thin HTML file (~200-250 lines) that defines game-specific data, then loads `engine.js`:
+
 ```html
 <!DOCTYPE html>
 <html lang="en">
@@ -26,34 +28,51 @@ Generate self-contained HTML files that present code learning as interactive ret
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Coderegon Trail — [Framework Name]</title>
-  <style>/* All CSS inline */</style>
 </head>
 <body>
-  <canvas id="game"></canvas>
-  <div id="ui"><!-- Game UI overlays --></div>
-  <script>/* All JS inline — game engine, data, rendering */</script>
+<div id="game-container">
+  <div id="canvas-area">
+    <canvas id="game-canvas" width="320" height="200"></canvas>
+    <div id="music-indicator">M: Music</div>
+  </div>
+  <div id="text-panel"></div>
+  <div id="status-bar"></div>
+</div>
+
+<script>
+window.TRAIL_DATA = { /* trail JSON */ };
+window.TRAIL_FLAVORS = [ /* travel flavor strings */ ];
+window.TRAIL_CONFIG = { mountainColors: { far: '#AA00AA', near: '#FF55FF' } }; // optional
+window.drawCustomEventOverlay = function(time) { /* event animations */ };       // optional
+</script>
+<script src="../engine.js"></script>
 </body>
 </html>
 ```
 
+The shared `engine.js` at the repo root contains all CSS, game state machine, canvas rendering, audio, syntax highlighting (Shiki CDN + fallback), UI rendering, input handling, and animation loop. It auto-initializes on load.
+
 ### Size Budget
 
-- Target: 2000-3000 lines total
-- Canvas rendering: ~400-600 lines (landscape, wagon, sprites)
-- Game state machine: ~300-400 lines
-- UI / event handling: ~300-400 lines
-- Trail data (stops, events, quizzes): ~400-600 lines
-- Code display + syntax highlighting: ~200-300 lines
-- CSS: ~200-300 lines
+- Per-game HTML: ~200-250 lines (TRAIL_DATA, TRAIL_FLAVORS, TRAIL_CONFIG, drawCustomEventOverlay)
+- Shared engine.js: ~1900 lines (all rendering, state, audio, highlighting)
 
 ### Code Display
 
-Code snippets shown at trail stops MUST:
-- Use a monospace font (system monospace stack)
-- Have basic syntax highlighting (keywords, strings, comments — 3-4 colors max)
-- Show file path and line range as a header
-- Be readable at the game's resolution
+Code snippets shown at trail stops use Shiki (via `https://esm.sh/shiki@3.2.1/bundle/web`) loaded async in `engine.js`. The engine:
+- Pre-highlights all stop code blocks on load, caches results by stop name
+- Falls back to a basic EGA-color regex highlighter when Shiki hasn't loaded or fails
+- Adds `.shiki-rendered` class for Shiki output CSS integration
+- Re-renders the current stop when Shiki finishes loading
+- Code blocks are clickable to expand full-screen over the canvas (click again to collapse)
+- File path headers link to GitHub when `repoUrl` is set in TRAIL_DATA
 - Never exceed 25 lines per snippet
+
+### Music Initialization
+
+- Music defaults to OFF (`musicPlaying = false`)
+- `ensureAudio()` only initializes the AudioContext — does NOT auto-start music
+- Music only starts when the player presses 'M'
 
 ### Canvas Rendering
 
@@ -73,12 +92,13 @@ Code snippets shown at trail stops MUST:
 
 ## Trail Data Format
 
-Trail data is injected as a JavaScript object. The @frontend-design agent receives this data and embeds it in the HTML.
+Trail data is defined as `window.TRAIL_DATA` in the game HTML file. The @frontend-design agent receives this data and embeds it.
 
 ```javascript
 const TRAIL_DATA = {
   framework: "nextjs",
   trailName: "The App Router Trail",
+  repoUrl: "https://github.com/owner/repo",  // optional — links file paths to GitHub
   stops: [
     {
       name: "Independence, MO",
