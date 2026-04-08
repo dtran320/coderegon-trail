@@ -758,6 +758,107 @@ function addTween(target, prop, from, to, dur, ease, delay) {
 }
 
 // ============================================================
+// APPLE II SOUND EFFECTS
+// ============================================================
+let sfxCtx = null;
+
+function ensureSfx() {
+  if (sfxCtx) return;
+  try { sfxCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+}
+
+// Floppy disk flip through crate — short mechanical click
+function playDiskFlick() {
+  ensureSfx(); if (!sfxCtx) return;
+  const t = sfxCtx.currentTime;
+  // Short noise burst — card-flick sound
+  const bufLen = sfxCtx.sampleRate * 0.03;
+  const buf = sfxCtx.createBuffer(1, bufLen, sfxCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufLen; i++) {
+    const env = Math.exp(-i / (bufLen * 0.15));
+    data[i] = (Math.random() * 2 - 1) * env * 0.3;
+  }
+  const src = sfxCtx.createBufferSource();
+  src.buffer = buf;
+  // Bandpass to make it clicky, not hissy
+  const bp = sfxCtx.createBiquadFilter();
+  bp.type = 'bandpass'; bp.frequency.value = 3000; bp.Q.value = 1.5;
+  src.connect(bp);
+  bp.connect(sfxCtx.destination);
+  src.start(t);
+}
+
+// Disk inserting into drive — stepper motor seek sequence
+function playDiskInsert() {
+  ensureSfx(); if (!sfxCtx) return;
+  const t = sfxCtx.currentTime;
+
+  // Phase 1: Mechanical slide (0.0 - 0.3s) — filtered noise swoosh
+  const slideLen = sfxCtx.sampleRate * 0.3;
+  const slideBuf = sfxCtx.createBuffer(1, slideLen, sfxCtx.sampleRate);
+  const slideData = slideBuf.getChannelData(0);
+  for (let i = 0; i < slideLen; i++) {
+    const pos = i / slideLen;
+    const env = Math.sin(pos * Math.PI) * 0.15;
+    slideData[i] = (Math.random() * 2 - 1) * env;
+  }
+  const slideSrc = sfxCtx.createBufferSource();
+  slideSrc.buffer = slideBuf;
+  const slideLp = sfxCtx.createBiquadFilter();
+  slideLp.type = 'lowpass'; slideLp.frequency.value = 800;
+  slideSrc.connect(slideLp);
+  slideLp.connect(sfxCtx.destination);
+  slideSrc.start(t + 0.8);
+
+  // Phase 2: Latch click (at 1.1s)
+  const clickLen = sfxCtx.sampleRate * 0.02;
+  const clickBuf = sfxCtx.createBuffer(1, clickLen, sfxCtx.sampleRate);
+  const clickData = clickBuf.getChannelData(0);
+  for (let i = 0; i < clickLen; i++) {
+    clickData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (clickLen * 0.1)) * 0.4;
+  }
+  const clickSrc = sfxCtx.createBufferSource();
+  clickSrc.buffer = clickBuf;
+  clickSrc.connect(sfxCtx.destination);
+  clickSrc.start(t + 1.1);
+
+  // Phase 3: Stepper motor seeks (1.2s - 2.5s) — rhythmic clicks
+  for (let s = 0; s < 8; s++) {
+    const seekLen = sfxCtx.sampleRate * 0.015;
+    const seekBuf = sfxCtx.createBuffer(1, seekLen, sfxCtx.sampleRate);
+    const seekData = seekBuf.getChannelData(0);
+    for (let i = 0; i < seekLen; i++) {
+      const env = Math.exp(-i / (seekLen * 0.08));
+      seekData[i] = (Math.random() * 2 - 1) * env * 0.25;
+    }
+    const seekSrc = sfxCtx.createBufferSource();
+    seekSrc.buffer = seekBuf;
+    const seekBp = sfxCtx.createBiquadFilter();
+    seekBp.type = 'bandpass'; seekBp.frequency.value = 2000 + s * 200; seekBp.Q.value = 2;
+    seekSrc.connect(seekBp);
+    seekBp.connect(sfxCtx.destination);
+    seekSrc.start(t + 1.3 + s * 0.12);
+  }
+
+  // Phase 4: Drive motor hum (1.5s - 3.5s)
+  const motor = sfxCtx.createOscillator();
+  motor.type = 'sawtooth'; motor.frequency.value = 60;
+  const motorGain = sfxCtx.createGain();
+  motorGain.gain.setValueAtTime(0, t + 1.5);
+  motorGain.gain.linearRampToValueAtTime(0.06, t + 1.8);
+  motorGain.gain.setValueAtTime(0.06, t + 3.0);
+  motorGain.gain.linearRampToValueAtTime(0, t + 3.5);
+  motor.connect(motorGain);
+  const motorLp = sfxCtx.createBiquadFilter();
+  motorLp.type = 'lowpass'; motorLp.frequency.value = 200;
+  motorGain.connect(motorLp);
+  motorLp.connect(sfxCtx.destination);
+  motor.start(t + 1.5);
+  motor.stop(t + 3.5);
+}
+
+// ============================================================
 // NAVIGATION
 // ============================================================
 let isAnimating = false;
@@ -771,6 +872,7 @@ function navigate(dir) {
   targetIndex = Math.max(0, Math.min(TRAILS.length - 1, selectedIndex + dir));
   if (targetIndex === selectedIndex) return;
   selectedIndex = targetIndex;
+  playDiskFlick();
   updateHUD(selectedIndex);
   setCRTPreview(selectedIndex);
 }
@@ -846,6 +948,7 @@ canvas.addEventListener('pointerdown', () => {
 function insertDisk(disk) {
   isAnimating = true;
   animatingDisk = disk;
+  playDiskInsert();
   hud.style.opacity = '0';
   hud.style.transition = 'opacity 0.3s';
   hud.style.pointerEvents = 'none';
