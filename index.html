@@ -108,20 +108,7 @@ canvas#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: bl
 <div id="fallback">
   <h1>THE CODEREGON TRAIL</h1>
   <p class="subtitle">Learn codebases by surviving the trail</p>
-  <div class="trails">
-    <a href="rails/" class="tc"><div class="n" style="color:#FF5555">The Convention Trail</div><div class="d">Ruby on Rails</div></a>
-    <a href="django/" class="tc"><div class="n" style="color:#2BA977">The WSGI Wagon Trail</div><div class="d">Django</div></a>
-    <a href="express/" class="tc"><div class="n" style="color:#FFFF55">The Middleware Prairie</div><div class="d">Express.js</div></a>
-    <a href="react/" class="tc"><div class="n" style="color:#61DAFB">The Component Canyon</div><div class="d">React</div></a>
-    <a href="laravel/" class="tc"><div class="n" style="color:#FF5555">The Artisan Trail</div><div class="d">Laravel</div></a>
-    <a href="openclaw/" class="tc"><div class="n">The Gateway Trail</div><div class="d">OpenClaw</div></a>
-    <a href="qmd/" class="tc"><div class="n">The Hybrid Search Trail</div><div class="d">QMD</div></a>
-    <a href="pi-mono/" class="tc"><div class="n">The Agent Loop Trail</div><div class="d">Pi Mono</div></a>
-    <a href="ruview/" class="tc"><div class="n">The WiFi Sensing Trail</div><div class="d">RuView</div></a>
-    <a href="shannon/" class="tc"><div class="n">The Exploit Trail</div><div class="d">Shannon</div></a>
-    <a href="spacetimedb/" class="tc"><div class="n">The Spacetime Trail</div><div class="d">SpacetimeDB</div></a>
-    <a href="superpowers/" class="tc"><div class="n">The Superpowers Trail</div><div class="d">Superpowers</div></a>
-  </div>
+  <div class="trails" id="fallback-trails"></div>
 </div>
 
 <script type="module">
@@ -147,6 +134,35 @@ const TRAILS = [
 ];
 
 // ============================================================
+// COMPLETION TRACKING
+// ============================================================
+function getCompletion(trail) {
+  try {
+    const key = 'coderegon-trail:' + trail.href.replace(/\/$/, '');
+    return JSON.parse(localStorage.getItem(key));
+  } catch (e) { return null; }
+}
+
+function getCompletionCount() {
+  return TRAILS.filter(t => getCompletion(t)).length;
+}
+
+// ============================================================
+// FALLBACK LIST (populated dynamically for completion status)
+// ============================================================
+const fallbackTrails = document.getElementById('fallback-trails');
+TRAILS.forEach(t => {
+  const comp = getCompletion(t);
+  const a = document.createElement('a');
+  a.href = t.href; a.className = 'tc';
+  a.innerHTML = '<div class="n" style="color:' + t.color + '">' +
+    t.name + (comp ? ' \u2713' : '') +
+    '</div><div class="d">' + t.subtitle +
+    (comp ? '  \u2605 ' + comp.score + '%' : '') + '</div>';
+  fallbackTrails.appendChild(a);
+});
+
+// ============================================================
 // HUD
 // ============================================================
 const hud = document.getElementById('hud');
@@ -168,11 +184,20 @@ const dots = dotsEl.querySelectorAll('.dot');
 
 function updateHUD(idx) {
   const t = TRAILS[idx];
-  hudName.textContent = t.name;
+  const completion = getCompletion(t);
+  hudName.textContent = t.name + (completion ? ' \u2713' : '');
   hudName.style.color = t.color === '#F7DF1E' ? '#FFE066' : (t.color === '#8B95A2' ? '#C8D0DC' : t.color);
-  hudSub.textContent = t.subtitle;
-  hudNum.textContent = `DISK ${idx + 1} OF ${TRAILS.length}`;
-  dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+  hudSub.textContent = completion
+    ? `${t.subtitle}  \u2605 ${completion.score}%  \u2022  ${completion.survivors}/${completion.total} survived`
+    : t.subtitle;
+  const completed = getCompletionCount();
+  hudNum.textContent = `DISK ${idx + 1} OF ${TRAILS.length}` + (completed > 0 ? `  \u2022  ${completed} COMPLETED` : '');
+  dots.forEach((d, i) => {
+    d.classList.toggle('active', i === idx);
+    d.style.background = getCompletion(TRAILS[i])
+      ? (i === idx ? '#55FF55' : 'rgba(85,255,85,0.4)')
+      : (i === idx ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.15)');
+  });
 }
 
 // ============================================================
@@ -350,7 +375,8 @@ function updateCRT(dt) {
     ctx.font = '13px "Courier New",monospace'; ctx.fillStyle = dim;
     ctx.fillText('← →  BROWSE DISKS', 36, 235);
     ctx.fillText('ENTER  INSERT & PLAY', 36, 258);
-    ctx.fillText('12 TRAILS AVAILABLE', 36, 295);
+    const completed = getCompletionCount();
+    ctx.fillText(TRAILS.length + ' TRAILS AVAILABLE' + (completed > 0 ? '  (' + completed + ' COMPLETED)' : ''), 36, 295);
 
   } else if (crtState.mode === 'preview') {
     ctx.textAlign = 'center';
@@ -360,15 +386,26 @@ function updateCRT(dt) {
     ctx.fillText(crtState.trailSubtitle, w / 2, 100);
     ctx.fillStyle = green; ctx.fillText('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', w / 2, 135);
     ctx.textAlign = 'left'; ctx.font = '14px "Courier New",monospace'; ctx.fillStyle = dim;
-    ctx.fillText('TRAIL OVERVIEW', 36, 175);
-    ctx.fillText('━━━━━━━━━━━━━━', 36, 195);
-    ctx.fillStyle = green; ctx.font = '13px "Courier New",monospace';
-    ctx.fillText('STOPS: 8 PIPELINE STAGES', 36, 225);
-    ctx.fillText('EVENTS: QUIZ ENCOUNTERS', 36, 248);
-    ctx.fillText('PARTY: 4 FRAMEWORK CONCEPTS', 36, 271);
-    ctx.font = 'bold 16px "Courier New",monospace';
+    // Show completion status or trail overview
+    const comp = crtState.completion;
+    if (comp) {
+      ctx.fillText('TRAIL COMPLETED', 36, 175);
+      ctx.fillText('━━━━━━━━━━━━━━━', 36, 195);
+      ctx.fillStyle = green; ctx.font = '13px "Courier New",monospace';
+      ctx.fillText('BEST SCORE: ' + comp.score + '%', 36, 225);
+      ctx.fillText('SURVIVORS:  ' + comp.survivors + '/' + comp.total, 36, 248);
+      ctx.fillText('STREAK:     ' + comp.bestStreak, 36, 271);
+    } else {
+      ctx.fillText('TRAIL OVERVIEW', 36, 175);
+      ctx.fillText('━━━━━━━━━━━━━━', 36, 195);
+      ctx.fillStyle = green; ctx.font = '13px "Courier New",monospace';
+      ctx.fillText('STOPS: 8 PIPELINE STAGES', 36, 225);
+      ctx.fillText('EVENTS: QUIZ ENCOUNTERS', 36, 248);
+      ctx.fillText('PARTY: 4 FRAMEWORK CONCEPTS', 36, 271);
+    }
+    ctx.font = 'bold 16px "Courier New",monospace'; ctx.fillStyle = green;
     const cur = Math.floor(crtState.time * 1.8) % 2 === 0 ? '█' : ' ';
-    ctx.fillText(']PRESS ENTER TO PLAY' + cur, 36, 315);
+    ctx.fillText(comp ? ']PRESS ENTER TO REPLAY' + cur : ']PRESS ENTER TO PLAY' + cur, 36, 315);
 
   } else if (crtState.mode === 'loading') {
     ctx.textAlign = 'left'; ctx.font = 'bold 16px "Courier New",monospace'; ctx.fillStyle = green;
@@ -502,7 +539,7 @@ let targetIndex = 0;
 let animatingDisk = null;
 let carouselT = 0; // smooth interpolation
 
-function createDiskTexture(name, subtitle, color) {
+function createDiskTexture(name, subtitle, color, completed) {
   const c = document.createElement('canvas');
   c.width = 512; c.height = 512;
   const ctx = c.getContext('2d');
@@ -560,6 +597,25 @@ function createDiskTexture(name, subtitle, color) {
   ctx.fillStyle = subColor;
   ctx.fillText(subtitle, 256, ly + lh - 35);
 
+  // Completion sticker — gold star in the top-right corner of the label
+  if (completed) {
+    const sx = lx + lw - 52, sy = ly + 12;
+    // Sticker background — slightly tilted gold circle
+    ctx.save();
+    ctx.translate(sx + 20, sy + 20);
+    ctx.rotate(0.15);
+    ctx.beginPath(); ctx.arc(0, 0, 24, 0, Math.PI * 2);
+    ctx.fillStyle = '#FFD700'; ctx.fill();
+    ctx.strokeStyle = luminance > 0.55 ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 2; ctx.stroke();
+    // Star
+    ctx.fillStyle = '#111';
+    ctx.font = 'bold 28px serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('\u2605', 0, 1);
+    ctx.restore();
+  }
+
   // Write-protect notch
   ctx.fillStyle = '#1a1a1a';
   ctx.fillRect(468, 120, 30, 50);
@@ -582,7 +638,8 @@ function buildAllDisks(crateGroup) {
     g.add(backMesh);
 
     // Label face — front plane with full disk texture
-    const tex = createDiskTexture(trail.name, trail.subtitle, trail.color);
+    const completed = !!getCompletion(trail);
+    const tex = createDiskTexture(trail.name, trail.subtitle, trail.color, completed);
     const frontMat = new THREE.MeshStandardMaterial({
       map: tex, emissiveMap: tex, emissive: '#ffffff', emissiveIntensity: 0.4, roughness: 0.5
     });
@@ -724,6 +781,7 @@ function setCRTPreview(idx) {
   crtState.trailName = t.name;
   crtState.trailSubtitle = t.subtitle;
   crtState.trailColor = t.color;
+  crtState.completion = getCompletion(t);
 }
 
 prevBtn.addEventListener('click', () => navigate(-1));

@@ -1642,8 +1642,31 @@ function enterDeath() {
 function enterWin() {
   gameState = STATES.WIN;
   showRiver = false;
+  saveCompletion();
   renderWinScreen();
   renderStatusBar();
+}
+
+function saveCompletion() {
+  try {
+    var key = 'coderegon-trail:' + TRAIL_DATA.framework;
+    var survivors = partyHealth.filter(function(h) { return h > 0; }).length;
+    var pctScore = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 100;
+    var prev = JSON.parse(localStorage.getItem(key) || 'null');
+    var entry = {
+      framework: TRAIL_DATA.framework,
+      trailName: TRAIL_DATA.trailName,
+      score: pctScore,
+      survivors: survivors,
+      total: partyHealth.length,
+      bestStreak: bestStreak,
+      completedAt: new Date().toISOString()
+    };
+    // Keep the best score across attempts
+    if (!prev || pctScore > prev.score) {
+      localStorage.setItem(key, JSON.stringify(entry));
+    }
+  } catch (e) { /* localStorage unavailable */ }
 }
 
 // =====================================================================
