@@ -71,6 +71,17 @@ canvas#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: bl
   background: rgba(255,255,255,0.15); transition: all 0.3s;
 }
 #hud .dot.active { background: rgba(255,255,255,0.7); transform: scale(1.3); }
+#hud .cat-filters, #fallback .cat-filters {
+  display: flex; gap: 6px; justify-content: center; margin-bottom: 14px; flex-wrap: wrap;
+}
+#hud .cat-btn, #fallback .cat-btn {
+  background: none; border: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.45);
+  font: 700 10px/1 'Space Mono', monospace; letter-spacing: 1px; text-transform: uppercase;
+  padding: 5px 12px; border-radius: 20px; cursor: pointer; transition: all 0.2s;
+}
+#hud .cat-btn:hover, #fallback .cat-btn:hover { border-color: rgba(255,255,255,0.35); color: rgba(255,255,255,0.7); }
+#hud .cat-btn.active, #fallback .cat-btn.active { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.4); color: #fff; }
+#fallback .section-label { font: 700 11px 'Space Mono', monospace; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,0.25); margin: 24px 0 8px; text-align: left; width: 100%; max-width: 560px; }
 
 /* ── Fallback ── */
 #fallback {
@@ -93,7 +104,13 @@ canvas#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: bl
 
 <div id="hud">
   <div id="hud-inner">
-    <div class="disk-number">DISK 1 OF 23</div>
+    <div class="cat-filters" id="hud-cats">
+      <button class="cat-btn active" data-cat="all">All</button>
+      <button class="cat-btn" data-cat="frameworks">Frameworks</button>
+      <button class="cat-btn" data-cat="hn">HN Popular</button>
+      <button class="cat-btn" data-cat="community">Community</button>
+    </div>
+    <div class="disk-number">DISK 1 OF 25</div>
     <div class="trail-name">The Convention Trail</div>
     <div class="trail-sub">Ruby on Rails</div>
     <div class="controls">
@@ -108,32 +125,8 @@ canvas#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: bl
 <div id="fallback">
   <h1>THE CODEREGON TRAIL</h1>
   <p class="subtitle">Learn codebases by surviving the trail</p>
-  <div class="trails">
-    <a href="rails/" class="tc"><div class="n" style="color:#FF5555">The Convention Trail</div><div class="d">Ruby on Rails</div></a>
-    <a href="django/" class="tc"><div class="n" style="color:#2BA977">The WSGI Wagon Trail</div><div class="d">Django</div></a>
-    <a href="express/" class="tc"><div class="n" style="color:#FFFF55">The Middleware Prairie</div><div class="d">Express.js</div></a>
-    <a href="react/" class="tc"><div class="n" style="color:#61DAFB">The Component Canyon</div><div class="d">React</div></a>
-    <a href="laravel/" class="tc"><div class="n" style="color:#FF5555">The Artisan Trail</div><div class="d">Laravel</div></a>
-    <a href="openclaw/" class="tc"><div class="n">The Gateway Trail</div><div class="d">OpenClaw</div></a>
-    <a href="qmd/" class="tc"><div class="n">The Hybrid Search Trail</div><div class="d">QMD</div></a>
-    <a href="pi-mono/" class="tc"><div class="n">The Agent Loop Trail</div><div class="d">Pi Mono</div></a>
-    <a href="ruview/" class="tc"><div class="n">The WiFi Sensing Trail</div><div class="d">RuView</div></a>
-    <a href="shannon/" class="tc"><div class="n">The Exploit Trail</div><div class="d">Shannon</div></a>
-    <a href="spacetimedb/" class="tc"><div class="n">The Spacetime Trail</div><div class="d">SpacetimeDB</div></a>
-    <a href="superpowers/" class="tc"><div class="n">The Superpowers Trail</div><div class="d">Superpowers</div></a>
-    <a href="kittentts/" class="tc"><div class="n" style="color:#FF69B4">The Synthesis Trail</div><div class="d">KittenTTS</div></a>
-    <a href="craftplan/" class="tc"><div class="n" style="color:#D97706">The Production Trail</div><div class="d">Craftplan</div></a>
-    <a href="localgpt/" class="tc"><div class="n" style="color:#F97316">The Inference Trail</div><div class="d">LocalGPT</div></a>
-    <a href="pg-textsearch/" class="tc"><div class="n" style="color:#3B82F6">The Relevance Trail</div><div class="d">pg_textsearch</div></a>
-    <a href="moongate/" class="tc"><div class="n" style="color:#8B5CF6">The Packet Trail</div><div class="d">Moongate</div></a>
-    <a href="ferrite/" class="tc"><div class="n" style="color:#EF4444">The Rendering Trail</div><div class="d">Ferrite</div></a>
-    <a href="gotreesitter/" class="tc"><div class="n" style="color:#00ADD8">The Parser Trail</div><div class="d">GoTreeSitter</div></a>
-    <a href="mini-browser/" class="tc"><div class="n" style="color:#E879F9">The Layout Trail</div><div class="d">Mini Browser</div></a>
-    <a href="korb/" class="tc"><div class="n" style="color:#10B981">The Checkout Trail</div><div class="d">Korb</div></a>
-    <a href="cmux/" class="tc"><div class="n" style="color:#6EE7B7">The Terminal Trail</div><div class="d">cmux</div></a>
-    <a href="nanochat/" class="tc"><div class="n" style="color:#F59E0B">The Transformer Trail</div><div class="d">nanochat</div></a>
-    <a href="minidiffusion/" class="tc"><div class="n" style="color:#A855F7">The Diffusion Trail</div><div class="d">miniDiffusion</div></a>
-  </div>
+  <div class="cat-filters" id="fb-cats"></div>
+  <div class="trails" id="fb-trails"></div>
 </div>
 
 <script type="module">
@@ -142,33 +135,42 @@ import * as THREE from 'three';
 // ============================================================
 // TRAIL DATA
 // ============================================================
-const TRAILS = [
-  { name: "The Software Factory Trail", subtitle: "gstack", href: "gstack/", color: "#F59E0B" },
-  { name: "The Gateway Trail", subtitle: "OpenClaw", href: "openclaw/", color: "#8B95A2" },
-  { name: "The Convention Trail", subtitle: "Ruby on Rails", href: "rails/", color: "#CC0000" },
-  { name: "The WSGI Wagon Trail", subtitle: "Django", href: "django/", color: "#2BA977" },
-  { name: "The Middleware Prairie", subtitle: "Express.js", href: "express/", color: "#F7DF1E" },
-  { name: "The Component Canyon", subtitle: "React", href: "react/", color: "#61DAFB" },
-  { name: "The Artisan Trail", subtitle: "Laravel", href: "laravel/", color: "#FF2D20" },
-  { name: "The Hybrid Search Trail", subtitle: "QMD", href: "qmd/", color: "#A78BFA" },
-  { name: "The Agent Loop Trail", subtitle: "Pi Mono", href: "pi-mono/", color: "#60A5FA" },
-  { name: "The WiFi Sensing Trail", subtitle: "RuView", href: "ruview/", color: "#34D399" },
-  { name: "The Exploit Trail", subtitle: "Shannon", href: "shannon/", color: "#F87171" },
-  { name: "The Spacetime Trail", subtitle: "SpacetimeDB", href: "spacetimedb/", color: "#FBBF24" },
-  { name: "The Superpowers Trail", subtitle: "Superpowers", href: "superpowers/", color: "#C084FC" },
-  { name: "The Synthesis Trail", subtitle: "KittenTTS", href: "kittentts/", color: "#FF69B4" },
-  { name: "The Production Trail", subtitle: "Craftplan", href: "craftplan/", color: "#D97706" },
-  { name: "The Inference Trail", subtitle: "LocalGPT", href: "localgpt/", color: "#F97316" },
-  { name: "The Relevance Trail", subtitle: "pg_textsearch", href: "pg-textsearch/", color: "#3B82F6" },
-  { name: "The Packet Trail", subtitle: "Moongate", href: "moongate/", color: "#8B5CF6" },
-  { name: "The Rendering Trail", subtitle: "Ferrite", href: "ferrite/", color: "#EF4444" },
-  { name: "The Parser Trail", subtitle: "GoTreeSitter", href: "gotreesitter/", color: "#00ADD8" },
-  { name: "The Layout Trail", subtitle: "Mini Browser", href: "mini-browser/", color: "#E879F9" },
-  { name: "The Checkout Trail", subtitle: "Korb", href: "korb/", color: "#10B981" },
-  { name: "The Terminal Trail", subtitle: "cmux", href: "cmux/", color: "#6EE7B7" },
-  { name: "The Transformer Trail", subtitle: "nanochat", href: "nanochat/", color: "#F59E0B" },
-  { name: "The Diffusion Trail", subtitle: "miniDiffusion", href: "minidiffusion/", color: "#A855F7" },
+const ALL_TRAILS = [
+  { name: "The Software Factory Trail", subtitle: "gstack", href: "gstack/", color: "#F59E0B", cat: "community" },
+  { name: "The Gateway Trail", subtitle: "OpenClaw", href: "openclaw/", color: "#8B95A2", cat: "community" },
+  { name: "The Convention Trail", subtitle: "Ruby on Rails", href: "rails/", color: "#CC0000", cat: "frameworks" },
+  { name: "The WSGI Wagon Trail", subtitle: "Django", href: "django/", color: "#2BA977", cat: "frameworks" },
+  { name: "The Middleware Prairie", subtitle: "Express.js", href: "express/", color: "#F7DF1E", cat: "frameworks" },
+  { name: "The Component Canyon", subtitle: "React", href: "react/", color: "#61DAFB", cat: "frameworks" },
+  { name: "The Artisan Trail", subtitle: "Laravel", href: "laravel/", color: "#FF2D20", cat: "frameworks" },
+  { name: "The Hybrid Search Trail", subtitle: "QMD", href: "qmd/", color: "#A78BFA", cat: "community" },
+  { name: "The Agent Loop Trail", subtitle: "Pi Mono", href: "pi-mono/", color: "#60A5FA", cat: "community" },
+  { name: "The WiFi Sensing Trail", subtitle: "RuView", href: "ruview/", color: "#34D399", cat: "community" },
+  { name: "The Exploit Trail", subtitle: "Shannon", href: "shannon/", color: "#F87171", cat: "community" },
+  { name: "The Spacetime Trail", subtitle: "SpacetimeDB", href: "spacetimedb/", color: "#FBBF24", cat: "community" },
+  { name: "The Superpowers Trail", subtitle: "Superpowers", href: "superpowers/", color: "#C084FC", cat: "community" },
+  { name: "The Synthesis Trail", subtitle: "KittenTTS", href: "kittentts/", color: "#FF69B4", cat: "hn" },
+  { name: "The Production Trail", subtitle: "Craftplan", href: "craftplan/", color: "#D97706", cat: "hn" },
+  { name: "The Inference Trail", subtitle: "LocalGPT", href: "localgpt/", color: "#F97316", cat: "hn" },
+  { name: "The Relevance Trail", subtitle: "pg_textsearch", href: "pg-textsearch/", color: "#3B82F6", cat: "hn" },
+  { name: "The Packet Trail", subtitle: "Moongate", href: "moongate/", color: "#8B5CF6", cat: "hn" },
+  { name: "The Rendering Trail", subtitle: "Ferrite", href: "ferrite/", color: "#EF4444", cat: "hn" },
+  { name: "The Parser Trail", subtitle: "GoTreeSitter", href: "gotreesitter/", color: "#00ADD8", cat: "hn" },
+  { name: "The Layout Trail", subtitle: "Mini Browser", href: "mini-browser/", color: "#E879F9", cat: "hn" },
+  { name: "The Checkout Trail", subtitle: "Korb", href: "korb/", color: "#10B981", cat: "hn" },
+  { name: "The Terminal Trail", subtitle: "cmux", href: "cmux/", color: "#6EE7B7", cat: "hn" },
+  { name: "The Transformer Trail", subtitle: "nanochat", href: "nanochat/", color: "#F59E0B", cat: "community" },
+  { name: "The Diffusion Trail", subtitle: "miniDiffusion", href: "minidiffusion/", color: "#A855F7", cat: "community" },
 ];
+
+const CATEGORIES = { all: 'All', frameworks: 'Frameworks', hn: 'HN Popular', community: 'Community' };
+let currentCategory = 'all';
+let TRAILS = ALL_TRAILS;
+
+function filterTrails(cat) {
+  currentCategory = cat;
+  TRAILS = cat === 'all' ? ALL_TRAILS : ALL_TRAILS.filter(t => t.cat === cat);
+}
 
 // ============================================================
 // HUD
@@ -182,13 +184,18 @@ const prevBtn = document.getElementById('prev-btn');
 const nextBtn = document.getElementById('next-btn');
 const playBtn = document.getElementById('play-btn');
 
-// Build dots
-TRAILS.forEach((_, i) => {
-  const dot = document.createElement('div');
-  dot.className = 'dot' + (i === 0 ? ' active' : '');
-  dotsEl.appendChild(dot);
-});
-const dots = dotsEl.querySelectorAll('.dot');
+let dots;
+
+function rebuildDots() {
+  dotsEl.innerHTML = '';
+  TRAILS.forEach((_, i) => {
+    const dot = document.createElement('div');
+    dot.className = 'dot' + (i === 0 ? ' active' : '');
+    dotsEl.appendChild(dot);
+  });
+  dots = dotsEl.querySelectorAll('.dot');
+}
+rebuildDots();
 
 function updateHUD(idx) {
   const t = TRAILS[idx];
@@ -695,6 +702,80 @@ scene.add(buildLamp());
 updateDiskPositions(false);
 updateHUD(0);
 setCRTPreview(0);
+
+// ============================================================
+// CATEGORY FILTERING
+// ============================================================
+function switchCategory(cat) {
+  if (cat === currentCategory || isAnimating) return;
+  filterTrails(cat);
+
+  // Update button states
+  document.querySelectorAll('.cat-btn').forEach(b => b.classList.toggle('active', b.dataset.cat === cat));
+
+  // Remove old disks from scene
+  diskGroups.forEach(g => scene.remove(g));
+  diskGroups.length = 0;
+
+  // Rebuild disks for filtered trails
+  buildAllDisks(crate);
+  selectedIndex = 0;
+  targetIndex = 0;
+  carouselT = 0;
+  rebuildDots();
+  updateDiskPositions(false);
+  updateHUD(0);
+  setCRTPreview(0);
+}
+
+// Wire up HUD filter buttons
+document.getElementById('hud-cats').addEventListener('click', e => {
+  const btn = e.target.closest('.cat-btn');
+  if (btn) switchCategory(btn.dataset.cat);
+});
+
+// Build fallback with sections
+(function buildFallback() {
+  const fbCats = document.getElementById('fb-cats');
+  const fbTrails = document.getElementById('fb-trails');
+  // Filter buttons
+  Object.entries(CATEGORIES).forEach(([key, label]) => {
+    const btn = document.createElement('button');
+    btn.className = 'cat-btn' + (key === 'all' ? ' active' : '');
+    btn.dataset.cat = key;
+    btn.textContent = label;
+    btn.addEventListener('click', () => {
+      fbCats.querySelectorAll('.cat-btn').forEach(b => b.classList.toggle('active', b.dataset.cat === key));
+      renderFallbackTrails(key);
+    });
+    fbCats.appendChild(btn);
+  });
+  function renderFallbackTrails(cat) {
+    fbTrails.innerHTML = '';
+    const filtered = cat === 'all' ? ALL_TRAILS : ALL_TRAILS.filter(t => t.cat === cat);
+    if (cat === 'all') {
+      // Group by category
+      ['frameworks', 'hn', 'community'].forEach(c => {
+        const group = ALL_TRAILS.filter(t => t.cat === c);
+        if (!group.length) return;
+        const lbl = document.createElement('div');
+        lbl.className = 'section-label';
+        lbl.textContent = CATEGORIES[c];
+        fbTrails.appendChild(lbl);
+        group.forEach(t => fbTrails.appendChild(makeFbLink(t)));
+      });
+    } else {
+      filtered.forEach(t => fbTrails.appendChild(makeFbLink(t)));
+    }
+  }
+  function makeFbLink(t) {
+    const a = document.createElement('a');
+    a.href = t.href; a.className = 'tc';
+    a.innerHTML = `<div class="n" style="color:${t.color}">${t.name}</div><div class="d">${t.subtitle}</div>`;
+    return a;
+  }
+  renderFallbackTrails('all');
+})();
 
 // ============================================================
 // TWEEN SYSTEM
