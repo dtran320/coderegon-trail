@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "41cd49e8064f",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "CLAUDE.md",
+    "engine.js",
+    "examples/trail-openclaw.html",
+    "index.html",
+    "skills/visualization/SKILL.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/41/cd49e8064f/0/metadata.json",
+      "transcript": "/41/cd49e8064f/0/full.jsonl",
+      "context": "/41/cd49e8064f/0/context.md",
+      "content_hash": "/41/cd49e8064f/0/content_hash.txt",
+      "prompt": "/41/cd49e8064f/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1077,
+    "cache_creation_tokens": 259800,
+    "cache_read_tokens": 14716955,
+    "output_tokens": 38468,
+    "api_call_count": 112
+  }
+}
