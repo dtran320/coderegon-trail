@@ -3,3 +3,12 @@
 /config/tts.local.json
 node_modules/
 /.diff-review/
+
+# Local/personal config
+.env
+.env.*
+.claude/settings.json
+.claude/settings.local.json
+.claude/worktrees/
+.entire/
+.orphaned_at

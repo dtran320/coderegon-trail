@@ -49,13 +49,18 @@ scripts/           Shell infrastructure
   lib/config.sh      Config file loader (JSON via jq)
   lib/utils.sh       Shared shell utilities
 
+engine.js          Shared game engine (CSS, state machine, canvas, audio, Shiki highlighting, UI, input)
+
+<game>/index.html  Per-game thin HTML (TRAIL_DATA, TRAIL_FLAVORS, TRAIL_CONFIG, drawCustomEventOverlay)
+                   13 games: gstack, openclaw, rails, django, express, react, laravel, qmd, pi-mono, ruview, shannon, spacetimedb, superpowers
+
 config/tts.json    Default TTS configuration
 examples/          Example generated game files
 ```
 
 ## Key Execution Flows
 
-**Coderegon Trail (`/fly-visual`):** Parse framework arg (or auto-detect from repo) → extract trail data from `framework-trails.md` or via `trail-data-extractor` agent → generate self-contained HTML game via `frontend-design` skill → write HTML file and open in browser → game plays in browser (title → setup → travel/stop/event loop → win or death)
+**Coderegon Trail (`/fly-visual`):** Parse framework arg (or auto-detect from repo) → extract trail data from `framework-trails.md` or via `trail-data-extractor` agent → generate thin HTML game file (defines TRAIL_DATA + overrides, loads shared `engine.js`) → write HTML file and open in browser → game plays in browser (title → setup → travel/stop/event loop → win or death)
 
 **Coderegon Trail Game Loop:** Title screen → party setup (4 members = framework concepts) → travel between ~8 stops (each = a pipeline stage with code + narration) → quiz events between stops (weather/river/encounter/misfortune/fortune), filtered by profession difficulty tier → wrong answers damage health and party members → arrive at Response Frontier to win, or die trying
 
@@ -107,7 +112,7 @@ All "code" is markdown prompts and shell scripts. To modify behavior:
 
 - Commands, agents, and skills are defined as **markdown files with YAML frontmatter** (model, tools, description)
 - Agents use model `sonnet`; commands use `opus`
-- Coderegon Trail games are self-contained HTML files — all CSS, JS, and game data inline, no external dependencies
+- Coderegon Trail game HTML files define only TRAIL_DATA and per-game overrides (flavors, mountain colors, event overlays). They load `engine.js` from the repo root, which contains all shared rendering, state, audio, and UI code. Shiki syntax highlighting is loaded from CDN with a built-in fallback.
 - Trail data maps framework request/render pipelines to ~8 stops with code snippets, narration, and quiz events
 - Narration must be conversational and TTS-friendly: sentences under 25 words, say "slash" for paths, spell out abbreviations, explain WHY not WHAT, never read code syntax literally
 - Navigation state is tracked through conversation context (no external state files), including fly-through position and quiz scores
