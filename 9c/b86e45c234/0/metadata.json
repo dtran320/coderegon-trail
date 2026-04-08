@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "9cb86e45c234",
+  "session_id": "73cf56c9-2a51-4d1a-8f5b-636f32cc2d5c",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-08T17:32:00.571939Z",
+  "branch": "feature/shared-engine",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "engine.js"
+  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "9fbb2c30-ad1f-4887-8535-690bb4529d74",
+  "checkpoint_transcript_start": 662,
+  "transcript_lines_at_start": 662,
+  "token_usage": {
+    "input_tokens": 9,
+    "cache_creation_tokens": 6307,
+    "cache_read_tokens": 1259177,
+    "output_tokens": 2807,
+    "api_call_count": 7
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-08T17:32:00.232474Z",
+    "agent_lines": 1920,
+    "human_added": 101,
+    "human_modified": 2,
+    "human_removed": 0,
+    "total_committed": 2023,
+    "agent_percentage": 94.9085516559565
+  }
+}
