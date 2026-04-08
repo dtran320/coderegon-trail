@@ -1,0 +1,13 @@
+Is there an easy way to output the questions and answers for all the games so that I can audit it without playing through? Could we potentially create tests for the gameplay too?
+
+---
+
+did we fix all those issues?
+
+---
+
+yes
+
+---
+
+great! can we push
