@@ -728,6 +728,11 @@ function drawRiver(time) {
 // =====================================================================
 // EVENT CANVAS OVERLAYS — unique visuals per quiz event
 // =====================================================================
+function drawEventOverlay(time) {
+  if (!currentEventType && !currentEventTitle) return;
+
+  var t = (time || 0) * 0.001; // seconds
+
 // OVERLAYS
   // --- Dependency Storm: swirling config files and lightning ---
   if (currentEventTitle.indexOf('Dependency Storm') !== -1) {

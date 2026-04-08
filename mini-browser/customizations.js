@@ -1,16 +1,7 @@
-// =====================================================================
-// CUSTOMIZATIONS — Mini Browser Edition
-// =====================================================================
-// Game title and theming overrides for beginner-jhj/mini_browser
-// A from-scratch browser engine in C++ with Qt
-
-const GAME_TITLE = "The Coderegon Trail - Mini Browser Edition";
-const GAME_SUBTITLE = "A Browser Engine Learning Adventure";
-const DESTINATION_NAME = "Pixel Frontier";
-
-// =====================================================================
-// TRAVEL FLAVORS — Browser/Web Themed
-// =====================================================================
+// TITLE
+The Coderegon Trail - Mini Browser Edition
+// END TITLE
+// FLAVORS
 const travelFlavors = [
   "The HTML stream arrives cleanly over the wire...",
   "Your tokenizer hums along, splitting tags from text...",
@@ -28,101 +19,81 @@ const travelFlavors = [
   "Inline elements flow like a river of text across the page...",
   "The user agent stylesheet provides sensible defaults..."
 ];
-
-// =====================================================================
-// EVENT OVERLAY THEMES — Visual Customizations
-// =====================================================================
-const eventOverlays = {
-  weather: {
-    title: "Rendering Storm",
-    palette: {
-      sky: "#1a1a2e",
-      clouds: "#4a4a6a",
-      lightning: "#e0e0ff",
-      accent: "#7b68ee"
-    },
-    particles: "angle-brackets",  // falling < and > characters
-    description: "Storm clouds of malformed markup roll in"
-  },
-  river: {
-    title: "Pipeline Crossing",
-    palette: {
-      water: "#1e3a5f",
-      foam: "#87ceeb",
-      banks: "#2d4a22",
-      accent: "#4682b4"
-    },
-    flowPattern: "data-stream",  // binary/hex patterns in the water
-    description: "The boundary between parsing and rendering"
-  },
-  encounter: {
-    title: "Fellow Developer",
-    palette: {
-      background: "#1a2a1a",
-      npc: "#c0c0c0",
-      speechBubble: "#f0f0e8",
-      accent: "#90ee90"
-    },
-    npcSprite: "cpp-developer",  // pixel art developer with laptop
-    description: "A C++ developer shares browser engine wisdom"
-  },
-  misfortune: {
-    title: "Bug Report!",
-    palette: {
-      background: "#2a1a1a",
-      alert: "#ff6b6b",
-      border: "#8b0000",
-      accent: "#ff4444"
-    },
-    icon: "segfault",  // crash/error icon
-    description: "Something went wrong in the rendering pipeline"
-  },
-  fortune: {
-    title: "Clean Build!",
-    palette: {
-      background: "#1a2a1a",
-      sparkle: "#ffd700",
-      glow: "#98fb98",
-      accent: "#00ff7f"
-    },
-    icon: "green-checkmark",  // successful compile
-    description: "Your code compiles without warnings"
+// END FLAVORS
+// OVERLAYS
+  // --- RENDERING STORM: dark sky, falling angle brackets ---
+  if (currentEventTitle.indexOf('Rendering Storm') !== -1) {
+    ctx.fillStyle = 'rgba(0,0,50,0.45)';
+    ctx.fillRect(0, 0, W, 110);
+    var flashPhase = Math.sin(t * 1.7) + Math.sin(t * 3.1);
+    if (flashPhase > 1.6) {
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.fillRect(0, 0, W, H);
+    }
+    ctx.fillStyle = '#7B68EE';
+    ctx.font = '10px monospace';
+    for (var i = 0; i < 20; i++) {
+      var bx = (i * 17 + t * 30) % W;
+      var by = (i * 23 + t * 60) % 110;
+      ctx.fillText(i % 2 === 0 ? '<' : '>', Math.floor(bx), Math.floor(by));
+    }
+    return;
   }
-};
 
-// =====================================================================
-// THEME COLORS — Browser Engine Aesthetic
-// =====================================================================
-const themeColors = {
-  primary: "#2d5986",       // deep browser blue
-  secondary: "#4a9eda",     // link blue
-  accent: "#e8a838",        // warning/highlight amber
-  background: "#0a0a1a",    // dark IDE background
-  text: "#e0e0e0",          // light text
-  code: "#1e1e2e",          // code block background
-  success: "#4caf50",       // green for correct answers
-  danger: "#ef5350",        // red for wrong answers
-  trail: "#8b7355",         // dusty trail brown
-  wagon: "#c8a864"          // wagon wood color
-};
+  // --- PIPELINE CROSSING: turbulent data stream ---
+  if (currentEventTitle.indexOf('Pipeline') !== -1 || currentEventTitle.indexOf('Cascade') !== -1) {
+    ctx.fillStyle = '#55FFFF';
+    for (var i = 0; i < 20; i++) {
+      var sx = (i * 17 + t * 40) % W;
+      var sy = 157 + Math.sin((i * 3 + t * 5)) * 3;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), 4, 2);
+    }
+    ctx.fillStyle = '#4682B4';
+    ctx.font = '6px monospace';
+    for (var i = 0; i < 8; i++) {
+      var hx = (i * 42 + t * 25) % W;
+      var hy = 159 + Math.sin(t * 2 + i) * 2;
+      ctx.fillText('0x' + ((i * 37 + Math.floor(t)) % 256).toString(16), Math.floor(hx), Math.floor(hy));
+    }
+    return;
+  }
 
-// =====================================================================
-// LANDMARK ICONS — Pipeline Stage Visuals
-// =====================================================================
-const landmarkIcons = {
-  town: "browser-window",        // for entry/exit points
-  camp: "code-editor",           // for parsing/processing stops
-  mountain: "tree-structure",    // for tree-building stops
-  river: "data-flow",           // for boundary crossings
-  forest: "cascade-waterfall"   // for style computation
-};
+  // --- DEVELOPER ENCOUNTER: pixel art developer ---
+  if (currentEventTitle.indexOf('Developer') !== -1 || currentEventTitle.indexOf('Mentor') !== -1) {
+    var px = 200, py = 142;
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(px, py - 12, 4, 8);
+    ctx.fillStyle = '#FFAA00';
+    ctx.fillRect(px, py - 15, 4, 3);
+    ctx.fillRect(px - 1, py - 4, 2, 5);
+    ctx.fillRect(px + 3, py - 4, 2, 5);
+    ctx.fillStyle = '#555555';
+    ctx.fillRect(px - 1, py - 17, 6, 2);
+    ctx.fillRect(px, py - 19, 4, 2);
+    // Laptop
+    ctx.fillStyle = '#AAAAAA';
+    ctx.fillRect(px + 8, py - 8, 8, 6);
+    ctx.fillStyle = '#55AAFF';
+    ctx.fillRect(px + 9, py - 7, 6, 4);
+    return;
+  }
 
-// =====================================================================
-// PARTY MEMBER DESCRIPTIONS
-// =====================================================================
-const partyDescriptions = {
-  "DOM Tree": "The hierarchical structure of nodes, built from HTML tokens. Your foundation.",
-  "CSSOM": "The CSS Object Model that matches selectors to nodes. Your style authority.",
-  "Layout Engine": "Computes x, y, width, height for every box. Your geometry calculator.",
-  "Rendering Pipeline": "Ties it all together -- from HTML string to painted pixels. Your destination."
-};
+  // --- BUG REPORT: red danger tint ---
+  if (currentEventTitle.indexOf('Bug') !== -1 || currentEventTitle.indexOf('Segfault') !== -1 || currentEventTitle.indexOf('Overflow') !== -1) {
+    ctx.fillStyle = 'rgba(170,0,0,0.25)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#FF5555';
+    ctx.font = '8px monospace';
+    for (var i = 0; i < 6; i++) {
+      var ex = 40 + Math.sin(t * 2 + i * 1.5) * 100;
+      var ey = 30 + (i * 20 + t * 15) % 120;
+      ctx.fillText('SEGFAULT', Math.floor(ex), Math.floor(ey));
+    }
+    var pulse = (Math.sin(t * 4) + 1) * 0.15;
+    ctx.strokeStyle = 'rgba(255,0,0,' + pulse.toFixed(2) + ')';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(1, 1, W - 2, H - 2);
+    ctx.lineWidth = 1;
+    return;
+  }
+// END OVERLAYS

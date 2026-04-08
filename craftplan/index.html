@@ -836,6 +836,11 @@ function drawRiver(time) {
 // =====================================================================
 // EVENT CANVAS OVERLAYS — unique visuals per quiz event
 // =====================================================================
+function drawEventOverlay(time) {
+  if (!currentEventType && !currentEventTitle) return;
+
+  var t = (time || 0) * 0.001; // seconds
+
 // OVERLAYS
   if (currentEventTitle.indexOf('Pipeline Storm') !== -1) {
     // Darken sky — storm clouds over the bakery

@@ -51,16 +51,14 @@ TRAIL_DATA=$(cat "$TRAIL_DATA_FILE")
   # Custom travel flavors
   echo "$FLAVORS"
 
-  # Lines 206-489: Shared engine (canvas, rendering, etc.) up to overlay function header
-  sed -n '206,489p' "$TEMPLATE"
+  # Lines 206-494: Shared engine (canvas, rendering, etc.) including overlay function declaration + guard + var t
+  sed -n '206,494p' "$TEMPLATE"
 
-  # Custom event overlays (inside drawEventOverlay function)
+  # Custom event overlays (inside drawEventOverlay function body)
   echo "$OVERLAYS"
 
-  # Close drawEventOverlay function + rest of engine
-  echo "}"
-  echo ""
-  sed -n '711,$p' "$TEMPLATE"
+  # Lines 709+: Close drawEventOverlay function + rest of engine
+  sed -n '709,$p' "$TEMPLATE"
 
 } > "$OUTPUT"
 

@@ -21,10 +21,6 @@ const travelFlavors = [
 ];
 // END FLAVORS
 // OVERLAYS
-  if (!currentEventType && !currentEventTitle) return;
-
-  var t = (time || 0) * 0.001;
-
   // --- CLOUDFLARE STORM: dark sky, lightning, digital rain ---
   if (currentEventTitle.indexOf('Cloudflare Storm') !== -1) {
     ctx.fillStyle = 'rgba(0,0,50,0.45)';

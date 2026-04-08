@@ -1,12 +1,8 @@
-// =====================================================================
-// CODEREGON TRAIL — GoTreeSitter Edition Customizations
-// =====================================================================
-// Title, travel flavors, and event overlays for the Parser Trail.
-// =====================================================================
-
-document.title = "The Coderegon Trail - GoTreeSitter Edition";
-
-window.TRAIL_FLAVORS = [
+// TITLE
+The Coderegon Trail - GoTreeSitter Edition
+// END TITLE
+// FLAVORS
+const travelFlavors = [
   "The grammar blob decompresses. 206 languages at your fingertips...",
   "LexState transitions fire. The DFA walks character by character...",
   "ASCII fast-path: one lookup, one transition. No scanning needed...",
@@ -23,12 +19,8 @@ window.TRAIL_FLAVORS = [
   "External scanner checkpoint saved. Template literal state preserved...",
   "Subtree reused. 40,000 bytes of unchanged nodes skip re-parsing..."
 ];
-
-window.drawCustomEventOverlay = function(time) {
-  if (!currentEventType && !currentEventTitle) return;
-
-  var t = (time || 0) * 0.001; // seconds
-
+// END FLAVORS
+// OVERLAYS
   // --- SYMBOL STORM: cascading symbols rain from the sky ---
   if (currentEventTitle.indexOf('Symbol Storm') !== -1) {
     // Darken sky
@@ -286,4 +278,4 @@ window.drawCustomEventOverlay = function(time) {
     ctx.fillText(msgs[msgIdx], 220, 120);
     return;
   }
-};
+// END OVERLAYS

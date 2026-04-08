@@ -1,21 +1,5 @@
 // TITLE
-// Title screen customizations for pg_textsearch — The Relevance Trail
-const TITLE_CONFIG = {
-  title: "THE RELEVANCE TRAIL",
-  subtitle: "A pg_textsearch Learning Adventure",
-  tagline: "BM25 Full-Text Search for Postgres",
-  year: "2025",
-  colors: {
-    titleText: "#FFAA00",
-    subtitleText: "#55FFFF",
-    taglineText: "#AAAAAA",
-    wagonAccent: "#FF5555",
-    skyTop: "#001144",
-    skyBottom: "#003366",
-    ground: "#2A1B0A",
-    trailDust: "#5C4A2A"
-  }
-};
+The Coderegon Trail - pg_textsearch Edition
 // END TITLE
 
 // FLAVORS
@@ -39,11 +23,6 @@ const travelFlavors = [
 // END FLAVORS
 
 // OVERLAYS
-function drawEventOverlay(time) {
-  if (!currentEventType && !currentEventTitle) return;
-
-  var t = (time || 0) * 0.001;
-
   // --- CONFIGURATION STORM: swirling config files, lightning ---
   if (currentEventTitle.indexOf('Configuration Storm') !== -1) {
     ctx.fillStyle = 'rgba(0,0,50,0.45)';
@@ -248,5 +227,4 @@ function drawEventOverlay(time) {
     ctx.fillText('8.5', 150, 90);
     return;
   }
-}
 // END OVERLAYS

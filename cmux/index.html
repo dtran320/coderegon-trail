@@ -728,8 +728,13 @@ function drawRiver(time) {
 // =====================================================================
 // EVENT CANVAS OVERLAYS — unique visuals per quiz event
 // =====================================================================
+function drawEventOverlay(time) {
+  if (!currentEventType && !currentEventTitle) return;
+
+  var t = (time || 0) * 0.001; // seconds
+
 // OVERLAYS
-  / --- CONFIG BLIZZARD: snow and cold wind ---
+  // --- CONFIG BLIZZARD: snow and cold wind ---
   if (currentEventTitle && currentEventTitle.indexOf('Configuration Blizzard') !== -1) {
     ctx.fillStyle = 'rgba(200,210,230,0.3)';
     ctx.fillRect(0, 0, W, 110);

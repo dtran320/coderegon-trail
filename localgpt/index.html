@@ -831,6 +831,11 @@ function drawRiver(time) {
 // =====================================================================
 // EVENT CANVAS OVERLAYS — unique visuals per quiz event
 // =====================================================================
+function drawEventOverlay(time) {
+  if (!currentEventType && !currentEventTitle) return;
+
+  var t = (time || 0) * 0.001; // seconds
+
 // OVERLAYS
   // --- Borrow Checker Blizzard: snowflakes with lifetime annotations ---
   if (currentEventTitle.indexOf('Borrow Checker') !== -1) {

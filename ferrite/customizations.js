@@ -24,11 +24,6 @@ const travelFlavors = [
 // END FLAVORS
 
 // OVERLAYS
-function drawEventOverlay(time) {
-  if (!currentEventType && !currentEventTitle) return;
-
-  var t = (time || 0) * 0.001;
-
   // --- BUFFER OVERFLOW STORM: cascading characters raining down ---
   if (currentEventTitle.indexOf('Buffer Overflow Storm') !== -1) {
     ctx.fillStyle = 'rgba(0,0,40,0.4)';
@@ -229,5 +224,4 @@ function drawEventOverlay(time) {
     }
     return;
   }
-}
 // END OVERLAYS

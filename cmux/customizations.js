@@ -21,7 +21,7 @@ const travelFlavors = [
 ];
 // END FLAVORS
 // OVERLAYS
-  / --- CONFIG BLIZZARD: snow and cold wind ---
+  // --- CONFIG BLIZZARD: snow and cold wind ---
   if (currentEventTitle && currentEventTitle.indexOf('Configuration Blizzard') !== -1) {
     ctx.fillStyle = 'rgba(200,210,230,0.3)';
     ctx.fillRect(0, 0, W, 110);
