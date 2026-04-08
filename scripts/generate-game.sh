@@ -1,65 +1,71 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Generate a game HTML file from a trail data JSON file + customizations
-# Usage: ./scripts/generate-game.sh <game-dir> <trail-data.json> <customizations.js>
+# Generate a thin game HTML file from trail data JSON + customizations.
+# The thin HTML defines TRAIL_DATA + overrides and loads shared engine.js.
 #
-# trail-data.json: The TRAIL_DATA JSON object
-# customizations.js: File containing:
-#   - TITLE: single line with the <title> text
-#   - FLAVORS: the travelFlavors array (JS)
-#   - OVERLAYS: the drawEventOverlay function body (JS)
+# Usage: ./scripts/generate-game.sh <game-dir> <trail-data.json> <customizations.js>
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-TEMPLATE="$PROJECT_ROOT/openclaw/index.html"
 
 GAME_DIR="${1:?Usage: generate-game.sh <game-dir> <trail-data.json> <customizations.js>}"
 TRAIL_DATA_FILE="${2:?Missing trail-data.json}"
 CUSTOMIZATIONS_FILE="${3:?Missing customizations.js}"
 
-# Create game directory
 mkdir -p "$PROJECT_ROOT/$GAME_DIR"
-
 OUTPUT="$PROJECT_ROOT/$GAME_DIR/index.html"
 
-# Read customizations file sections
-TITLE=$(sed -n '/^\/\/ TITLE$/,/^\/\/ END TITLE$/{ /^\/\//d; p; }' "$CUSTOMIZATIONS_FILE")
+# Extract sections from customizations file
+TITLE=$(sed -n '/^\/\/ TITLE$/,/^\/\/ END TITLE$/{ /^\/\//d; p; }' "$CUSTOMIZATIONS_FILE" | head -1)
 FLAVORS=$(sed -n '/^\/\/ FLAVORS$/,/^\/\/ END FLAVORS$/{ /^\/\/ \(END \)\?FLAVORS$/d; p; }' "$CUSTOMIZATIONS_FILE")
 OVERLAYS=$(sed -n '/^\/\/ OVERLAYS$/,/^\/\/ END OVERLAYS$/{ /^\/\/ \(END \)\?OVERLAYS$/d; p; }' "$CUSTOMIZATIONS_FILE")
 
-# Read trail data
 TRAIL_DATA=$(cat "$TRAIL_DATA_FILE")
 
-# Build the game HTML by extracting template sections and inserting custom parts
-{
-  # Lines 1-5: HTML header before title
-  sed -n '1,5p' "$TEMPLATE"
+cat > "$OUTPUT" <<HTMLEOF
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${TITLE}</title>
+</head>
+<body>
+<div id="game-container">
+  <div id="canvas-area">
+    <canvas id="game-canvas" width="320" height="200"></canvas>
+    <div id="music-indicator">M: Music</div>
+  </div>
+  <div id="text-panel"></div>
+  <div id="status-bar"></div>
+</div>
 
-  # Custom title
-  echo "<title>$TITLE</title>"
+<script>
+window.TRAIL_DATA = ${TRAIL_DATA};
 
-  # Lines 7-137: CSS and HTML structure after title
-  sed -n '7,137p' "$TEMPLATE"
+HTMLEOF
 
-  # Trail data line
-  echo "const TRAIL_DATA=$TRAIL_DATA;"
+# Append flavors
+echo "$FLAVORS" | sed 's/^const travelFlavors/window.TRAIL_FLAVORS/' >> "$OUTPUT"
 
-  # Lines 139-188: Game state (identical across games)
-  sed -n '139,188p' "$TEMPLATE"
+# Append overlays as drawCustomEventOverlay
+cat >> "$OUTPUT" <<'JSEOF'
 
-  # Custom travel flavors
-  echo "$FLAVORS"
+window.drawCustomEventOverlay = function(time) {
+  if (!currentEventType && !currentEventTitle) return;
+  var t = (time || 0) * 0.001;
 
-  # Lines 206-494: Shared engine (canvas, rendering, etc.) including overlay function declaration + guard + var t
-  sed -n '206,494p' "$TEMPLATE"
+JSEOF
 
-  # Custom event overlays (inside drawEventOverlay function body)
-  echo "$OVERLAYS"
+echo "$OVERLAYS" >> "$OUTPUT"
 
-  # Lines 709+: Close drawEventOverlay function + rest of engine
-  sed -n '709,$p' "$TEMPLATE"
-
-} > "$OUTPUT"
+cat >> "$OUTPUT" <<'HTMLEOF'
+};
+</script>
+<script src="../engine.js"></script>
+</body>
+</html>
+HTMLEOF
 
 echo "Generated $OUTPUT ($(wc -c < "$OUTPUT" | tr -d ' ') bytes)"
