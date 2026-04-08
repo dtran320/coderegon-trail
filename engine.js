@@ -62,7 +62,7 @@ html, body {
   top: 0;
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: 62px;
   z-index: 10;
 }
 #text-panel::-webkit-scrollbar { width: 8px; }
@@ -154,10 +154,10 @@ html, body {
 // =====================================================================
 const STATES = { TITLE: 'TITLE', SETUP: 'SETUP', TRAVEL: 'TRAVEL', STOP: 'STOP', EVENT: 'EVENT', RIVER: 'RIVER', DEATH: 'DEATH', WIN: 'WIN' };
 const PROFESSIONS = [
-  { name: 'Ralph Wiggum', desc: '"I\'m learnding!"', health: 999, supplies: 999, hintFree: true, forgiving: true },
-  { name: 'Vibe Coder', desc: '"It works on my machine"', health: 100, supplies: 5, hintFree: false, forgiving: false },
-  { name: 'Engineer', desc: '"Let me check the docs"', health: 80, supplies: 2, hintFree: false, forgiving: false },
-  { name: 'Staff Architect', desc: '"I designed this system"', health: 50, supplies: 0, hintFree: false, forgiving: false }
+  { name: 'Ralph Wiggum', desc: '"I\'m learnding!"', health: 999, supplies: 999, hintFree: true, forgiving: true, wrongDmg: 15, riverDmg: 20, drainInterval: 0, healOnCorrect: 10, partyMaxHp: 3 },
+  { name: 'Vibe Coder', desc: '"It works on my machine"', health: 100, supplies: 5, hintFree: false, forgiving: false, wrongDmg: 15, riverDmg: 20, drainInterval: 3000, healOnCorrect: 10, partyMaxHp: 3 },
+  { name: 'Engineer', desc: '"Let me check the docs"', health: 70, supplies: 2, hintFree: false, forgiving: false, wrongDmg: 20, riverDmg: 25, drainInterval: 2500, healOnCorrect: 5, partyMaxHp: 2 },
+  { name: 'Staff Architect', desc: '"I designed this system"', health: 50, supplies: 0, hintFree: false, forgiving: false, wrongDmg: 25, riverDmg: 30, drainInterval: 2000, healOnCorrect: 0, partyMaxHp: 1 }
 ];
 
 let gameState = STATES.TITLE;
@@ -184,7 +184,10 @@ let dimmedChoice = -1;
 let selectedEventChoice = 0;
 let selectedStopChoice = 0;
 let shuffledIndices = []; // maps display position -> original choice index
-let selectedDifficulty = 1;
+let selectedDifficulty = (function() {
+  try { var d = parseInt(localStorage.getItem('coderegon-trail:difficulty')); return (d >= 0 && d <= 3) ? d : 1; }
+  catch(e) { return 1; }
+})();
 let musicPlaying = false;
 let audioCtx = null;
 let musicInitialized = false;
@@ -928,8 +931,10 @@ function toggleMusic() {
   if (!musicInitialized) initAudio();
   if (musicPlaying) {
     stopMusic();
+    try { localStorage.setItem('coderegon-trail:music', 'off'); } catch(e) {}
   } else {
     startMusic();
+    try { localStorage.setItem('coderegon-trail:music', 'on'); } catch(e) {}
   }
   renderStatusBar();
 }
@@ -1075,8 +1080,9 @@ function renderSetupScreen() {
     var sel = (i === selectedDifficulty);
     var color = sel ? '#FFFF55' : '#AAAAAA';
     var marker = sel ? '>' : ' ';
-    var perks = 'HP:' + p.health + '  Hints:' + p.supplies;
+    var perks = 'HP:' + p.health + '  Hints:' + p.supplies + '  Party HP:' + p.partyMaxHp;
     if (p.hintFree) perks += '  (free hints!)';
+    if (p.healOnCorrect === 0) perks += '  (no heal)';
     profsHtml += '<div style="color:' + color + '; cursor:pointer;" onclick="selectDifficulty(' + i + ')">' +
              marker + ' [' + (i + 1) + '] ' + p.name + '</div>';
     profsHtml += '<div style="color:' + (sel ? '#AAAAAA' : '#555555') + '; margin-left:28px; font-size:12px;">' + p.desc + '  ' + perks + '</div>';
@@ -1239,6 +1245,7 @@ function renderDeathScreen() {
     '</div>' +
     '<div style="color:#1a8a1a; margin-top:14px; font-size:13px;">Stops: ' + currentStop + '/' + TRAIL_DATA.stops.length + '  Score: ' + score + '/' + totalQuestions + '  Streak: ' + bestStreak + '</div>' +
     '<div style="color:#33FF33; margin-top:14px;" class="blink">Press SPACE BAR to try again</div>' +
+    '<div style="color:#555555; margin-top:6px; font-size:12px;">Press Q to return to trail select</div>' +
     '</div>'
   );
 
@@ -1264,9 +1271,10 @@ function renderWinScreen() {
   var masteryHtml = '';
   var weakestName = '';
   var weakestHp = 999;
+  var profMaxHp = PROFESSIONS[difficulty] ? PROFESSIONS[difficulty].partyMaxHp : 3;
   for (var i = 0; i < conceptNames.length; i++) {
     var hp = partyHealth[i];
-    var maxHp = TRAIL_DATA.partyMembers[i].maxHealth;
+    var maxHp = Math.min(TRAIL_DATA.partyMembers[i].maxHealth, profMaxHp);
     var stars, color;
     if (hp <= 0) {
       stars = '<span style="color:#555555">\u2606\u2606\u2606 (died)</span>';
@@ -1300,7 +1308,7 @@ function renderWinScreen() {
     '<button onclick="copyProofToClipboard()" style="background:#003300; border:1px solid #55FF55; color:#55FF55; font-family:monospace; font-size:13px; padding:4px 14px; cursor:pointer;">[ Copy Proof of Understanding ]</button>' +
     '</div>' +
     (TRAIL_DATA.sourceInfo ? '<div style="margin-top:8px; color:#555555; font-size:10px; text-align:center;">Source: ' + TRAIL_DATA.sourceInfo.repo + ' @ ' + TRAIL_DATA.sourceInfo.commit + (TRAIL_DATA.sourceInfo.tag ? ' (' + TRAIL_DATA.sourceInfo.tag + ')' : '') + ' \u2014 ' + TRAIL_DATA.sourceInfo.snapshotDate + '</div>' : '') +
-    '<div style="margin-top:8px; text-align:center; color:#555555; font-size:12px;">Press C to copy  |  Press SPACE to play again</div>' +
+    '<div style="margin-top:8px; text-align:center; color:#555555; font-size:12px;">Press C to copy  |  Press SPACE to play again  |  Press Q for trail select</div>' +
     '</div>'
   );
 }
@@ -1313,7 +1321,7 @@ function renderStatusBar() {
     var titleMusic = musicPlaying
       ? 'Music: <span style="color:#55FF55;">On</span> <span style="color:#555555;">(M to toggle off)</span>'
       : 'Music: <span style="color:#FF5555;">Off</span> <span style="color:#555555;">(M to toggle on)</span>';
-    statusBar.innerHTML = '<span style="color:#555555;">The Coderegon Trail v1.0</span>  |  ' + titleMusic;
+    statusBar.innerHTML = '<span style="color:#555555;">The Coderegon Trail v1.0</span>  |  ' + titleMusic + '  |  <span style="color:#555555;">ESC: Trail Select</span>';
     return;
   }
 
@@ -1339,7 +1347,8 @@ function renderStatusBar() {
   statusBar.innerHTML = 'HP: ' + healthBar + ' ' + Math.max(0, health) +
     '  Hints: ' + supplies + '  ' + streakStars +
     '  |  Stop ' + (currentStop + 1) + '/' + TRAIL_DATA.stops.length +
-    '  |  ' + musicHint;
+    '  |  ' + musicHint +
+    '  |  <span style="color:#555555;">ESC: Quit</span>';
 }
 
 // =====================================================================
@@ -1348,7 +1357,10 @@ function renderStatusBar() {
 function resetGame() {
   gameState = STATES.TITLE;
   difficulty = 1;
-  selectedDifficulty = 1;
+  selectedDifficulty = (function() {
+    try { var d = parseInt(localStorage.getItem('coderegon-trail:difficulty')); return (d >= 0 && d <= 3) ? d : 1; }
+    catch(e) { return 1; }
+  })();
   health = 100;
   maxHealthForGame = 100;
   supplies = 5;
@@ -1383,6 +1395,7 @@ function resetGame() {
 
 function selectDifficulty(idx) {
   selectedDifficulty = Math.max(0, Math.min(PROFESSIONS.length - 1, idx));
+  try { localStorage.setItem('coderegon-trail:difficulty', selectedDifficulty); } catch(e) {}
   renderSetupScreen();
 }
 
@@ -1392,7 +1405,8 @@ function startGame() {
   health = prof.health;
   maxHealthForGame = prof.health;
   supplies = prof.supplies;
-  partyHealth = TRAIL_DATA.partyMembers.map(function(p) { return p.maxHealth; });
+  var partyMaxHp = prof.partyMaxHp || 3;
+  partyHealth = TRAIL_DATA.partyMembers.map(function(p) { return Math.min(p.maxHealth, partyMaxHp); });
   currentStop = 0;
   day = 1;
   score = 0;
@@ -1514,14 +1528,16 @@ function handleEventChoice(displayIdx) {
 
   totalQuestions++;
 
+  var prof = PROFESSIONS[difficulty];
   if (choice.correct) {
+    var heal = prof.healOnCorrect || 0;
     var bonus = streak >= 3 ? 5 : 0;
-    health = Math.min(health + 10 + bonus, maxHealthForGame);
+    health = Math.min(health + heal + bonus, maxHealthForGame);
     score++;
     streak++;
     if (streak > bestStreak) bestStreak = streak;
   } else {
-    var dmg = isRiver ? 20 : 15;
+    var dmg = isRiver ? prof.riverDmg : prof.wrongDmg;
     health -= dmg;
     streak = 0;
     // Damage related party member
@@ -1704,7 +1720,8 @@ function generateProofMarkdown() {
   for (var i = 0; i < TRAIL_DATA.partyMembers.length; i++) {
     var name = TRAIL_DATA.partyMembers[i].name;
     var hp = partyHealth[i];
-    var maxHp = TRAIL_DATA.partyMembers[i].maxHealth;
+    var cpMaxHp = PROFESSIONS[difficulty] ? PROFESSIONS[difficulty].partyMaxHp : 3;
+    var maxHp = Math.min(TRAIL_DATA.partyMembers[i].maxHealth, cpMaxHp);
     var stars, summary;
     if (hp >= maxHp) { stars = '\u2B50\u2B50\u2B50'; summary = '(all correct)'; }
     else if (hp > 0) { stars = '\u2B50\u2B50'; summary = '(mostly correct)'; }
@@ -1753,7 +1770,8 @@ function fallbackCopy(text) {
 function ensureAudio() {
   if (!musicInitialized) {
     initAudio();
-    // Don't auto-start music — let the player toggle it with 'M'
+    // Auto-start music if user previously toggled it on
+    try { if (localStorage.getItem('coderegon-trail:music') === 'on') startMusic(); } catch(e) {}
   }
 }
 
@@ -1764,6 +1782,13 @@ document.addEventListener('keydown', function(e) {
   if (key === 'm' || key === 'M') {
     if (!musicInitialized) initAudio();
     toggleMusic();
+    return;
+  }
+
+  // Quit to hub — Escape from any screen, Q from title/death/win
+  if (key === 'Escape' || ((key === 'q' || key === 'Q') && (gameState === STATES.TITLE || gameState === STATES.DEATH || gameState === STATES.WIN))) {
+    e.preventDefault();
+    window.location.href = '../';
     return;
   }
 
@@ -1914,13 +1939,13 @@ function gameLoop(timestamp) {
     scrollX += dt * 0.002;
   }
 
-  // Tech debt drain: HP ticks down during active gameplay (disabled for Ralph Wiggum)
-  var isForgiving = PROFESSIONS[difficulty] && PROFESSIONS[difficulty].forgiving;
+  // Tech debt drain: HP ticks down during active gameplay (interval varies by profession)
+  var profDrain = PROFESSIONS[difficulty] && PROFESSIONS[difficulty].drainInterval;
   var isActive = gameState === STATES.STOP || gameState === STATES.EVENT || gameState === STATES.RIVER;
-  if (isActive && !deathPending && !isForgiving) {
+  if (isActive && !deathPending && profDrain > 0) {
     drainAccumulator += dt;
-    while (drainAccumulator >= DRAIN_INTERVAL) {
-      drainAccumulator -= DRAIN_INTERVAL;
+    while (drainAccumulator >= profDrain) {
+      drainAccumulator -= profDrain;
       health--;
       renderStatusBar();
       if (health <= 0) {
