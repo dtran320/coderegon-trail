@@ -1,0 +1,64 @@
+1) we shouldn't toggle from music off to music on when starting a game
+2) [Image #1]
+
+Can we use shiki to style the code
+
+---
+
+[Image: source: /Users/flowclub/Desktop/SCR-20260407-offp.png]
+
+---
+
+can we open this locally
+
+---
+
+Can clicking on the code block expand it? And give a hint to the user for this
+
+---
+
+When we expand, it should also cover the game part of the screen
+
+---
+
+when the text panle goes full screen but then we navigate to the next screne, it should re-minimize to show the game again
+
+---
+
+commit
+
+---
+
+can we open it again
+
+---
+
+what happened to our new threejs? did we revert it?
+
+---
+
+what's in this branch again
+
+---
+
+okay I merged in the worktree-threejs branch to main
+
+---
+
+yes
+
+---
+
+can we summarize what's in this branch
+
+---
+
+looks like we're missing the proof of understanding for gstack?
+
+---
+
+Can we add gstack to the index screen? Are any others missing? Can we make the first 2 gstack and openclaw
+
+---
+
+commit and push
