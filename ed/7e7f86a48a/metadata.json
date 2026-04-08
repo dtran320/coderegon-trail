@@ -1,0 +1,42 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "ed7e7f86a48a",
+  "strategy": "manual-commit",
+  "branch": "worktree-hn-popular",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "agents/trail-data-extractor.md",
+    "cmux/customizations.js",
+    "ferrite/customizations.js",
+    "gotreesitter/customizations.js",
+    "gotreesitter/index.html",
+    "index.html",
+    "korb/customizations.js",
+    "mini-browser/customizations.js",
+    "mini-browser/index.html",
+    "minidiffusion/customizations.js",
+    "minidiffusion/trail-data.json",
+    "moongate/customizations.js",
+    "nanochat/customizations.js",
+    "nanochat/index.html",
+    "nanochat/trail-data.json",
+    "pg-textsearch/customizations.js",
+    "scripts/generate-game.sh"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ed/7e7f86a48a/0/metadata.json",
+      "transcript": "/ed/7e7f86a48a/0/full.jsonl",
+      "context": "/ed/7e7f86a48a/0/context.md",
+      "content_hash": "/ed/7e7f86a48a/0/content_hash.txt",
+      "prompt": "/ed/7e7f86a48a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 23,
+    "cache_creation_tokens": 9738,
+    "cache_read_tokens": 2782562,
+    "output_tokens": 5712,
+    "api_call_count": 17
+  }
+}

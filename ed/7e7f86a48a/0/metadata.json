@@ -1,0 +1,48 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "ed7e7f86a48a",
+  "session_id": "875ff605-b18e-4b1a-ad50-e7473e36a87c",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-08T23:20:22.186357Z",
+  "branch": "worktree-hn-popular",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "agents/trail-data-extractor.md",
+    "cmux/customizations.js",
+    "ferrite/customizations.js",
+    "gotreesitter/customizations.js",
+    "gotreesitter/index.html",
+    "index.html",
+    "korb/customizations.js",
+    "mini-browser/customizations.js",
+    "mini-browser/index.html",
+    "minidiffusion/customizations.js",
+    "minidiffusion/trail-data.json",
+    "moongate/customizations.js",
+    "nanochat/customizations.js",
+    "nanochat/index.html",
+    "nanochat/trail-data.json",
+    "pg-textsearch/customizations.js",
+    "scripts/generate-game.sh"
+  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "beb947e7-bb39-47b5-b78a-68c2dfff35cf",
+  "checkpoint_transcript_start": 511,
+  "transcript_lines_at_start": 511,
+  "token_usage": {
+    "input_tokens": 23,
+    "cache_creation_tokens": 9738,
+    "cache_read_tokens": 2782562,
+    "output_tokens": 5712,
+    "api_call_count": 17
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-08T23:20:22.06142Z",
+    "agent_lines": 3615,
+    "human_added": 2375,
+    "human_modified": 2,
+    "human_removed": 0,
+    "total_committed": 5992,
+    "agent_percentage": 60.33044058744993
+  }
+}
