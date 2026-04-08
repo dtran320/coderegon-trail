@@ -1,0 +1,58 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "42d2d4f22a5a",
+  "strategy": "manual-commit",
+  "branch": "worktree-hn-popular",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "agents/trail-data-extractor.md",
+    "cmux/customizations.js",
+    "cmux/index.html",
+    "cmux/trail-data.json",
+    "craftplan/customizations.js",
+    "craftplan/index.html",
+    "craftplan/trail-data.json",
+    "ferrite/customizations.js",
+    "ferrite/index.html",
+    "ferrite/trail-data.json",
+    "gotreesitter/customizations.js",
+    "gotreesitter/index.html",
+    "gotreesitter/trail-data.json",
+    "index.html",
+    "kittentts/customizations.js",
+    "kittentts/index.html",
+    "kittentts/trail-data.json",
+    "korb/customizations.js",
+    "korb/index.html",
+    "korb/trail-data.json",
+    "localgpt/customizations.js",
+    "localgpt/index.html",
+    "localgpt/trail-data.json",
+    "mini-browser/customizations.js",
+    "mini-browser/index.html",
+    "mini-browser/trail-data.json",
+    "moongate/customizations.js",
+    "moongate/index.html",
+    "moongate/trail-data.json",
+    "pg-textsearch/customizations.js",
+    "pg-textsearch/index.html",
+    "pg-textsearch/trail-data.json",
+    "scripts/generate-game.sh"
+  ],
+  "sessions": [
+    {
+      "metadata": "/42/d2d4f22a5a/0/metadata.json",
+      "transcript": "/42/d2d4f22a5a/0/full.jsonl",
+      "context": "/42/d2d4f22a5a/0/context.md",
+      "content_hash": "/42/d2d4f22a5a/0/content_hash.txt",
+      "prompt": "/42/d2d4f22a5a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 4707,
+    "cache_creation_tokens": 160015,
+    "cache_read_tokens": 15800467,
+    "output_tokens": 60360,
+    "api_call_count": 144
+  }
+}
