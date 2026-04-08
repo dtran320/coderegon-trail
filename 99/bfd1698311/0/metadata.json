@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "99bfd1698311",
+  "session_id": "875ff605-b18e-4b1a-ad50-e7473e36a87c",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-08T23:24:46.910922Z",
+  "branch": "worktree-hn-popular",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "index.html"
+  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "5f239f10-5025-47ca-9fc5-c476026cfd08",
+  "checkpoint_transcript_start": 566,
+  "transcript_lines_at_start": 566,
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 20206,
+    "cache_read_tokens": 3956124,
+    "output_tokens": 10022,
+    "api_call_count": 22
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-08T23:24:46.752953Z",
+    "agent_lines": 139,
+    "human_added": 23,
+    "human_modified": 2,
+    "human_removed": 0,
+    "total_committed": 164,
+    "agent_percentage": 84.7560975609756
+  }
+}
