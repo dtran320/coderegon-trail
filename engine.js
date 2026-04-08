@@ -464,6 +464,20 @@ function drawLandmark(type, x, baseY) {
         drawTree(x + i * 7, baseY, 14 + (i % 3) * 3);
       }
       break;
+    case 'desert':
+      ctx.fillStyle = '#FFAA00';
+      ctx.fillRect(Math.floor(x - 5), Math.floor(baseY - 3), 40, 3);
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(x - 10), Math.floor(baseY));
+      ctx.quadraticCurveTo(Math.floor(x + 5), Math.floor(baseY - 8), Math.floor(x + 20), Math.floor(baseY));
+      ctx.fill();
+      ctx.fillStyle = '#00AA00';
+      ctx.fillRect(Math.floor(x + 25), Math.floor(baseY - 18), 3, 18);
+      ctx.fillRect(Math.floor(x + 22), Math.floor(baseY - 14), 3, 6);
+      ctx.fillRect(Math.floor(x + 28), Math.floor(baseY - 12), 3, 5);
+      ctx.fillRect(Math.floor(x + 22), Math.floor(baseY - 14), 1, 1);
+      ctx.fillRect(Math.floor(x + 30), Math.floor(baseY - 12), 1, 1);
+      break;
   }
 }
 
@@ -1048,7 +1062,7 @@ function renderTitleScreen() {
     '<div style="text-align:center; padding-top:20px;">' +
     '<div style="color:#FFFF55; font-size:16px; letter-spacing:2px;">THE CODEREGON TRAIL</div>' +
     '<div style="color:#AAAAAA; margin-top:8px;">' + escHtml(TRAIL_DATA.trailName) + ' - A ' + escHtml(TRAIL_DATA.framework) + ' Learning Adventure</div>' +
-    '<div style="color:#555555; margin-top:4px; font-size:10px;">Source: ' + TRAIL_DATA.sourceInfo.repo + ' @ ' + TRAIL_DATA.sourceInfo.commit + (TRAIL_DATA.sourceInfo.tag ? ' (' + TRAIL_DATA.sourceInfo.tag + ')' : '') + ' \u2014 ' + TRAIL_DATA.sourceInfo.snapshotDate + '</div>' +
+    (TRAIL_DATA.sourceInfo ? '<div style="color:#555555; margin-top:4px; font-size:10px;">Source: ' + TRAIL_DATA.sourceInfo.repo + ' @ ' + TRAIL_DATA.sourceInfo.commit + (TRAIL_DATA.sourceInfo.tag ? ' (' + TRAIL_DATA.sourceInfo.tag + ')' : '') + ' \u2014 ' + TRAIL_DATA.sourceInfo.snapshotDate + '</div>' : '') +
     '<div style="margin-top:30px;" class="blink">Press SPACE BAR to begin</div>' +
     '</div>'
   );
@@ -1271,9 +1285,9 @@ function renderWinScreen() {
 
   setTextPanel(
     '<div style="padding:8px 16px;">' +
-    '<div style="color:#FFFF55; text-align:center; font-size:16px;">\u2605 YOU MADE IT TO OREGON CITY! \u2605</div>' +
+    '<div style="color:#FFFF55; text-align:center; font-size:16px;">\u2605 YOU MADE IT TO ' + escHtml(TRAIL_DATA.stops[TRAIL_DATA.stops.length - 1].name).toUpperCase() + '! \u2605</div>' +
     '<div style="margin-top:10px; color:#AAAAAA;">' +
-    '<div>  Framework:    <span style="color:#55FFFF;">gstack (The Software Factory Trail)</span></div>' +
+    '<div>  Framework:    <span style="color:#55FFFF;">' + escHtml(TRAIL_DATA.framework) + ' (' + escHtml(TRAIL_DATA.trailName) + ')</span></div>' +
     '<div>  Survivors:    <span style="color:#55FF55;">' + survivors + '/' + partyHealth.length + '</span></div>' +
     '<div>  Quiz Score:   <span style="color:#FFFF55;">' + score + '/' + totalQuestions + ' (' + pctScore + '%)</span></div>' +
     '<div>  Best Streak:  <span style="color:#FF55FF;">' + bestStreak + '</span></div>' +
@@ -1285,7 +1299,7 @@ function renderWinScreen() {
     '<div style="margin-top:12px; text-align:center;">' +
     '<button onclick="copyProofToClipboard()" style="background:#003300; border:1px solid #55FF55; color:#55FF55; font-family:monospace; font-size:13px; padding:4px 14px; cursor:pointer;">[ Copy Proof of Understanding ]</button>' +
     '</div>' +
-    '<div style="margin-top:8px; color:#555555; font-size:10px; text-align:center;">Source: ' + TRAIL_DATA.sourceInfo.repo + ' @ ' + TRAIL_DATA.sourceInfo.commit + (TRAIL_DATA.sourceInfo.tag ? ' (' + TRAIL_DATA.sourceInfo.tag + ')' : '') + ' \u2014 ' + TRAIL_DATA.sourceInfo.snapshotDate + '</div>' +
+    (TRAIL_DATA.sourceInfo ? '<div style="margin-top:8px; color:#555555; font-size:10px; text-align:center;">Source: ' + TRAIL_DATA.sourceInfo.repo + ' @ ' + TRAIL_DATA.sourceInfo.commit + (TRAIL_DATA.sourceInfo.tag ? ' (' + TRAIL_DATA.sourceInfo.tag + ')' : '') + ' \u2014 ' + TRAIL_DATA.sourceInfo.snapshotDate + '</div>' : '') +
     '<div style="margin-top:8px; text-align:center; color:#555555; font-size:12px;">Press C to copy  |  Press SPACE to play again</div>' +
     '</div>'
   );
