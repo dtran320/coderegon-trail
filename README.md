@@ -1,26 +1,35 @@
-# diff-pair-review
+# Coderegon Trail
 
-A Claude Code plugin for learning codebases through play. The flagship feature is **Coderegon Trail** — a retro pixel art Oregon Trail-style game that teaches web framework request pipelines. Also includes TTS-narrated code walkthroughs for PRs, diffs, and codebases.
+A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin for learning codebases through play.
 
-## Commands
+The flagship feature is **Coderegon Trail** — a retro pixel art Oregon Trail-style game that teaches web framework request pipelines. Travel through ~8 stops representing stages of a framework's request lifecycle, answer quiz events disguised as trail decisions, and try to keep your party alive long enough to reach Response Frontier.
 
-### `/fly-visual [framework]` — Coderegon Trail
+Also includes TTS-narrated code walkthroughs for PRs, diffs, and codebases.
 
-Launch a retro pixel art game that teaches a web framework's request pipeline. Travel through ~8 stops, answer quiz events disguised as trail decisions, and keep your party alive.
+## Coderegon Trail (`/fly-visual`)
+
+Launch a retro pixel art game that teaches a web framework's request pipeline:
 
 ```
-/fly-visual next          # Next.js App Router trail
-/fly-visual rails         # Rails Convention trail
-/fly-visual django        # Django WSGI Wagon trail
+/fly-visual next          # Next.js App Router Trail
+/fly-visual rails         # Rails Convention Trail
+/fly-visual django        # Django WSGI Wagon Trail
 /fly-visual express       # Express Middleware Prairie
 /fly-visual react         # React/Vite Component Canyon
-/fly-visual laravel       # Laravel Artisan trail
-/fly-visual openclaw      # OpenClaw Gateway trail
+/fly-visual laravel       # Laravel Artisan Trail
+/fly-visual openclaw      # OpenClaw Gateway Trail
 /fly-visual               # auto-detect from current repo
 ```
 
+You can also play against a PR:
+
+```
+/fly-visual pr 123        # PR #123 becomes the trail
+/fly-visual pr main..feat # branch comparison
+```
+
 **How it works:**
-1. Generates a self-contained HTML game file (no dependencies, no build step)
+1. Generates a self-contained HTML game file (no build step)
 2. Opens it in your browser
 3. You travel through the framework's request pipeline as trail stops
 4. Quiz events test your understanding — wrong answers cost health and can kill party members
@@ -34,9 +43,38 @@ Launch a retro pixel art game that teaches a web framework's request pipeline. T
 - Health, supplies, morale, and scoring systems
 - Keyboard controls (1/2/3 for choices, H for hints, Enter to continue)
 
-### `/diff-review [target]`
+### Pre-built games
 
-Walk through a PR or local diff with TTS narration, ranked from most to least important.
+13 games ship ready to play in your browser — no Claude Code required:
+
+| Game | Framework | Trail Name |
+|------|-----------|------------|
+| [gstack](gstack/) | GStack | GStack Trail |
+| [openclaw](openclaw/) | OpenClaw | Gateway Trail |
+| [rails](rails/) | Rails | Convention Trail |
+| [django](django/) | Django | WSGI Wagon Trail |
+| [express](express/) | Express | Middleware Prairie |
+| [react](react/) | React/Vite | Component Canyon |
+| [laravel](laravel/) | Laravel | Artisan Trail |
+| [qmd](qmd/) | QMD | QMD Trail |
+| [pi-mono](pi-mono/) | Pi Mono | Pi Mono Trail |
+| [ruview](ruview/) | RuView | RuView Trail |
+| [shannon](shannon/) | Shannon | Shannon Trail |
+| [spacetimedb](spacetimedb/) | SpacetimeDB | SpacetimeDB Trail |
+| [superpowers](superpowers/) | Superpowers | Superpowers Trail |
+
+To play, serve the repo locally and open any game in your browser:
+
+```bash
+python3 -m http.server 8080
+# then visit http://localhost:8080/gstack/index.html
+```
+
+Or open the [hub page](index.html) at `http://localhost:8080` to browse all games.
+
+## Diff Review (`/diff-review`)
+
+Walk through a PR or local diff with TTS narration, ranked from most to least important:
 
 ```
 /diff-review              # uncommitted changes
@@ -46,9 +84,9 @@ Walk through a PR or local diff with TTS narration, ranked from most to least im
 /diff-review --team       # multi-voice team mode
 ```
 
-### `/walkthrough [scope]`
+## Walkthrough (`/walkthrough`)
 
-Explore an unfamiliar codebase with a TTS-narrated guided tour.
+Explore an unfamiliar codebase with a TTS-narrated guided tour:
 
 ```
 /walkthrough              # full repo tour
@@ -58,9 +96,9 @@ Explore an unfamiliar codebase with a TTS-narrated guided tour.
 /walkthrough --team       # multi-voice team mode
 ```
 
-## Navigation (diff-review & walkthrough)
+## Navigation
 
-Both TTS commands support interactive navigation:
+Both TTS commands support interactive navigation during playback:
 
 | Command | Action |
 |---------|--------|
@@ -73,38 +111,70 @@ Both TTS commands support interactive navigation:
 | `list` | Show all sections |
 | `done` | End with summary |
 
-## Team Mode (diff-review & walkthrough)
+## Team Mode
 
-Pass `--team` to split the codebase into domains, each narrated by a different voice:
+Pass `--team` to split content into domains, each narrated by a different voice:
 
 - **Lead** (Samantha/alloy) — big picture and transitions
 - **Backend** (Daniel/echo) — API, services, data flow
 - **Frontend** (Karen/nova) — components, state, UX
 - **Infrastructure** (Tom/fable) — deploy, config, schemas
 
-## TTS Configuration
-
-Default: macOS `say` command. Configure via environment variables or `config/tts.json`:
-
-```bash
-# Use OpenAI TTS
-export DIFF_REVIEW_TTS_ENGINE=openai
-export OPENAI_API_KEY=sk-...
-export DIFF_REVIEW_TTS_VOICE=nova
-
-# Adjust macOS say
-export DIFF_REVIEW_TTS_VOICE=Daniel
-export DIFF_REVIEW_TTS_RATE=220
-```
-
 ## Installation
 
-Install via the Claude Code plugin system:
-```
-/plugins install diff-pair-review
+Install as a Claude Code plugin:
+
+```bash
+claude plugin add /path/to/coderegon-trail
 ```
 
-Or clone and install locally:
+Or clone and install:
+
+```bash
+git clone https://github.com/anthropics/coderegon-trail.git
+claude plugin add ./coderegon-trail
 ```
-git clone <repo-url> ~/.claude/plugins/diff-pair-review
+
+### Requirements
+
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
+- `bash`, `jq`, `git`, `gh` (GitHub CLI)
+- `say` (macOS, for TTS — optional)
+
+### Optional TTS engines
+
+Default TTS uses the macOS `say` command. You can configure alternatives:
+
+```bash
+# OpenAI TTS
+export DIFF_REVIEW_TTS_ENGINE=openai
+export OPENAI_API_KEY=sk-...
+
+# ElevenLabs TTS
+export DIFF_REVIEW_TTS_ENGINE=elevenlabs
+export ELEVENLABS_API_KEY=...
 ```
+
+See `config/tts.json` for all options. Local overrides go in `config/tts.local.json` (gitignored).
+
+## Architecture
+
+```
+commands/          CLI commands (markdown specs)
+agents/            Claude-powered analysis agents
+skills/            Game generation + narration guidelines
+engine.js          Shared game engine (rendering, state, audio, UI)
+<game>/index.html  Per-game HTML (trail data + overrides, loads engine.js)
+scripts/           Shell infrastructure (TTS, config, utilities)
+config/            Default configuration
+```
+
+Each game HTML file is a thin wrapper that defines `TRAIL_DATA` (stops, events, quiz questions) and loads the shared `engine.js` for all rendering, state management, audio, and UI. No build step — everything runs directly in the browser.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines, especially if you spot inaccuracies in the game content.
+
+## License
+
+[MIT](LICENSE)
