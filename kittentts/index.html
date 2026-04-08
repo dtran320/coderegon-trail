@@ -1,0 +1,2244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Coderegon Trail - KittenTTS Edition</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100vh;
+  overflow: hidden;
+  background: #000;
+  font-family: 'Courier New', monospace;
+  color: #AAAAAA;
+}
+#game-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+#canvas-area {
+  height: 52vh;
+  min-height: 0;
+  position: relative;
+  background: #000;
+}
+#game-canvas {
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  display: block;
+}
+#text-panel {
+  flex: 1;
+  min-height: 0;
+  background: #000;
+  border-top: 2px solid #555555;
+  overflow-y: auto;
+  padding: 8px 16px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #FFFFFF;
+}
+#text-panel::-webkit-scrollbar { width: 8px; }
+#text-panel::-webkit-scrollbar-track { background: #000; }
+#text-panel::-webkit-scrollbar-thumb { background: #555555; }
+#status-bar {
+  height: 60px;
+  min-height: 60px;
+  background: #000;
+  border-top: 2px solid #555555;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  font-size: 15px;
+  color: #AAAAAA;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.blink {
+  animation: blink-anim 1s step-end infinite;
+}
+@keyframes blink-anim {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+.shake { animation: shake 0.5s ease-in-out; }
+.code-box {
+  background: #000;
+  border: 1px solid #555555;
+  padding: 6px 8px;
+  margin: 6px 0;
+  max-height: 130px;
+  overflow-y: auto;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.3;
+  white-space: pre;
+  color: #55FF55;
+}
+.code-box::-webkit-scrollbar { width: 6px; height: 6px; }
+.code-box::-webkit-scrollbar-track { background: #000; }
+.code-box::-webkit-scrollbar-thumb { background: #555555; }
+.choice-item { cursor: pointer; padding: 2px 4px; }
+.choice-item:hover { color: #FFFF55; }
+.choice-selected { color: #FFFF55; background: #333300; }
+.stop-opt { color: #55FFFF; cursor: pointer; padding: 2px 4px; }
+.stop-opt:hover { color: #FFFF55; }
+.choice-correct { color: #55FF55; }
+.choice-wrong { color: #FF5555; }
+.choice-dimmed { color: #555555; }
+.health-green { color: #00AA00; }
+.health-yellow { color: #FFFF55; }
+.health-red { color: #FF5555; }
+.health-dead { color: #555555; text-decoration: line-through; }
+.text-cyan { color: #55FFFF; }
+.text-yellow { color: #FFFF55; }
+.text-green { color: #55FF55; }
+.text-red { color: #FF5555; }
+.text-magenta { color: #FF55FF; }
+.text-gray { color: #555555; }
+.text-white { color: #FFFFFF; }
+.text-bright { color: #FFFFFF; font-weight: bold; }
+#music-indicator {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  font-size: 11px;
+  color: #555555;
+  z-index: 10;
+  pointer-events: none;
+}
+</style>
+</head>
+<body>
+<div id="game-container">
+  <div id="canvas-area">
+    <canvas id="game-canvas" width="320" height="200"></canvas>
+    <div id="music-indicator">M: Music</div>
+  </div>
+  <div id="text-panel"></div>
+  <div id="status-bar"></div>
+</div>
+
+<script>
+// =====================================================================
+// TRAIL DATA
+// =====================================================================
+const TRAIL_DATA={
+  "framework": "kittentts",
+  "trailName": "The Synthesis Trail",
+  "stops": [
+    {
+      "name": "Model Loading Depot",
+      "subtitle": "Model Initialization",
+      "concept": "ONNX Runtime",
+      "landmarkType": "town",
+      "code": {
+        "file": "kittentts/get_model.py",
+        "content": "class KittenTTS:\n    \"\"\"Main KittenTTS class for text-to-speech synthesis.\"\"\"\n    \n    def __init__(self, model_name=\"KittenML/kitten-tts-nano-0.8\", cache_dir=None, backend=None):\n        \"\"\"Initialize KittenTTS with a model from Hugging Face.\"\"\"\n        # Handle different model name formats\n        if \"/\" not in model_name:\n            repo_id = f\"KittenML/{model_name}\"\n        else:\n            repo_id = model_name\n            \n        self.model = download_from_huggingface(repo_id=repo_id, cache_dir=cache_dir, backend=backend)\n    \n    def generate(self, text, voice=\"expr-voice-5-m\", speed=1.0, clean_text=False):\n        \"\"\"Generate audio from text.\"\"\"\n        print(f\"Generating audio for text: {text}\")\n        return self.model.generate(text, voice=voice, speed=speed, clean_text=clean_text)",
+        "language": "python",
+        "startLine": 7,
+        "endLine": 25
+      },
+      "narration": "Every speech synthesis journey starts by loading the model. KittenTTS downloads ONNX model files from Hugging Face Hub. The constructor figures out which repo to pull from and delegates to the download function. This thin wrapper keeps the user-facing API clean while hiding the complexity of model management underneath."
+    },
+    {
+      "name": "Hub Download Station",
+      "subtitle": "Model Download & Config",
+      "concept": "ONNX Runtime",
+      "landmarkType": "camp",
+      "code": {
+        "file": "kittentts/get_model.py",
+        "content": "def download_from_huggingface(repo_id=\"KittenML/kitten-tts-nano-0.1\", cache_dir=None, backend=None):\n    \"\"\"Download model files from Hugging Face repository.\"\"\"\n    config_path = hf_hub_download(\n        repo_id=repo_id,\n        filename=\"config.json\",\n        cache_dir=cache_dir\n    )\n    \n    with open(config_path, 'r') as f:\n        config = json.load(f)\n\n    if config.get(\"type\") not in [\"ONNX1\", \"ONNX2\"]:\n        raise ValueError(\"Unsupported model type.\")\n\n    model_path = hf_hub_download(\n        repo_id=repo_id,\n        filename=config[\"model_file\"],\n        cache_dir=cache_dir\n    )\n    \n    voices_path = hf_hub_download(\n        repo_id=repo_id,\n        filename=config[\"voices\"],\n        cache_dir=cache_dir\n    )",
+        "language": "python",
+        "startLine": 60,
+        "endLine": 84
+      },
+      "narration": "The config file is downloaded first because it tells us what else to fetch. It contains the model filename and voice data filename. The type check ensures we only load compatible ONNX formats. Then the actual model weights and voice embeddings get pulled from the Hub. Caching means you only download once."
+    },
+    {
+      "name": "Text Preprocessing Plains",
+      "subtitle": "Text Normalization Pipeline",
+      "concept": "Text Preprocessing",
+      "landmarkType": "forest",
+      "code": {
+        "file": "kittentts/preprocess.py",
+        "content": "class TextPreprocessor:\n    def __init__(\n        self,\n        lowercase: bool = True,\n        replace_numbers: bool = True,\n        expand_contractions: bool = True,\n        expand_currency: bool = True,\n        expand_time: bool = True,\n        expand_units: bool = True,\n        expand_scale_suffixes: bool = True,\n        expand_fractions: bool = True,\n        expand_decades: bool = True,\n        expand_phone_numbers: bool = True,\n        expand_ip_addresses: bool = True,\n        remove_urls: bool = True,\n        remove_emails: bool = True,\n        remove_punctuation: bool = True,\n        remove_extra_whitespace: bool = True,\n        **kwargs\n    ):\n        self.config = {k: v for k, v in locals().items() if k != \"self\"}",
+        "language": "python",
+        "startLine": 737,
+        "endLine": 770
+      },
+      "narration": "Raw text is messy. You cannot feed dollar signs and percentages to a phonemizer. The TextPreprocessor is a configurable pipeline with over twenty expansion steps. Numbers become words. Currencies become spoken amounts. Each flag lets you toggle behavior. Order matters here, which is why currency expands before generic numbers."
+    },
+    {
+      "name": "Number Expansion Crossing",
+      "subtitle": "Number-to-Words Conversion",
+      "concept": "Text Preprocessing",
+      "landmarkType": "river",
+      "code": {
+        "file": "kittentts/preprocess.py",
+        "content": "_ONES = [\n    \"\", \"one\", \"two\", \"three\", \"four\", \"five\", \"six\", \"seven\", \"eight\", \"nine\",\n    \"ten\", \"eleven\", \"twelve\", \"thirteen\", \"fourteen\", \"fifteen\", \"sixteen\",\n    \"seventeen\", \"eighteen\", \"nineteen\",\n]\n_TENS = [\"\", \"\", \"twenty\", \"thirty\", \"forty\", \"fifty\", \"sixty\", \"seventy\", \"eighty\", \"ninety\"]\n_SCALE = [\"\", \"thousand\", \"million\", \"billion\", \"trillion\"]\n\ndef number_to_words(n: int) -> str:\n    if n == 0:\n        return \"zero\"\n    if n < 0:\n        return f\"negative {number_to_words(-n)}\"\n\n    if 100 <= n <= 9999 and n % 100 == 0 and n % 1000 != 0:\n        hundreds = n // 100\n        if hundreds < 20:\n            return f\"{_ONES[hundreds]} hundred\"\n\n    parts = []\n    for i, scale in enumerate(_SCALE):\n        chunk = n % 1000\n        if chunk:\n            chunk_words = _three_digits_to_words(chunk)\n            parts.append(f\"{chunk_words} {scale}\".strip() if scale else chunk_words)\n        n //= 1000\n        if n == 0:\n            break\n    return \" \".join(reversed(parts))",
+        "language": "python",
+        "startLine": 14,
+        "endLine": 97
+      },
+      "narration": "This is the heart of text normalization. A TTS model cannot pronounce the digits one-two-zero-zero. It needs the words twelve hundred. The function breaks numbers into three-digit chunks, maps each chunk to words, then attaches scale labels like thousand or million. There is a clever special case for numbers like twelve hundred instead of one thousand two hundred."
+    },
+    {
+      "name": "Chunking Camp",
+      "subtitle": "Text Chunking for Long Input",
+      "concept": "Text Preprocessing",
+      "landmarkType": "camp",
+      "code": {
+        "file": "kittentts/onnx_model.py",
+        "content": "def chunk_text(text, max_len=400):\n    \"\"\"Split text into chunks for processing long texts.\"\"\"\n    import re\n    \n    sentences = re.split(r'[.!?]+', text)\n    chunks = []\n    \n    for sentence in sentences:\n        sentence = sentence.strip()\n        if not sentence:\n            continue\n        \n        if len(sentence) <= max_len:\n            chunks.append(ensure_punctuation(sentence))\n        else:\n            words = sentence.split()\n            temp_chunk = \"\"\n            for word in words:\n                if len(temp_chunk) + len(word) + 1 <= max_len:\n                    temp_chunk += \" \" + word if temp_chunk else word\n                else:\n                    if temp_chunk:\n                        chunks.append(ensure_punctuation(temp_chunk.strip()))\n                    temp_chunk = word\n            if temp_chunk:\n                chunks.append(ensure_punctuation(temp_chunk.strip()))\n    \n    return chunks",
+        "language": "python",
+        "startLine": 25,
+        "endLine": 52
+      },
+      "narration": "Neural TTS models have a maximum input length. Long paragraphs need to be split into digestible pieces. This function first splits on sentence boundaries, then breaks overly long sentences by word. Each chunk gets punctuation appended if missing, because the model uses punctuation to control prosody. Without that trailing comma, the last word sounds cut off."
+    },
+    {
+      "name": "Phonemizer Pass",
+      "subtitle": "Phoneme Encoding",
+      "concept": "Phonemizer",
+      "landmarkType": "mountain",
+      "code": {
+        "file": "kittentts/onnx_model.py",
+        "content": "class TextCleaner:\n    def __init__(self, dummy=None):\n        _pad = \"$\"\n        _punctuation = ';:,.!?\\u00a1\\u00bf\\u2014\\u2026\\u201c\\u00ab\\u00bb\\u201d\\u201c '\n        _letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'\n        _letters_ipa = \"\\u0251\\u0250\\u0252\\u00e6\\u0253\\u0299\\u03b2\\u0254\\u0255\\u00e7\\u0257\\u0256\\u00f0\\u02a4\\u0259\\u0258\\u025a\\u025b\\u025c\\u025d\\u025e\\u025f\\u0284\\u0261\\u0260\\u0262\\u029b\\u0266\\u0267\\u0127\\u0265\\u029c\\u0268\\u026a\\u029d\\u026d\\u026c\\u026b\\u026e\\u029f\\u0271\\u026f\\u0270\\u014b\\u0273\\u0272\\u0274\\u00f8\\u0275\\u0278\\u03b8\\u0153\\u0276\\u0298\\u0279\\u027a\\u027e\\u027b\\u0280\\u0281\\u027d\\u0282\\u0283\\u0288\\u02a7\\u0289\\u028a\\u028b\\u2c71\\u028c\\u0263\\u0264\\u028d\\u03c7\\u028e\\u028f\\u0291\\u0290\\u0292\\u0294\\u02a1\\u0295\\u02a2\\u01c0\\u01c1\\u01c2\\u01c3\\u02c8\\u02cc\\u02d0\\u02d1\\u02bc\\u02b4\\u02b0\\u02b1\\u02b2\\u02b7\\u02e0\\u02e4\\u02de\\u2193\\u2191\\u2192\\u2197\\u2198\\u2019\\u0329\\u2019\\u1d7b\"\n\n        symbols = [_pad] + list(_punctuation) + list(_letters) + list(_letters_ipa)\n        \n        dicts = {}\n        for i in range(len(symbols)):\n            dicts[symbols[i]] = i\n\n        self.word_index_dictionary = dicts\n\n    def __call__(self, text):\n        indexes = []\n        for char in text:\n            try:\n                indexes.append(self.word_index_dictionary[char])\n            except KeyError:\n                pass\n        return indexes",
+        "language": "python",
+        "startLine": 55,
+        "endLine": 80
+      },
+      "narration": "Before the neural network can process text, letters need to become phonemes, then token IDs. The TextCleaner builds a vocabulary of pad tokens, punctuation, ASCII letters, and IPA symbols. Each character maps to an integer index. Unknown characters are silently dropped. This is the bridge between human-readable text and the numerical world the model understands."
+    },
+    {
+      "name": "ONNX Inference Summit",
+      "subtitle": "Model Inference",
+      "concept": "ONNX Runtime",
+      "landmarkType": "mountain",
+      "code": {
+        "file": "kittentts/onnx_model.py",
+        "content": "def _prepare_inputs(self, text: str, voice: str, speed: float = 1.0) -> dict:\n    \"\"\"Prepare ONNX model inputs from text and voice parameters.\"\"\"\n    if voice in self.voice_aliases:\n        voice = self.voice_aliases[voice]\n\n    if voice not in self.available_voices:\n        raise ValueError(f\"Voice '{voice}' not available. Choose from: {self.available_voices}\")\n    \n    phonemes_list = self.phonemizer.phonemize([text])\n    \n    phonemes = basic_english_tokenize(phonemes_list[0])\n    phonemes = ' '.join(phonemes)\n    tokens = self.text_cleaner(phonemes)\n    \n    tokens.insert(0, 0)\n    tokens.append(10)\n    tokens.append(0)\n    \n    input_ids = np.array([tokens], dtype=np.int64)\n    ref_id = min(len(text), self.voices[voice].shape[0] - 1)\n    ref_s = self.voices[voice][ref_id:ref_id+1]\n    \n    return {\n        \"input_ids\": input_ids,\n        \"style\": ref_s,\n        \"speed\": np.array([speed], dtype=np.float32),\n    }",
+        "language": "python",
+        "startLine": 97,
+        "endLine": 124
+      },
+      "narration": "This is where everything comes together before hitting the model. Text gets phonemized through eSpeak, tokenized through TextCleaner, then padded with start and end tokens. The voice style vector is selected from a pre-computed NPZ file. The ref_id picks a style embedding based on text length. These three inputs, token IDs plus style plus speed, are all the ONNX model needs."
+    },
+    {
+      "name": "Audio Output Frontier",
+      "subtitle": "Waveform Generation & Output",
+      "concept": "Voice Synthesis",
+      "landmarkType": "town",
+      "code": {
+        "file": "kittentts/onnx_model.py",
+        "content": "def generate(self, text: str, voice: str = \"expr-voice-5-m\", speed: float = 1.0, clean_text: bool=True) -> np.ndarray:\n    out_chunks = []\n    if clean_text:\n        text = self.preprocessor(text)\n    for text_chunk in chunk_text(text):\n        out_chunks.append(self.generate_single_chunk(text_chunk, voice, speed))\n    return np.concatenate(out_chunks, axis=-1)\n\ndef generate_single_chunk(self, text: str, voice: str = \"expr-voice-5-m\", speed: float = 1.0) -> np.ndarray:\n    \"\"\"Synthesize speech from text.\"\"\"\n    onnx_inputs = self._prepare_inputs(text, voice, speed)\n    outputs = self.session.run(None, onnx_inputs)\n    audio = outputs[0][..., :-5000]\n    return audio\n\ndef generate_to_file(self, text: str, output_path: str, voice: str = \"expr-voice-5-m\", \n                      speed: float = 1.0, sample_rate: int = 24000, clean_text: bool=True) -> None:\n    \"\"\"Synthesize speech and save to file.\"\"\"\n    audio = self.generate(text, voice, speed, clean_text=clean_text)\n    sf.write(output_path, audio, sample_rate)\n    print(f\"Audio saved to {output_path}\")",
+        "language": "python",
+        "startLine": 126,
+        "endLine": 164
+      },
+      "narration": "You made it to Audio Output Frontier! The generate method orchestrates the whole pipeline. Text gets preprocessed, chunked, and each chunk runs through the ONNX model. The output arrays are concatenated into one continuous waveform. Notice the trim at the end, removing the last five thousand samples to cut trailing silence. Finally, soundfile writes the numpy array to a WAV at twenty-four kilohertz."
+    }
+  ],
+  "events": [
+    {
+      "type": "weather",
+      "trigger": "after_stop",
+      "triggerStop": 1,
+      "title": "Dependency Storm!",
+      "text": "A storm rolls in! Your model download is failing because the config.json specifies a model type your code doesn't recognize. The config says type is 'ONNX3'. What do you do?",
+      "choices": [
+        {"text": "Check the config type against the supported list and raise a ValueError for unsupported types", "correct": true, "explanation": "The code explicitly checks config.get('type') not in ['ONNX1', 'ONNX2'] and raises ValueError. This fail-fast approach prevents loading incompatible model formats that could produce garbage output."},
+        {"text": "Try loading the model anyway and hope the ONNX runtime handles it", "correct": false, "explanation": "Loading an unsupported model format could produce silent failures or corrupted audio. The type check exists to catch incompatible models early."},
+        {"text": "Download a different config file from a backup URL", "correct": false, "explanation": "There is no backup URL mechanism. The config comes from the Hugging Face repo and defines what model files to download. The right approach is to validate the type field."}
+      ],
+      "concept": "ONNX Runtime",
+      "difficulty": "easy"
+    },
+    {
+      "type": "encounter",
+      "trigger": "after_stop",
+      "triggerStop": 2,
+      "title": "A Preprocessing Pioneer Appears",
+      "text": "A fellow traveler shows you their TTS input: '$100 at 3:30pm on the 1st'. They say: 'My TTS model garbles all of this. But KittenTTS handles it perfectly because of the preprocessing pipeline order.' Why does order matter?",
+      "choices": [
+        {"text": "Currency must expand before generic numbers, so $100 becomes 'one hundred dollars' not just 'one hundred'", "correct": true, "explanation": "Exactly right. If generic number replacement ran first, $100 would lose the dollar sign context and become just 'one hundred'. The pipeline expands currencies, percentages, and times before the catch-all number replacement runs."},
+        {"text": "All expansions are independent and order does not matter", "correct": false, "explanation": "Order absolutely matters. If numbers expand before currencies, '$100' loses the dollar context. If ranges expand before phone numbers, '555-1234' becomes 'five hundred fifty-five to twelve thirty-four' instead of digit-by-digit."},
+        {"text": "The preprocessor only handles numbers, not currency or time", "correct": false, "explanation": "The TextPreprocessor handles over twenty types of expansions including currency, time, ordinals, percentages, units, phone numbers, IP addresses, and more."}
+      ],
+      "concept": "Text Preprocessing",
+      "difficulty": "easy"
+    },
+    {
+      "type": "river",
+      "trigger": "after_stop",
+      "triggerStop": 4,
+      "title": "The Chunking Rapids",
+      "text": "You reach a raging river! Your input text is 800 characters long, but the model's maximum chunk length is 400 characters. How does KittenTTS handle this without cutting words in half?",
+      "choices": [
+        {"text": "Split on sentence boundaries first, then break long sentences by words, keeping each chunk under the limit", "correct": true, "explanation": "The chunk_text function splits on sentence-ending punctuation first for natural breaks. Only when a single sentence exceeds max_len does it fall back to word-level splitting. Each chunk also gets punctuation appended to maintain prosody."},
+        {"text": "Truncate the text at exactly 400 characters regardless of word boundaries", "correct": false, "explanation": "Hard truncation would cut words in half, producing garbled phonemes. The chunking function respects both sentence and word boundaries to keep each piece meaningful."},
+        {"text": "Process the entire text at once and let ONNX Runtime handle the overflow", "correct": false, "explanation": "Neural TTS models have fixed-size attention mechanisms. Feeding oversized input causes memory errors or degraded quality. Chunking is essential for long text."}
+      ],
+      "concept": "Text Preprocessing",
+      "difficulty": "medium"
+    },
+    {
+      "type": "misfortune",
+      "trigger": "after_stop",
+      "triggerStop": 5,
+      "title": "Phoneme Plague!",
+      "text": "Disaster strikes! A user passes text containing emoji and Chinese characters. The TextCleaner encounters characters not in its vocabulary dictionary. What happens?",
+      "choices": [
+        {"text": "Unknown characters are silently skipped via the try/except KeyError block", "correct": true, "explanation": "The TextCleaner's __call__ method wraps each character lookup in a try/except. Unknown characters simply produce no token. This is intentional: the model only understands IPA phonemes, ASCII letters, and punctuation. Everything else is gracefully ignored."},
+        {"text": "The program crashes with a KeyError exception", "correct": false, "explanation": "The TextCleaner explicitly catches KeyError in a try/except block. Unknown characters are silently dropped rather than crashing the pipeline."},
+        {"text": "Unknown characters are replaced with a special UNK token", "correct": false, "explanation": "There is no UNK token in the vocabulary. Unknown characters are simply skipped, producing no output token. The model only processes characters it recognizes."}
+      ],
+      "concept": "Phonemizer",
+      "difficulty": "medium"
+    },
+    {
+      "type": "weather",
+      "trigger": "after_stop",
+      "triggerStop": 6,
+      "title": "Voice Vector Blizzard!",
+      "text": "A blizzard of voice requests! A user asks for voice 'Morgan' but the model only has 8 voices: Bella, Jasper, Luna, Bruno, Rosie, Hugo, Kiki, and Leo. These friendly names map to internal IDs like 'expr-voice-5-m'. What mechanism connects them?",
+      "choices": [
+        {"text": "A voice_aliases dictionary in the model config maps friendly names to internal voice IDs", "correct": true, "explanation": "The config.json includes a voice_aliases mapping. When _prepare_inputs receives a voice name, it first checks this alias dictionary to resolve friendly names like 'Bruno' to internal IDs like 'expr-voice-3-m'. This keeps the user API clean."},
+        {"text": "The voice names are used directly as keys into the NPZ voice data file", "correct": false, "explanation": "The NPZ file uses internal voice IDs like 'expr-voice-3-m' as keys, not friendly names. The alias mapping in config.json bridges between user-facing names and internal identifiers."},
+        {"text": "Voice names are converted to IDs by a naming convention, like lowercase plus a number", "correct": false, "explanation": "There is no algorithmic conversion. The mapping is explicit in the config.json file's voice_aliases dictionary, loaded at model initialization time."}
+      ],
+      "concept": "Voice Synthesis",
+      "difficulty": "medium"
+    },
+    {
+      "type": "encounter",
+      "trigger": "after_stop",
+      "triggerStop": 6,
+      "title": "The Streaming Scout",
+      "text": "A scout rides up with news: 'For real-time applications, you do not need to wait for the entire audio to generate! KittenTTS has a generate_stream method.' What does it yield?",
+      "choices": [
+        {"text": "One numpy array of audio samples per text chunk, so playback can start before the full text is processed", "correct": true, "explanation": "generate_stream is a Python generator that yields audio for each text chunk as it's synthesized. This lets you start playing audio immediately while the rest of the text is still being processed. Perfect for real-time applications."},
+        {"text": "Individual audio samples one at a time for maximum granularity", "correct": false, "explanation": "Yielding individual samples would be far too slow. The generator yields complete audio arrays for each text chunk, which is the natural unit the ONNX model produces."},
+        {"text": "Raw ONNX model output tensors that need post-processing", "correct": false, "explanation": "generate_stream yields fully processed numpy audio arrays, not raw tensors. Each chunk is ready for playback via sounddevice or saving via soundfile."}
+      ],
+      "concept": "Voice Synthesis",
+      "difficulty": "hard"
+    },
+    {
+      "type": "misfortune",
+      "trigger": "after_stop",
+      "triggerStop": 7,
+      "title": "The Trailing Silence Trap!",
+      "text": "Your generated audio has an annoying burst of noise at the very end of every clip. Looking at generate_single_chunk, there is a suspicious line: audio = outputs[0][..., :-5000]. What is it doing and why?",
+      "choices": [
+        {"text": "It trims the last 5000 samples to remove model artifacts at the end of the generated waveform", "correct": true, "explanation": "Neural TTS models often produce artifacts or silence padding at the end of their output. Trimming the last 5000 samples, roughly 0.2 seconds at 24kHz, is a practical workaround that removes these trailing artifacts while preserving all the meaningful speech."},
+        {"text": "It selects only the last 5000 samples because the beginning is noise", "correct": false, "explanation": "The slice [..,-5000] removes the last 5000 samples, it does not select them. The colon-negative notation in numpy means 'everything except the last N elements'."},
+        {"text": "It is a bug that accidentally cuts off the end of every audio clip", "correct": false, "explanation": "This is intentional. TTS models commonly produce trailing artifacts from the decoder's stop prediction. The 5000-sample trim is a standard cleanup step that only removes about 0.2 seconds of non-speech content."}
+      ],
+      "concept": "ONNX Runtime",
+      "difficulty": "hard"
+    }
+  ],
+  "partyMembers": [
+    {"name": "Text Preprocessing", "icon": "scroll", "maxHealth": 3},
+    {"name": "Phonemizer", "icon": "book", "maxHealth": 3},
+    {"name": "ONNX Runtime", "icon": "gear", "maxHealth": 3},
+    {"name": "Voice Synthesis", "icon": "music", "maxHealth": 3}
+  ],
+  "deathMessages": [
+    "You have died of spectral leakage.",
+    "You have died of uninitialized phonemes.",
+    "You have died of catastrophic aliasing at twenty-four kilohertz.",
+    "You have died of a hydration mismatch between mel and linear spectrograms.",
+    "You have died of runaway attention weights in the decoder.",
+    "You have died of an out-of-vocabulary emoji explosion.",
+    "You have died of voice embedding drift — nobody recognized you.",
+    "You have died of infinite trailing silence.",
+    "You have died of a chunking mishap — your last words were split across two buffers.",
+    "You have died of negative speech speed — time ran backwards."
+  ],
+  "sourceInfo": {
+    "repo": "KittenML/KittenTTS",
+    "snapshotDate": "2026-04-08"
+  }
+};
+
+// =====================================================================
+// GAME STATE
+// =====================================================================
+const STATES = { TITLE: 'TITLE', SETUP: 'SETUP', TRAVEL: 'TRAVEL', STOP: 'STOP', EVENT: 'EVENT', RIVER: 'RIVER', DEATH: 'DEATH', WIN: 'WIN' };
+const PROFESSIONS = [
+  { name: 'Ralph Wiggum', desc: '"I\'m learnding!"', health: 999, supplies: 999, hintFree: true, forgiving: true },
+  { name: 'Vibe Coder', desc: '"It works on my machine"', health: 100, supplies: 5, hintFree: false, forgiving: false },
+  { name: 'Engineer', desc: '"Let me check the docs"', health: 80, supplies: 2, hintFree: false, forgiving: false },
+  { name: 'Staff Architect', desc: '"I designed this system"', health: 50, supplies: 0, hintFree: false, forgiving: false }
+];
+
+let gameState = STATES.TITLE;
+let difficulty = 1;
+let health = 100;
+let maxHealthForGame = 100;
+let supplies = 5;
+let currentStop = 0;
+let day = 1;
+let score = 0;
+let totalQuestions = 0;
+let streak = 0;
+let bestStreak = 0;
+let hintsUsed = 0;
+let scrollX = 0;
+let travelTimer = null;
+let animFrame = null;
+let partyHealth = [];
+let pendingEvents = [];
+let currentEventIndex = 0;
+let eventAnswered = false;
+let eventHinted = false;
+let dimmedChoice = -1;
+let selectedEventChoice = 0;
+let selectedStopChoice = 0;
+let shuffledIndices = []; // maps display position -> original choice index
+let selectedDifficulty = 1;
+let musicPlaying = false;
+let audioCtx = null;
+let musicInitialized = false;
+let typewriterTimer = null;
+let typewriterText = '';
+let typewriterIndex = 0;
+let showRiver = false;
+let wagonWheelAngle = 0;
+let travelFlavorIndex = 0;
+let deathPending = false;
+let currentEventType = '';  // event type for canvas overlay
+let currentEventTitle = ''; // event title for canvas overlay
+
+// FLAVORS
+const travelFlavors = [
+  "The mel spectrograms look crisp today...",
+  "Your party hums at a comfortable twenty-four kilohertz...",
+  "The phonemes are flowing smoothly through the pipeline...",
+  "A gentle breeze carries the sound of eSpeak in the distance...",
+  "The ONNX runtime is warm and the inference is fast...",
+  "Your voice embeddings are well-aligned for the journey ahead...",
+  "The text preprocessor found twelve numbers to expand — a good omen...",
+  "The trail echoes with perfectly chunked sentences...",
+  "Someone in the party is humming in IPA notation...",
+  "The NumPy arrays are stacked neatly in the wagon...",
+  "A fellow traveler waves — they are running the nano model on a Raspberry Pi...",
+  "The attention weights are focused and the decoder is steady...",
+  "Your party crosses a buffer boundary without dropping a single sample...",
+  "The Hugging Face cache is warm — no downloads needed today...",
+  "Eight voices ride with you: Bella, Jasper, Luna, Bruno, Rosie, Hugo, Kiki, and Leo...",
+];
+// END FLAVORS
+
+// =====================================================================
+// CANVAS RENDERING (320x200 internal)
+// =====================================================================
+const canvas = document.getElementById('game-canvas');
+const ctx = canvas.getContext('2d');
+const W = 320, H = 200;
+
+// Seeded PRNG for consistent landscape
+function seededRandom(seed) {
+  let s = seed;
+  return function() {
+    s = (s * 1664525 + 1013904223) & 0xFFFFFFFF;
+    return (s >>> 0) / 0xFFFFFFFF;
+  };
+}
+
+const rng = seededRandom(42);
+const cloudPositions = [];
+for (let i = 0; i < 5; i++) {
+  cloudPositions.push({ x: rng() * 400, y: 10 + rng() * 30, w: 25 + rng() * 30, h: 8 + rng() * 6 });
+}
+const farMountains = [];
+for (let i = 0; i < 6; i++) {
+  farMountains.push({ x: i * 70 - 20 + rng() * 30, h: 40 + rng() * 35, w: 50 + rng() * 40 });
+}
+const nearMountains = [];
+for (let i = 0; i < 8; i++) {
+  nearMountains.push({ x: i * 55 - 30 + rng() * 20, h: 25 + rng() * 25, w: 30 + rng() * 25, snow: rng() > 0.3 });
+}
+const treesData = [];
+for (let i = 0; i < 25; i++) {
+  treesData.push({ x: rng() * 600, h: 12 + rng() * 16 });
+}
+
+function getSkyColors() {
+  const progress = currentStop / Math.max(TRAIL_DATA.stops.length, 1);
+  if (progress < 0.15) {
+    return { top: '#5500AA', bottom: '#FF5555' };
+  } else if (progress < 0.7) {
+    return { top: '#5555FF', bottom: '#55FFFF' };
+  } else {
+    return { top: '#5500AA', bottom: '#FFAA00' };
+  }
+}
+
+function drawPixelCloud(x, y, w, h) {
+  ctx.fillStyle = '#FFFFFF';
+  const ix = Math.floor(x), iy = Math.floor(y), iw = Math.floor(w), ih = Math.floor(h);
+  ctx.fillRect(ix, iy, iw, ih);
+  ctx.fillRect(ix + Math.floor(iw * 0.15), iy - Math.floor(ih * 0.5), Math.floor(iw * 0.3), Math.floor(ih * 0.6));
+  ctx.fillRect(ix + Math.floor(iw * 0.4), iy - Math.floor(ih * 0.7), Math.floor(iw * 0.35), Math.floor(ih * 0.8));
+  ctx.fillRect(ix + Math.floor(iw * 0.65), iy - Math.floor(ih * 0.3), Math.floor(iw * 0.2), Math.floor(ih * 0.4));
+}
+
+function drawMountain(x, h, w, color, snowCap) {
+  const baseY = 110;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(Math.floor(x), baseY);
+  ctx.lineTo(Math.floor(x + w / 2), Math.floor(baseY - h));
+  ctx.lineTo(Math.floor(x + w), baseY);
+  ctx.closePath();
+  ctx.fill();
+  if (snowCap) {
+    ctx.fillStyle = '#FFFFFF';
+    const peakX = x + w / 2;
+    const peakY = baseY - h;
+    ctx.beginPath();
+    ctx.moveTo(Math.floor(peakX - w * 0.1), Math.floor(peakY + h * 0.18));
+    ctx.lineTo(Math.floor(peakX), Math.floor(peakY));
+    ctx.lineTo(Math.floor(peakX + w * 0.1), Math.floor(peakY + h * 0.18));
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+function drawTree(x, baseY, h) {
+  const trunkW = 3, trunkH = Math.floor(h * 0.3);
+  ctx.fillStyle = '#AA5500';
+  ctx.fillRect(Math.floor(x - 1), Math.floor(baseY - trunkH), trunkW, trunkH);
+  for (let i = 0; i < 3; i++) {
+    const layerW = (h * 0.4) * (1 - i * 0.15);
+    const layerY = baseY - trunkH - (i * h * 0.2);
+    ctx.fillStyle = i === 1 ? '#00AA00' : '#005500';
+    ctx.beginPath();
+    ctx.moveTo(Math.floor(x - layerW / 2), Math.floor(layerY));
+    ctx.lineTo(Math.floor(x + 0.5), Math.floor(layerY - h * 0.25));
+    ctx.lineTo(Math.floor(x + layerW / 2), Math.floor(layerY));
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+function drawWagon(wx, wy) {
+  // Oxen (two brown lumps)
+  ctx.fillStyle = '#AA5500';
+  ctx.fillRect(Math.floor(wx - 24), Math.floor(wy - 6), 8, 6);
+  ctx.fillRect(Math.floor(wx - 14), Math.floor(wy - 6), 8, 6);
+  // Oxen legs
+  ctx.fillStyle = '#553300';
+  ctx.fillRect(Math.floor(wx - 22), Math.floor(wy), 2, 4);
+  ctx.fillRect(Math.floor(wx - 18), Math.floor(wy), 2, 4);
+  ctx.fillRect(Math.floor(wx - 12), Math.floor(wy), 2, 4);
+  ctx.fillRect(Math.floor(wx - 8), Math.floor(wy), 2, 4);
+  // Oxen heads
+  ctx.fillStyle = '#885500';
+  ctx.fillRect(Math.floor(wx - 26), Math.floor(wy - 7), 3, 3);
+  ctx.fillRect(Math.floor(wx - 16), Math.floor(wy - 7), 3, 3);
+  // Yoke
+  ctx.fillStyle = '#AA5500';
+  ctx.fillRect(Math.floor(wx - 4), Math.floor(wy - 4), 6, 2);
+  // Wagon body
+  ctx.fillStyle = '#AA5500';
+  ctx.fillRect(Math.floor(wx + 2), Math.floor(wy - 8), 24, 10);
+  // Wagon sides darker
+  ctx.fillStyle = '#885500';
+  ctx.fillRect(Math.floor(wx + 2), Math.floor(wy - 8), 24, 1);
+  ctx.fillRect(Math.floor(wx + 2), Math.floor(wy + 1), 24, 1);
+  // Canvas cover (white curved top)
+  ctx.fillStyle = '#FFFFFF';
+  ctx.beginPath();
+  ctx.moveTo(Math.floor(wx + 3), Math.floor(wy - 8));
+  ctx.quadraticCurveTo(Math.floor(wx + 14), Math.floor(wy - 22), Math.floor(wx + 25), Math.floor(wy - 8));
+  ctx.closePath();
+  ctx.fill();
+  // Canvas cover outline
+  ctx.strokeStyle = '#AAAAAA';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(Math.floor(wx + 3), Math.floor(wy - 8));
+  ctx.quadraticCurveTo(Math.floor(wx + 14), Math.floor(wy - 22), Math.floor(wx + 25), Math.floor(wy - 8));
+  ctx.stroke();
+  // Canvas ribs
+  ctx.strokeStyle = '#AAAAAA';
+  for (let ri = 0; ri < 3; ri++) {
+    const rx = wx + 8 + ri * 5;
+    ctx.beginPath();
+    ctx.moveTo(Math.floor(rx), Math.floor(wy - 8));
+    ctx.lineTo(Math.floor(rx), Math.floor(wy - 14 - ri % 2 * 2));
+    ctx.stroke();
+  }
+  // Wheels
+  const wheelR = 5;
+  for (let wi = 0; wi < 2; wi++) {
+    const wcx = wx + 7 + wi * 14;
+    const wcy = wy + 4;
+    // Outer rim
+    ctx.fillStyle = '#553300';
+    ctx.beginPath();
+    ctx.arc(Math.floor(wcx), Math.floor(wcy), wheelR, 0, Math.PI * 2);
+    ctx.fill();
+    // Inner
+    ctx.fillStyle = '#AA5500';
+    ctx.beginPath();
+    ctx.arc(Math.floor(wcx), Math.floor(wcy), wheelR - 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    // Spokes
+    ctx.strokeStyle = '#553300';
+    ctx.lineWidth = 1;
+    for (let si = 0; si < 6; si++) {
+      const angle = wagonWheelAngle + (si * Math.PI / 3);
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(wcx), Math.floor(wcy));
+      ctx.lineTo(Math.floor(wcx + Math.cos(angle) * (wheelR - 1)), Math.floor(wcy + Math.sin(angle) * (wheelR - 1)));
+      ctx.stroke();
+    }
+    // Hub
+    ctx.fillStyle = '#553300';
+    ctx.fillRect(Math.floor(wcx - 1), Math.floor(wcy - 1), 2, 2);
+  }
+  // Purple flag
+  ctx.fillStyle = '#AA00AA';
+  ctx.fillRect(Math.floor(wx + 14), Math.floor(wy - 22), 1, -7);
+  ctx.fillStyle = '#FF55FF';
+  ctx.fillRect(Math.floor(wx + 15), Math.floor(wy - 29), 6, 4);
+}
+
+function drawLandmark(type, x, baseY) {
+  switch (type) {
+    case 'town':
+      ctx.fillStyle = '#AA5500';
+      ctx.fillRect(Math.floor(x), Math.floor(baseY - 18), 14, 18);
+      ctx.fillRect(Math.floor(x + 18), Math.floor(baseY - 14), 12, 14);
+      // Roofs
+      ctx.fillStyle = '#555555';
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(x - 2), Math.floor(baseY - 18));
+      ctx.lineTo(Math.floor(x + 7), Math.floor(baseY - 25));
+      ctx.lineTo(Math.floor(x + 16), Math.floor(baseY - 18));
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(x + 16), Math.floor(baseY - 14));
+      ctx.lineTo(Math.floor(x + 24), Math.floor(baseY - 20));
+      ctx.lineTo(Math.floor(x + 32), Math.floor(baseY - 14));
+      ctx.closePath();
+      ctx.fill();
+      // Windows
+      ctx.fillStyle = '#FFFF55';
+      ctx.fillRect(Math.floor(x + 3), Math.floor(baseY - 13), 3, 3);
+      ctx.fillRect(Math.floor(x + 9), Math.floor(baseY - 13), 3, 3);
+      ctx.fillRect(Math.floor(x + 21), Math.floor(baseY - 10), 3, 3);
+      // Door
+      ctx.fillStyle = '#553300';
+      ctx.fillRect(Math.floor(x + 5), Math.floor(baseY - 7), 4, 7);
+      break;
+    case 'camp':
+      // Tent
+      ctx.fillStyle = '#AAAAAA';
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(x - 6), Math.floor(baseY));
+      ctx.lineTo(Math.floor(x + 4), Math.floor(baseY - 14));
+      ctx.lineTo(Math.floor(x + 14), Math.floor(baseY));
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#555555';
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(x + 4), Math.floor(baseY));
+      ctx.lineTo(Math.floor(x + 4), Math.floor(baseY - 14));
+      ctx.lineTo(Math.floor(x + 14), Math.floor(baseY));
+      ctx.closePath();
+      ctx.fill();
+      // Campfire
+      ctx.fillStyle = '#FF5555';
+      ctx.fillRect(Math.floor(x + 20), Math.floor(baseY - 5), 4, 3);
+      ctx.fillStyle = '#FFFF55';
+      ctx.fillRect(Math.floor(x + 21), Math.floor(baseY - 8), 2, 3);
+      ctx.fillStyle = '#FFAA00';
+      ctx.fillRect(Math.floor(x + 18), Math.floor(baseY - 2), 8, 2);
+      break;
+    case 'mountain':
+      drawMountain(x - 20, 60, 50, '#AA00AA', true);
+      drawMountain(x + 10, 45, 40, '#FF55FF', true);
+      break;
+    case 'river':
+      ctx.fillStyle = '#AA5500';
+      ctx.fillRect(Math.floor(x), Math.floor(baseY - 20), 3, 20);
+      ctx.fillRect(Math.floor(x + 24), Math.floor(baseY - 20), 3, 20);
+      ctx.strokeStyle = '#AAAAAA';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(x + 1), Math.floor(baseY - 18));
+      ctx.lineTo(Math.floor(x + 25), Math.floor(baseY - 18));
+      ctx.stroke();
+      // Sign
+      ctx.fillStyle = '#AA5500';
+      ctx.fillRect(Math.floor(x + 8), Math.floor(baseY - 25), 12, 8);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(Math.floor(x + 10), Math.floor(baseY - 23), 2, 1);
+      ctx.fillRect(Math.floor(x + 13), Math.floor(baseY - 23), 2, 1);
+      ctx.fillRect(Math.floor(x + 16), Math.floor(baseY - 23), 2, 1);
+      break;
+    case 'forest':
+      for (let i = 0; i < 6; i++) {
+        drawTree(x + i * 7, baseY, 14 + (i % 3) * 3);
+      }
+      break;
+  }
+}
+
+function drawRiver(time) {
+  const riverY = 155;
+  const riverH = 18;
+  ctx.fillStyle = '#0000AA';
+  ctx.fillRect(0, riverY, W, riverH);
+  ctx.fillStyle = '#00AAAA';
+  for (let wx = 0; wx < W; wx += 3) {
+    const waveY = riverY + 3 + Math.sin((wx + time * 0.05) * 0.08) * 3;
+    ctx.fillRect(wx, Math.floor(waveY), 2, 1);
+    const waveY2 = riverY + 10 + Math.sin((wx + time * 0.03 + 50) * 0.1) * 2;
+    ctx.fillRect(wx, Math.floor(waveY2), 2, 1);
+  }
+  // White foam
+  ctx.fillStyle = '#55FFFF';
+  for (let wx = 0; wx < W; wx += 12) {
+    const foamY = riverY + 1 + Math.sin((wx + time * 0.04) * 0.06) * 1;
+    ctx.fillRect(wx + 2, Math.floor(foamY), 3, 1);
+  }
+}
+
+// =====================================================================
+// EVENT CANVAS OVERLAYS — unique visuals per quiz event
+// =====================================================================
+// OVERLAYS
+  // --- Dependency Storm: swirling config files and lightning ---
+  if (currentEventTitle.indexOf('Dependency Storm') !== -1) {
+    // Dark storm sky
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, 320, 200);
+    // Lightning bolt
+    var lx = 160 + Math.sin(t * 3) * 40;
+    if (Math.floor(t * 4) % 3 === 0) {
+      ctx.strokeStyle = '#FFFF00';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(lx, 0);
+      ctx.lineTo(lx - 10, 60);
+      ctx.lineTo(lx + 15, 65);
+      ctx.lineTo(lx - 5, 130);
+      ctx.stroke();
+    }
+    // Falling config.json files
+    ctx.fillStyle = '#88CCFF';
+    for (var i = 0; i < 6; i++) {
+      var fx = (i * 57 + t * 40) % 320;
+      var fy = (i * 43 + t * 60) % 200;
+      ctx.fillRect(fx, fy, 16, 20);
+      ctx.fillStyle = '#334455';
+      ctx.fillRect(fx + 2, fy + 4, 12, 2);
+      ctx.fillRect(fx + 2, fy + 8, 10, 2);
+      ctx.fillRect(fx + 2, fy + 12, 12, 2);
+      ctx.fillStyle = '#88CCFF';
+    }
+    // Storm clouds
+    ctx.fillStyle = '#333355';
+    for (var ci = 0; ci < 4; ci++) {
+      var cx = ci * 90 + Math.sin(t + ci) * 10;
+      ctx.beginPath();
+      ctx.arc(cx, 30, 35, 0, Math.PI * 2);
+      ctx.arc(cx + 30, 25, 30, 0, Math.PI * 2);
+      ctx.arc(cx + 15, 15, 25, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    return;
+  }
+
+  // --- Preprocessing Pioneer: text transforming on screen ---
+  if (currentEventTitle.indexOf('Preprocessing Pioneer') !== -1) {
+    ctx.fillStyle = '#2d1b00';
+    ctx.fillRect(0, 0, 320, 200);
+    // NPC traveler (simple pixel person)
+    ctx.fillStyle = '#DEB887';
+    ctx.beginPath();
+    ctx.arc(80, 80, 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#8B4513';
+    ctx.fillRect(74, 92, 12, 30);
+    // Hat
+    ctx.fillStyle = '#654321';
+    ctx.fillRect(68, 66, 24, 6);
+    ctx.fillRect(72, 60, 16, 8);
+    // Speech bubble
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(110, 40, 190, 60);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath();
+    ctx.moveTo(110, 70);
+    ctx.lineTo(96, 80);
+    ctx.lineTo(110, 75);
+    ctx.fill();
+    // Transforming text animation
+    ctx.fillStyle = '#333333';
+    ctx.font = '10px monospace';
+    var phase = Math.floor(t * 2) % 3;
+    if (phase === 0) {
+      ctx.fillText('$100 at 3:30pm', 118, 60);
+      ctx.fillText('on the 1st', 118, 75);
+    } else if (phase === 1) {
+      ctx.fillText('one hundred dollars', 118, 60);
+      ctx.fillText('at three thirty pm', 118, 75);
+    } else {
+      ctx.fillText('one hundred dollars', 118, 60);
+      ctx.fillText('at three thirty pm', 118, 75);
+      ctx.fillText('on the first', 118, 90);
+    }
+    // Ground
+    ctx.fillStyle = '#3d2b00';
+    ctx.fillRect(0, 160, 320, 40);
+    return;
+  }
+
+  // --- Chunking Rapids: river with text chunks floating ---
+  if (currentEventTitle.indexOf('Chunking Rapids') !== -1) {
+    // Sky
+    ctx.fillStyle = '#4488AA';
+    ctx.fillRect(0, 0, 320, 80);
+    // River
+    ctx.fillStyle = '#2255AA';
+    ctx.fillRect(0, 80, 320, 80);
+    // River waves
+    ctx.fillStyle = '#3366BB';
+    for (var wi = 0; wi < 10; wi++) {
+      var wx = (wi * 35 + t * 50) % 340 - 10;
+      ctx.beginPath();
+      ctx.arc(wx, 110 + Math.sin(t * 2 + wi) * 5, 18, 0, Math.PI);
+      ctx.fill();
+    }
+    // Floating text chunks (like logs)
+    ctx.fillStyle = '#DEB887';
+    for (var ci = 0; ci < 3; ci++) {
+      var chunkX = (ci * 120 + t * 30) % 380 - 30;
+      var chunkY = 95 + Math.sin(t * 1.5 + ci * 2) * 8;
+      ctx.fillRect(chunkX, chunkY, 60, 14);
+      ctx.fillStyle = '#333333';
+      ctx.font = '8px monospace';
+      ctx.fillText('chunk ' + (ci + 1), chunkX + 6, chunkY + 10);
+      ctx.fillStyle = '#DEB887';
+    }
+    // Banks
+    ctx.fillStyle = '#228833';
+    ctx.fillRect(0, 155, 320, 45);
+    ctx.fillRect(0, 0, 320, 20);
+    return;
+  }
+
+  // --- Phoneme Plague: emoji and strange characters raining down ---
+  if (currentEventTitle.indexOf('Phoneme Plague') !== -1) {
+    ctx.fillStyle = '#1a0a2e';
+    ctx.fillRect(0, 0, 320, 200);
+    // Falling unknown characters (represented as red squares with ?)
+    ctx.font = '14px monospace';
+    for (var pi = 0; pi < 12; pi++) {
+      var px = (pi * 29 + Math.sin(t + pi) * 10) % 310;
+      var py = (pi * 37 + t * 45) % 220 - 10;
+      // Red warning box
+      ctx.fillStyle = '#FF3333';
+      ctx.fillRect(px, py, 18, 18);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillText('?', px + 4, py + 14);
+    }
+    // Healthy phonemes passing through (green)
+    ctx.fillStyle = '#33FF66';
+    ctx.font = '11px monospace';
+    var phonemes = ['a', 'e', 'i', 'o', 'u', 'k', 't', 'p'];
+    for (var hi = 0; hi < 5; hi++) {
+      var hx = 40 + hi * 55;
+      var hy = 150 + Math.sin(t * 2 + hi) * 10;
+      ctx.fillText(phonemes[hi % phonemes.length], hx, hy);
+    }
+    // Pipeline arrow at bottom
+    ctx.fillStyle = '#666688';
+    ctx.fillRect(20, 180, 280, 4);
+    ctx.beginPath();
+    ctx.moveTo(300, 182);
+    ctx.lineTo(290, 175);
+    ctx.lineTo(290, 189);
+    ctx.fill();
+    return;
+  }
+
+  // --- Voice Vector Blizzard: snowflakes and voice waveforms ---
+  if (currentEventTitle.indexOf('Voice Vector Blizzard') !== -1) {
+    ctx.fillStyle = '#DDEEFF';
+    ctx.fillRect(0, 0, 320, 200);
+    // Snowflakes
+    ctx.fillStyle = '#FFFFFF';
+    for (var si = 0; si < 30; si++) {
+      var sx = (si * 11 + t * 20 + Math.sin(t + si * 0.5) * 15) % 320;
+      var sy = (si * 7 + t * 35) % 200;
+      var sr = 1 + (si % 3);
+      ctx.beginPath();
+      ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Voice waveform display
+    ctx.strokeStyle = '#3355AA';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (var vx = 0; vx < 320; vx += 2) {
+      var vy = 100 + Math.sin(vx * 0.05 + t * 3) * 25 * Math.sin(vx * 0.02);
+      if (vx === 0) ctx.moveTo(vx, vy);
+      else ctx.lineTo(vx, vy);
+    }
+    ctx.stroke();
+    // Voice name labels
+    ctx.fillStyle = '#334466';
+    ctx.font = '9px monospace';
+    var voices = ['Bella', 'Jasper', 'Luna', 'Bruno', 'Rosie', 'Hugo', 'Kiki', 'Leo'];
+    var activeV = Math.floor(t) % 8;
+    for (var vi = 0; vi < 8; vi++) {
+      ctx.fillStyle = vi === activeV ? '#FF4444' : '#334466';
+      ctx.fillText(voices[vi], 10 + vi * 38, 170);
+    }
+    return;
+  }
+
+  // --- Streaming Scout: chunks flowing out of a wagon ---
+  if (currentEventTitle.indexOf('Streaming Scout') !== -1) {
+    // Prairie background
+    ctx.fillStyle = '#88AA44';
+    ctx.fillRect(0, 0, 320, 200);
+    ctx.fillStyle = '#77BB55';
+    ctx.fillRect(0, 140, 320, 60);
+    // Sky
+    ctx.fillStyle = '#88CCEE';
+    ctx.fillRect(0, 0, 320, 100);
+    // Scout on horseback (simplified)
+    var horseX = 200 + Math.sin(t) * 5;
+    // Horse body
+    ctx.fillStyle = '#8B4513';
+    ctx.fillRect(horseX - 15, 110, 30, 18);
+    // Horse legs
+    ctx.fillRect(horseX - 12, 128, 5, 14);
+    ctx.fillRect(horseX + 8, 128, 5, 14);
+    // Horse head
+    ctx.fillRect(horseX + 15, 100, 10, 16);
+    // Rider
+    ctx.fillStyle = '#DEB887';
+    ctx.beginPath();
+    ctx.arc(horseX, 100, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#4444AA';
+    ctx.fillRect(horseX - 5, 104, 10, 12);
+    // Streaming audio chunks flowing from left
+    ctx.fillStyle = '#33CC66';
+    for (var ai = 0; ai < 4; ai++) {
+      var ax = (ai * 45 + t * 60) % 180;
+      var ay = 115 + Math.sin(t * 3 + ai) * 5;
+      ctx.fillRect(ax, ay, 30, 8);
+      ctx.fillStyle = '#226633';
+      ctx.font = '6px monospace';
+      ctx.fillText('WAV', ax + 5, ay + 6);
+      ctx.fillStyle = '#33CC66';
+    }
+    return;
+  }
+
+  // --- Trailing Silence Trap: waveform with noisy end being trimmed ---
+  if (currentEventTitle.indexOf('Trailing Silence') !== -1) {
+    ctx.fillStyle = '#111111';
+    ctx.fillRect(0, 0, 320, 200);
+    // Waveform - clean part
+    ctx.strokeStyle = '#33FF66';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (var wx = 0; wx < 220; wx += 2) {
+      var wy = 100 + Math.sin(wx * 0.08 + t * 2) * 30 * (1 - wx / 300);
+      if (wx === 0) ctx.moveTo(wx, wy);
+      else ctx.lineTo(wx, wy);
+    }
+    ctx.stroke();
+    // Waveform - noisy end (red, being trimmed)
+    ctx.strokeStyle = '#FF3333';
+    ctx.beginPath();
+    for (var nx = 220; nx < 300; nx += 2) {
+      var ny = 100 + (Math.random() - 0.5) * 40;
+      if (nx === 220) ctx.moveTo(nx, ny);
+      else ctx.lineTo(nx, ny);
+    }
+    ctx.stroke();
+    // Scissors / trim line
+    var trimX = 220 + Math.sin(t * 2) * 5;
+    ctx.strokeStyle = '#FFFF00';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(trimX, 40);
+    ctx.lineTo(trimX, 160);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Label
+    ctx.fillStyle = '#FFFF00';
+    ctx.font = '10px monospace';
+    ctx.fillText(':-5000]', trimX - 20, 35);
+    // Label for clean part
+    ctx.fillStyle = '#33FF66';
+    ctx.fillText('speech', 90, 180);
+    // Label for noise
+    ctx.fillStyle = '#FF3333';
+    ctx.fillText('artifacts', 240, 180);
+    return;
+  }
+// END OVERLAYS
+}
+
+// =====================================================================
+// DEATH SCREEN — Apple II green phosphor style
+// =====================================================================
+function drawDeathScene(time) {
+  var t = (time || 0) * 0.001;
+  var G = '#33FF33'; // Apple II green
+  var GD = '#1a8a1a'; // darker green for details
+
+  // Black background
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, W, H);
+
+  // Ground line
+  ctx.fillStyle = GD;
+  ctx.fillRect(0, 148, W, 1);
+
+  // --- OX (left side) ---
+  var ox = 100, oy = 128;
+  // Body
+  ctx.fillStyle = G;
+  ctx.fillRect(ox, oy, 24, 14);
+  // Head
+  ctx.fillRect(ox - 10, oy - 2, 12, 10);
+  // Horns
+  ctx.fillRect(ox - 12, oy - 6, 3, 5);
+  ctx.fillRect(ox - 4, oy - 6, 3, 5);
+  // Snout
+  ctx.fillStyle = GD;
+  ctx.fillRect(ox - 10, oy + 4, 6, 3);
+  // Eye
+  ctx.fillStyle = '#000';
+  ctx.fillRect(ox - 7, oy, 2, 2);
+  // Legs
+  ctx.fillStyle = G;
+  ctx.fillRect(ox + 2, oy + 14, 4, 8);
+  ctx.fillRect(ox + 10, oy + 14, 4, 8);
+  ctx.fillRect(ox + 16, oy + 14, 4, 8);
+  // Tail
+  ctx.fillRect(ox + 24, oy + 2, 6, 2);
+  ctx.fillRect(ox + 29, oy, 2, 4);
+
+  // --- HITCH ---
+  ctx.fillStyle = G;
+  ctx.fillRect(ox + 28, oy + 8, 14, 2);
+
+  // --- WAGON ---
+  var wx = 142, wy = 108;
+  // Wagon bed
+  ctx.fillStyle = G;
+  ctx.fillRect(wx, wy + 20, 50, 16);
+  // Bed slats (dark lines)
+  ctx.fillStyle = GD;
+  ctx.fillRect(wx, wy + 24, 50, 1);
+  ctx.fillRect(wx, wy + 28, 50, 1);
+  ctx.fillRect(wx, wy + 32, 50, 1);
+  // Side rails
+  ctx.fillStyle = G;
+  ctx.fillRect(wx, wy + 18, 2, 18);
+  ctx.fillRect(wx + 48, wy + 18, 2, 18);
+
+  // Canvas cover (the bonnet)
+  ctx.fillStyle = G;
+  // Left arch
+  ctx.fillRect(wx + 4, wy + 4, 2, 16);
+  // Right arch
+  ctx.fillRect(wx + 44, wy + 4, 2, 16);
+  // Top cover
+  ctx.fillRect(wx + 4, wy + 2, 42, 4);
+  // Cover fill
+  ctx.fillRect(wx + 6, wy + 6, 38, 12);
+  // Cover shading
+  ctx.fillStyle = GD;
+  ctx.fillRect(wx + 8, wy + 8, 34, 2);
+  ctx.fillRect(wx + 8, wy + 12, 34, 2);
+  ctx.fillRect(wx + 8, wy + 16, 34, 1);
+
+  // Wheels
+  var wheelR = 8;
+  var wheels = [wx + 8, wx + 42];
+  var wa = t * 0.5; // slow rotation
+  ctx.strokeStyle = G;
+  ctx.lineWidth = 1.5;
+  for (var wi = 0; wi < wheels.length; wi++) {
+    var cx = wheels[wi], cy = wy + 38;
+    // Rim
+    ctx.beginPath();
+    ctx.arc(cx, cy, wheelR, 0, Math.PI * 2);
+    ctx.stroke();
+    // Spokes
+    for (var sp = 0; sp < 6; sp++) {
+      var angle = wa + sp * Math.PI / 3;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(angle) * wheelR, cy + Math.sin(angle) * wheelR);
+      ctx.stroke();
+    }
+    // Hub
+    ctx.fillStyle = G;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.lineWidth = 1;
+
+  // Subtle scanline effect
+  ctx.fillStyle = 'rgba(0,0,0,0.08)';
+  for (var sl = 0; sl < H; sl += 3) {
+    ctx.fillRect(0, sl, W, 1);
+  }
+
+  // Subtle green glow/vignette
+  var grd = ctx.createRadialGradient(W/2, H/2, 40, W/2, H/2, W * 0.7);
+  grd.addColorStop(0, 'rgba(0,0,0,0)');
+  grd.addColorStop(1, 'rgba(0,0,0,0.4)');
+  ctx.fillStyle = grd;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function renderCanvas(time) {
+  // Death screen: green phosphor Apple II style
+  if (gameState === STATES.DEATH) {
+    drawDeathScene(time);
+    return;
+  }
+
+  const skyColors = getSkyColors();
+
+  // Sky gradient (banded for EGA feel)
+  const bands = 10;
+  const skyBottom = 110;
+  for (let i = 0; i < bands; i++) {
+    const t = i / (bands - 1);
+    const r1 = parseInt(skyColors.top.substr(1, 2), 16);
+    const g1 = parseInt(skyColors.top.substr(3, 2), 16);
+    const b1 = parseInt(skyColors.top.substr(5, 2), 16);
+    const r2 = parseInt(skyColors.bottom.substr(1, 2), 16);
+    const g2 = parseInt(skyColors.bottom.substr(3, 2), 16);
+    const b2 = parseInt(skyColors.bottom.substr(5, 2), 16);
+    const r = Math.floor(r1 + (r2 - r1) * t);
+    const g = Math.floor(g1 + (g2 - g1) * t);
+    const b = Math.floor(b1 + (b2 - b1) * t);
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    const bandH = Math.ceil(skyBottom / bands) + 1;
+    ctx.fillRect(0, Math.floor(i * (skyBottom / bands)), W, bandH);
+  }
+
+  // Clouds (parallax 0.2x)
+  const cloudOffset = scrollX * 0.2;
+  for (const c of cloudPositions) {
+    let cx = ((c.x - cloudOffset) % (W + 80));
+    if (cx < -40) cx += W + 80;
+    drawPixelCloud(cx - 20, c.y, c.w, c.h);
+  }
+
+  // Far mountains (parallax 0.3x) - DARK MAGENTA signature Oregon Trail
+  const farOffset = scrollX * 0.3;
+  for (const m of farMountains) {
+    let mx = ((m.x - farOffset) % (W + 100));
+    if (mx < -50) mx += W + 100;
+    drawMountain(mx - 25, m.h, m.w, '#AA00AA', false);
+  }
+
+  // Near mountains (parallax 0.4x) - LIGHT MAGENTA with snow caps
+  const nearOffset = scrollX * 0.4;
+  for (const m of nearMountains) {
+    let mx = ((m.x - nearOffset) % (W + 80));
+    if (mx < -40) mx += W + 80;
+    drawMountain(mx - 20, m.h, m.w, '#FF55FF', m.snow);
+  }
+
+  // Grass
+  ctx.fillStyle = '#00AA00';
+  ctx.fillRect(0, 110, W, H - 110);
+
+  // Bright grass highlights
+  ctx.fillStyle = '#55FF55';
+  const grassOffset = scrollX * 1.0;
+  for (let i = 0; i < 50; i++) {
+    let gx = ((i * 11 + 5 - grassOffset) % (W + 20));
+    if (gx < -5) gx += W + 20;
+    const gy = 113 + (i * 7 + i * i * 3) % 55;
+    ctx.fillRect(Math.floor(gx), Math.floor(gy), 2, 2);
+  }
+
+  // Trees (parallax 0.6x)
+  const treeOffset = scrollX * 0.6;
+  const treeBaseY = 128;
+  for (const t of treesData) {
+    let tx = ((t.x - treeOffset) % (W + 60));
+    if (tx < -20) tx += W + 60;
+    drawTree(tx - 10, treeBaseY, t.h);
+  }
+
+  // Landmark for current stop (only at stops/events)
+  if (gameState === STATES.STOP || gameState === STATES.EVENT || gameState === STATES.RIVER) {
+    const stop = TRAIL_DATA.stops[currentStop];
+    if (stop) {
+      drawLandmark(stop.landmarkType, 240, 150);
+    }
+  }
+
+  // Trail/ground strip
+  if (!showRiver) {
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(0, 152, W, 15);
+    // Trail texture dots
+    ctx.fillStyle = '#885500';
+    for (let i = 0; i < 35; i++) {
+      let dotX = ((i * 10 - scrollX * 1.0) % (W + 10));
+      if (dotX < -3) dotX += W + 10;
+      ctx.fillRect(Math.floor(dotX), 155 + (i % 4) * 2, 3, 1);
+    }
+    // Ruts
+    ctx.fillStyle = '#775500';
+    ctx.fillRect(0, 157, W, 1);
+    ctx.fillRect(0, 162, W, 1);
+  }
+
+  // River (when active)
+  if (showRiver) {
+    drawRiver(time || 0);
+  }
+
+  // Wagon
+  const wagonX = 65;
+  const wagonY = showRiver ? 148 : 149;
+  drawWagon(wagonX, wagonY);
+
+  // Event-specific visual overlay
+  if (gameState === STATES.EVENT || gameState === STATES.RIVER) {
+    drawEventOverlay(time);
+  }
+
+  // Ground below trail
+  ctx.fillStyle = '#885500';
+  ctx.fillRect(0, showRiver ? 173 : 167, W, 15);
+  ctx.fillStyle = '#553300';
+  ctx.fillRect(0, showRiver ? 188 : 182, W, H - 182);
+}
+
+// =====================================================================
+// MUSIC SYSTEM (Web Audio API Chiptune)
+// =====================================================================
+const NOTE_FREQ = {
+  'C3': 130.81, 'D3': 146.83, 'G2': 98.00, 'A2': 110.00,
+  'C4': 261.63, 'D4': 293.66, 'E4': 329.63, 'G4': 392.00,
+  'A4': 440.00, 'C5': 523.25, 'REST': 0
+};
+
+const melody = [
+  { note: 'E4', dur: 1 }, { note: 'G4', dur: 1 }, { note: 'A4', dur: 1 }, { note: 'G4', dur: 1 },
+  { note: 'E4', dur: 1 }, { note: 'D4', dur: 1 }, { note: 'C4', dur: 1 }, { note: 'REST', dur: 1 },
+  { note: 'E4', dur: 1 }, { note: 'G4', dur: 1 }, { note: 'A4', dur: 1 }, { note: 'C5', dur: 1 },
+  { note: 'A4', dur: 2 }, { note: 'G4', dur: 2 },
+  { note: 'C4', dur: 1 }, { note: 'D4', dur: 1 }, { note: 'E4', dur: 1 }, { note: 'G4', dur: 1 },
+  { note: 'A4', dur: 1 }, { note: 'G4', dur: 1 }, { note: 'E4', dur: 1 }, { note: 'D4', dur: 1 },
+  { note: 'C4', dur: 1 }, { note: 'E4', dur: 1 }, { note: 'G4', dur: 1 }, { note: 'E4', dur: 1 },
+  { note: 'D4', dur: 1 }, { note: 'C4', dur: 3 }
+];
+
+const bassLine = [
+  { note: 'C3', dur: 4 }, { note: 'A2', dur: 4 }, { note: 'C3', dur: 4 }, { note: 'A2', dur: 4 },
+  { note: 'C3', dur: 4 }, { note: 'G2', dur: 4 }, { note: 'D3', dur: 4 }, { note: 'C3', dur: 4 }
+];
+
+let musicScheduleTimer = null;
+let nextMelodyTime = 0;
+let nextBassTime = 0;
+
+var masterGain = null;
+
+function initAudio() {
+  if (audioCtx) return;
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = 1.0;
+    masterGain.connect(audioCtx.destination);
+    musicInitialized = true;
+  } catch (e) {
+    console.warn('Web Audio not available:', e);
+  }
+}
+
+function playNote(freq, startTime, duration, type, gainVal) {
+  if (!audioCtx || freq === 0) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, startTime);
+  // Envelope: attack then decay
+  gain.gain.setValueAtTime(0.001, startTime);
+  gain.gain.linearRampToValueAtTime(gainVal, startTime + 0.02);
+  gain.gain.setValueAtTime(gainVal, startTime + duration * 0.75);
+  gain.gain.linearRampToValueAtTime(0.001, startTime + duration * 0.95);
+  osc.connect(gain);
+  gain.connect(masterGain || audioCtx.destination);
+  osc.start(startTime);
+  osc.stop(startTime + duration);
+}
+
+function scheduleLoop() {
+  if (!musicPlaying || !audioCtx) return;
+  const bpm = 110;
+  const quarterDur = 60 / bpm;
+  const now = audioCtx.currentTime;
+
+  // Schedule melody
+  let t = now + 0.05;
+  for (const note of melody) {
+    const dur = note.dur * quarterDur;
+    if (note.note !== 'REST') {
+      playNote(NOTE_FREQ[note.note], t, dur, 'square', 0.06);
+    }
+    t += dur;
+  }
+
+  // Schedule bass
+  let tb = now + 0.05;
+  for (const note of bassLine) {
+    const dur = note.dur * quarterDur;
+    playNote(NOTE_FREQ[note.note], tb, dur, 'triangle', 0.08);
+    tb += dur;
+  }
+
+  // Total loop duration in beats: melody has 32 quarter beats = 32 * quarterDur
+  const totalBeats = 32;
+  const loopDurationMs = totalBeats * quarterDur * 1000;
+
+  musicScheduleTimer = setTimeout(scheduleLoop, loopDurationMs - 200);
+}
+
+function startMusic() {
+  if (!musicInitialized) initAudio();
+  if (!audioCtx) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  if (masterGain) masterGain.gain.setValueAtTime(1.0, audioCtx.currentTime);
+  musicPlaying = true;
+  scheduleLoop();
+  updateMusicIndicator();
+}
+
+function stopMusic() {
+  musicPlaying = false;
+  if (musicScheduleTimer) {
+    clearTimeout(musicScheduleTimer);
+    musicScheduleTimer = null;
+  }
+  if (masterGain) masterGain.gain.setValueAtTime(0, audioCtx.currentTime);
+  updateMusicIndicator();
+}
+
+function toggleMusic() {
+  if (!musicInitialized) initAudio();
+  if (musicPlaying) {
+    stopMusic();
+  } else {
+    startMusic();
+  }
+  renderStatusBar();
+}
+
+function updateMusicIndicator() {
+  const el = document.getElementById('music-indicator');
+  if (!el) return;
+  el.textContent = musicPlaying ? 'M: Music ON' : 'M: Music OFF';
+  el.style.color = musicPlaying ? '#55FF55' : '#555555';
+}
+
+// =====================================================================
+// SYNTAX HIGHLIGHTING (EGA Colors)
+// =====================================================================
+const TS_KEYWORDS = new Set([
+  'import', 'export', 'from', 'const', 'let', 'var', 'function', 'async',
+  'await', 'return', 'if', 'else', 'for', 'while', 'new', 'typeof', 'instanceof',
+  'interface', 'type', 'class', 'extends', 'implements', 'try', 'catch', 'throw',
+  'default', 'switch', 'case', 'break', 'continue', 'true', 'false', 'null',
+  'undefined', 'void', 'of', 'in'
+]);
+
+function escHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function highlightCode(code) {
+  return code.split('\n').map(function(line) {
+    if (line.trim().startsWith('//')) {
+      return '<span style="color:#555555">' + escHtml(line) + '</span>';
+    }
+    var result = '';
+    var i = 0;
+    while (i < line.length) {
+      // String literal
+      if (line[i] === "'" || line[i] === '"' || line[i] === '`') {
+        var quote = line[i];
+        var end = i + 1;
+        while (end < line.length && line[end] !== quote) {
+          if (line[end] === '\\') end++;
+          end++;
+        }
+        end = Math.min(end + 1, line.length);
+        result += '<span style="color:#FFFF55">' + escHtml(line.substring(i, end)) + '</span>';
+        i = end;
+        continue;
+      }
+      // Inline comment
+      if (line[i] === '/' && i + 1 < line.length && line[i + 1] === '/') {
+        result += '<span style="color:#555555">' + escHtml(line.substring(i)) + '</span>';
+        break;
+      }
+      // Number
+      if (/\d/.test(line[i]) && (i === 0 || !/\w/.test(line[i - 1]))) {
+        var end2 = i;
+        while (end2 < line.length && /[\d._]/.test(line[end2])) end2++;
+        result += '<span style="color:#FF55FF">' + escHtml(line.substring(i, end2)) + '</span>';
+        i = end2;
+        continue;
+      }
+      // Identifier or keyword
+      if (/[a-zA-Z_$]/.test(line[i])) {
+        var end3 = i;
+        while (end3 < line.length && /[\w$]/.test(line[end3])) end3++;
+        var word = line.substring(i, end3);
+        if (TS_KEYWORDS.has(word)) {
+          result += '<span style="color:#55FFFF">' + escHtml(word) + '</span>';
+        } else {
+          result += '<span style="color:#55FF55">' + escHtml(word) + '</span>';
+        }
+        i = end3;
+        continue;
+      }
+      // Punctuation / operators
+      result += '<span style="color:#AAAAAA">' + escHtml(line[i]) + '</span>';
+      i++;
+    }
+    return result;
+  }).join('\n');
+}
+
+// =====================================================================
+// TEXT PANEL RENDERING
+// =====================================================================
+var textPanel = document.getElementById('text-panel');
+var statusBar = document.getElementById('status-bar');
+
+function setTextPanel(html) {
+  textPanel.innerHTML = html;
+  textPanel.scrollTop = 0;
+}
+
+function renderTitleScreen() {
+  setTextPanel(
+    '<div style="text-align:center; padding-top:20px;">' +
+    '<div style="color:#FFFF55; font-size:16px; letter-spacing:2px;">THE CODEREGON TRAIL</div>' +
+    '<div style="color:#AAAAAA; margin-top:8px;">The Gateway Trail - OpenClaw Edition</div>' +
+    '<div style="color:#555555; margin-top:4px; font-size:10px;">Source: ' + TRAIL_DATA.sourceInfo.repo + ' @ ' + TRAIL_DATA.sourceInfo.commit + (TRAIL_DATA.sourceInfo.tag ? ' (' + TRAIL_DATA.sourceInfo.tag + ')' : '') + ' — ' + TRAIL_DATA.sourceInfo.snapshotDate + '</div>' +
+    '<div style="margin-top:30px;" class="blink">Press SPACE BAR to begin</div>' +
+    '</div>'
+  );
+}
+
+function renderSetupScreen() {
+  var profsHtml = '';
+  for (var i = 0; i < PROFESSIONS.length; i++) {
+    var p = PROFESSIONS[i];
+    var sel = (i === selectedDifficulty);
+    var color = sel ? '#FFFF55' : '#AAAAAA';
+    var marker = sel ? '>' : ' ';
+    var perks = 'HP:' + p.health + '  Hints:' + p.supplies;
+    if (p.hintFree) perks += '  (free hints!)';
+    profsHtml += '<div style="color:' + color + '; cursor:pointer;" onclick="selectDifficulty(' + i + ')">' +
+             marker + ' [' + (i + 1) + '] ' + p.name + '</div>';
+    profsHtml += '<div style="color:' + (sel ? '#AAAAAA' : '#555555') + '; margin-left:28px; font-size:12px;">' + p.desc + '  ' + perks + '</div>';
+  }
+
+  var hearts = '\u2665\u2665\u2665';
+  setTextPanel(
+    '<div style="padding:8px 20px;">' +
+    '<div style="color:#55FFFF; margin-bottom:10px;">Your party of key concepts:</div>' +
+    '<div style="margin-left:16px;">' +
+    '<div style="color:#55FF55;">1. Gateway Control Plane    <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">2. Channel Plugins          <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">3. Route Resolution         <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">4. Session Persistence      <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '</div>' +
+    '<div style="color:#55FFFF; margin-top:14px; margin-bottom:6px;">What is your profession?</div>' +
+    '<div style="margin-left:16px;">' + profsHtml + '</div>' +
+    '<div style="margin-top:18px; text-align:center;" class="blink">Press ENTER to hit the trail!</div>' +
+    '</div>'
+  );
+}
+
+function renderTravelScreen() {
+  var flavor = travelFlavors[travelFlavorIndex % travelFlavors.length];
+  setTextPanel(
+    '<div style="text-align:center; padding-top:30px;">' +
+    '<div style="color:#FFFF55;">Day ' + day + '...</div>' +
+    '<div style="color:#AAAAAA; margin-top:12px;">' + escHtml(flavor) + '</div>' +
+    '<div style="margin-top:24px; color:#555555;" class="blink">Press SPACE BAR to continue</div>' +
+    '</div>'
+  );
+}
+
+function renderStopScreen() {
+  var stop = TRAIL_DATA.stops[currentStop];
+  if (!stop) return;
+
+  var codeHtml = highlightCode(stop.code.content);
+  setTextPanel(
+    '<div style="padding:4px 12px;">' +
+    '<div style="color:#FFFF55; text-align:center; font-size:14px;">\u2550\u2550 ' + escHtml(stop.name) + ' \u2014 ' + escHtml(stop.subtitle) + ' \u2550\u2550</div>' +
+    '<div style="color:#555555; text-align:center; font-size:11px; margin-bottom:4px;">[' + escHtml(stop.concept) + ']</div>' +
+    '<div style="border:1px solid #555555; padding:2px 4px; margin:4px 0 2px 0; font-size:11px; color:#AAAAAA;">\u250C\u2500 ' + escHtml(stop.code.file) + ' \u2500\u2500\u2500</div>' +
+    '<div class="code-box">' + codeHtml + '</div>' +
+    '<div style="color:#AAAAAA; margin:6px 0; line-height:1.4; font-size:13px;">' + escHtml(stop.narration) + '</div>' +
+    '<div style="margin-top:8px;" id="stop-choices">' +
+    '<span class="stop-opt' + (selectedStopChoice === 0 ? ' choice-selected' : '') + '" onclick="handleStopChoice(1)">[1] Continue</span>' +
+    '<span class="stop-opt' + (selectedStopChoice === 1 ? ' choice-selected' : '') + '" style="margin-left:20px;" onclick="handleStopChoice(2)">[2] Examine code</span>' +
+    '</div>' +
+    '</div>'
+  );
+}
+
+function renderEventScreen(event) {
+  var isRiver = event.type === 'river';
+  var isFortune = event.type === 'fortune';
+  var typeLabel, headerColor;
+
+  if (isRiver) {
+    typeLabel = '\uD83C\uDF0A RIVER CROSSING';
+    headerColor = '#5555FF';
+  } else if (event.type === 'weather') {
+    typeLabel = '\u26A1 WEATHER';
+    headerColor = '#FFFF55';
+  } else if (event.type === 'encounter') {
+    typeLabel = '\uD83D\uDC64 ENCOUNTER';
+    headerColor = '#FFFF55';
+  } else if (event.type === 'misfortune') {
+    typeLabel = '\u2620 MISFORTUNE';
+    headerColor = '#FF5555';
+  } else {
+    typeLabel = '\u2728 FORTUNE';
+    headerColor = '#55FF55';
+  }
+
+  var choicesHtml = '';
+  if (event.choices.length > 0 && !eventAnswered) {
+    var labels = ['A', 'B', 'C', 'D'];
+    for (var i = 0; i < shuffledIndices.length; i++) {
+      var origIdx = shuffledIndices[i];
+      var dimmedClass = (eventHinted && dimmedChoice === i) ? ' choice-dimmed' : '';
+      var selClass = (selectedEventChoice === i) ? ' choice-selected' : '';
+      choicesHtml += '<div class="choice-item' + dimmedClass + selClass + '" onclick="handleEventChoice(' + i + ')" style="margin:4px 0;">  ' + labels[i] + '. ' + escHtml(event.choices[origIdx].text) + '</div>';
+    }
+    var hintAvail = (PROFESSIONS[difficulty] && PROFESSIONS[difficulty].hintFree) || supplies > 0;
+    var hintLabel = (PROFESSIONS[difficulty] && PROFESSIONS[difficulty].hintFree) ? 'H = Free Hint' : 'H = Hint (-1 supply)';
+    choicesHtml += '<div style="margin-top:10px; color:#555555;">Arrow keys + Enter to choose' + (hintAvail ? '  |  ' + hintLabel : '') + '</div>';
+  } else if (isFortune) {
+    choicesHtml = '<div style="color:#55FF55; margin-top:8px;">+20 Health restored!</div>' +
+                  '<div style="margin-top:10px;" class="blink">Press SPACE BAR to continue</div>';
+  }
+
+  setTextPanel(
+    '<div style="padding:4px 12px;">' +
+    '<div style="color:' + headerColor + '; font-size:14px; text-align:center;">' + typeLabel + ' \u2014 ' + escHtml(event.title) + '</div>' +
+    '<div style="color:#FFFFFF; margin:8px 0; line-height:1.4;">' + escHtml(event.text) + '</div>' +
+    '<div id="event-choices">' + choicesHtml + '</div>' +
+    '<div id="event-result"></div>' +
+    '</div>'
+  );
+}
+
+function showEventResult(event, displayIdx) {
+  var origIdx = shuffledIndices[displayIdx];
+  var choice = event.choices[origIdx];
+  var correct = choice.correct;
+  var isRiver = event.type === 'river';
+
+  var resultHtml = '';
+  if (correct) {
+    var bonus = streak >= 3 ? ' (+5 streak bonus!)' : '';
+    resultHtml = '<div style="color:#55FF55; margin-top:8px; font-size:14px;">CORRECT! +10 Health' + bonus + '</div>';
+  } else {
+    var dmg = isRiver ? 20 : 15;
+    resultHtml = '<div style="color:#FF5555; margin-top:8px; font-size:14px;">WRONG! -' + dmg + ' Health</div>';
+    document.getElementById('game-container').classList.add('shake');
+    setTimeout(function() { document.getElementById('game-container').classList.remove('shake'); }, 500);
+  }
+  resultHtml += '<div style="color:#AAAAAA; margin-top:6px; line-height:1.4;">' + escHtml(choice.explanation) + '</div>';
+  resultHtml += '<div style="margin-top:10px;" class="blink">Press SPACE BAR to continue</div>';
+
+  // Update choices display in shuffled order
+  var labels = ['A', 'B', 'C', 'D'];
+  var choicesHtml = '';
+  for (var i = 0; i < shuffledIndices.length; i++) {
+    var oi = shuffledIndices[i];
+    var c = event.choices[oi];
+    var cls = c.correct ? 'choice-correct' : (i === displayIdx ? 'choice-wrong' : 'text-gray');
+    var marker = c.correct ? '\u2713' : (i === displayIdx ? '\u2717' : ' ');
+    choicesHtml += '<div class="' + cls + '" style="margin:4px 0;">' + marker + ' ' + labels[i] + '. ' + escHtml(c.text) + '</div>';
+  }
+
+  var choicesEl = document.getElementById('event-choices');
+  if (choicesEl) choicesEl.innerHTML = choicesHtml;
+  var resultEl = document.getElementById('event-result');
+  if (resultEl) resultEl.innerHTML = resultHtml;
+}
+
+function renderDeathScreen() {
+  var deathMsg;
+  if (techDebtDeath) {
+    var techDebtMsgs = [
+      'You have died of tech debt dysentery.',
+      // 'You have died of refactoring dysentery.',
+      // 'You have died of unresolved TODOs.',
+      // 'You have died of scope creep.',
+      // 'You have died of dependency bloat.',
+    ];
+    deathMsg = techDebtMsgs[Math.floor(Math.random() * techDebtMsgs.length)];
+    techDebtDeath = false;
+  } else {
+    deathMsg = TRAIL_DATA.deathMessages[Math.floor(Math.random() * TRAIL_DATA.deathMessages.length)];
+  }
+
+  setTextPanel(
+    '<div style="text-align:center; padding-top:16px;">' +
+    '<div style="display:inline-block; border:2px solid #33FF33; padding:10px 24px; min-width:280px;">' +
+    '<span id="death-text" style="color:#33FF33; font-size:16px;"></span>' +
+    '</div>' +
+    '<div style="color:#1a8a1a; margin-top:14px; font-size:13px;">Stops: ' + currentStop + '/' + TRAIL_DATA.stops.length + '  Score: ' + score + '/' + totalQuestions + '  Streak: ' + bestStreak + '</div>' +
+    '<div style="color:#33FF33; margin-top:14px;" class="blink">Press SPACE BAR to try again</div>' +
+    '</div>'
+  );
+
+  // Typewriter animation
+  typewriterText = deathMsg;
+  typewriterIndex = 0;
+  if (typewriterTimer) clearInterval(typewriterTimer);
+  typewriterTimer = setInterval(function() {
+    var el = document.getElementById('death-text');
+    if (!el) { clearInterval(typewriterTimer); return; }
+    typewriterIndex++;
+    el.textContent = typewriterText.substring(0, typewriterIndex);
+    if (typewriterIndex >= typewriterText.length) clearInterval(typewriterTimer);
+  }, 50);
+}
+
+function renderWinScreen() {
+  var survivors = partyHealth.filter(function(h) { return h > 0; }).length;
+  var pctScore = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 100;
+
+  var conceptNames = ['Gateway Control Plane', 'Channel Plugins', 'Route Resolution', 'Session Persistence'];
+
+  var masteryHtml = '';
+  var weakestName = '';
+  var weakestHp = 999;
+  for (var i = 0; i < conceptNames.length; i++) {
+    var hp = partyHealth[i];
+    var maxHp = TRAIL_DATA.partyMembers[i].maxHealth;
+    var stars, color;
+    if (hp <= 0) {
+      stars = '<span style="color:#555555">\u2606\u2606\u2606 (died)</span>';
+      color = '#555555';
+    } else {
+      stars = '';
+      for (var s = 0; s < hp; s++) stars += '\u2605';
+      for (var s2 = 0; s2 < maxHp - hp; s2++) stars += '\u2606';
+      color = '#FFFF55';
+    }
+    if (hp < weakestHp) { weakestHp = hp; weakestName = conceptNames[i]; }
+    masteryHtml += '<div style="color:' + color + ';">    ' + conceptNames[i] + '  ' + stars + '</div>';
+  }
+
+  var tip = weakestHp < TRAIL_DATA.partyMembers[0].maxHealth ? '"Study up on ' + weakestName + '!"' : '"Perfect understanding!"';
+
+  setTextPanel(
+    '<div style="padding:8px 16px;">' +
+    '<div style="color:#FFFF55; text-align:center; font-size:16px;">\u2605 YOU MADE IT TO RESPONSE FRONTIER! \u2605</div>' +
+    '<div style="margin-top:10px; color:#AAAAAA;">' +
+    '<div>  Framework:    <span style="color:#55FFFF;">OpenClaw (The Gateway Trail)</span></div>' +
+    '<div>  Survivors:    <span style="color:#55FF55;">' + survivors + '/' + partyHealth.length + '</span></div>' +
+    '<div>  Quiz Score:   <span style="color:#FFFF55;">' + score + '/' + totalQuestions + ' (' + pctScore + '%)</span></div>' +
+    '<div>  Best Streak:  <span style="color:#FF55FF;">' + bestStreak + '</span></div>' +
+    '<div>  Hints Used:   <span style="color:#AAAAAA;">' + hintsUsed + '</span></div>' +
+    '</div>' +
+    '<div style="margin-top:10px; color:#FFFF55;">  Concept Mastery:</div>' +
+    '<div>' + masteryHtml + '</div>' +
+    '<div style="margin-top:10px; color:#55FF55; text-align:center;">' + tip + '</div>' +
+    '<div style="color:#555555; margin-top:8px; text-align:center; font-size:10px;">Source: ' + TRAIL_DATA.sourceInfo.repo + ' @ ' + TRAIL_DATA.sourceInfo.commit + (TRAIL_DATA.sourceInfo.tag ? ' (' + TRAIL_DATA.sourceInfo.tag + ')' : '') + ' — ' + TRAIL_DATA.sourceInfo.snapshotDate + '</div>' +
+    '<div style="margin-top:14px; text-align:center;" class="blink">Press SPACE BAR to play again</div>' +
+    '</div>'
+  );
+}
+
+// =====================================================================
+// STATUS BAR
+// =====================================================================
+function renderStatusBar() {
+  if (gameState === STATES.TITLE) {
+    var titleMusic = musicPlaying
+      ? 'Music: <span style="color:#55FF55;">On</span> <span style="color:#555555;">(M to toggle off)</span>'
+      : 'Music: <span style="color:#FF5555;">Off</span> <span style="color:#555555;">(M to toggle on)</span>';
+    statusBar.innerHTML = '<span style="color:#555555;">The Coderegon Trail v1.0</span>  |  ' + titleMusic;
+    return;
+  }
+
+  var maxH = maxHealthForGame;
+  var healthPct = Math.max(0, health / maxH);
+  var barLen = 10;
+  var filled = Math.round(healthPct * barLen);
+  var healthColor = health > maxH * 0.6 ? '#00AA00' : (health > maxH * 0.3 ? '#FFFF55' : '#FF5555');
+  var healthBar = '<span style="color:' + healthColor + ';">';
+  for (var i = 0; i < filled; i++) healthBar += '\u2588';
+  healthBar += '</span><span style="color:#555555;">';
+  for (var i2 = 0; i2 < barLen - filled; i2++) healthBar += '\u2591';
+  healthBar += '</span>';
+
+  var streakStars = '<span style="color:#FFFF55;">';
+  for (var s = 0; s < Math.min(streak, 5); s++) streakStars += '\u2605';
+  streakStars += '</span>';
+
+  var musicHint = musicPlaying
+    ? 'Music: <span style="color:#55FF55;">On</span> <span style="color:#555555;">(M to toggle off)</span>'
+    : 'Music: <span style="color:#FF5555;">Off</span> <span style="color:#555555;">(M to toggle on)</span>';
+
+  statusBar.innerHTML = 'HP: ' + healthBar + ' ' + Math.max(0, health) +
+    '  Hints: ' + supplies + '  ' + streakStars +
+    '  |  Stop ' + (currentStop + 1) + '/' + TRAIL_DATA.stops.length +
+    '  |  ' + musicHint;
+}
+
+// =====================================================================
+// GAME LOGIC
+// =====================================================================
+function resetGame() {
+  gameState = STATES.TITLE;
+  difficulty = 1;
+  selectedDifficulty = 1;
+  health = 100;
+  maxHealthForGame = 100;
+  supplies = 5;
+  currentStop = 0;
+  day = 1;
+  score = 0;
+  totalQuestions = 0;
+  streak = 0;
+  bestStreak = 0;
+  hintsUsed = 0;
+  scrollX = 0;
+  showRiver = false;
+  wagonWheelAngle = 0;
+  travelFlavorIndex = 0;
+  deathPending = false;
+  partyHealth = TRAIL_DATA.partyMembers.map(function(p) { return p.maxHealth; });
+  pendingEvents = [];
+  currentEventIndex = 0;
+  eventAnswered = false;
+  eventHinted = false;
+  dimmedChoice = -1;
+  selectedEventChoice = 0;
+  selectedStopChoice = 0;
+  shuffledIndices = [];
+  currentEventType = '';
+  currentEventTitle = '';
+  drainAccumulator = 0;
+  techDebtDeath = false;
+  if (travelTimer) { clearTimeout(travelTimer); travelTimer = null; }
+  if (typewriterTimer) { clearInterval(typewriterTimer); typewriterTimer = null; }
+}
+
+function selectDifficulty(idx) {
+  selectedDifficulty = Math.max(0, Math.min(PROFESSIONS.length - 1, idx));
+  renderSetupScreen();
+}
+
+function startGame() {
+  difficulty = selectedDifficulty;
+  var prof = PROFESSIONS[difficulty];
+  health = prof.health;
+  maxHealthForGame = prof.health;
+  supplies = prof.supplies;
+  partyHealth = TRAIL_DATA.partyMembers.map(function(p) { return p.maxHealth; });
+  currentStop = 0;
+  day = 1;
+  score = 0;
+  totalQuestions = 0;
+  streak = 0;
+  bestStreak = 0;
+  hintsUsed = 0;
+  scrollX = 0;
+  deathPending = false;
+  enterTravel();
+}
+
+function enterTravel() {
+  gameState = STATES.TRAVEL;
+  showRiver = false;
+  currentEventType = '';
+  currentEventTitle = '';
+  day += Math.floor(Math.random() * 7) + 1;
+  travelFlavorIndex = Math.floor(Math.random() * travelFlavors.length);
+  renderTravelScreen();
+  renderStatusBar();
+
+  if (travelTimer) clearTimeout(travelTimer);
+  travelTimer = setTimeout(function() {
+    if (gameState === STATES.TRAVEL) advanceFromTravel();
+  }, 2500);
+}
+
+function advanceFromTravel() {
+  if (travelTimer) { clearTimeout(travelTimer); travelTimer = null; }
+
+  // Collect events for the current stop (triggerStop is 1-indexed relative to stop we just visited)
+  // Events trigger BEFORE showing the stop
+  pendingEvents = TRAIL_DATA.events.filter(function(e) { return e.triggerStop === currentStop; });
+  currentEventIndex = 0;
+
+  if (pendingEvents.length > 0) {
+    showNextEvent();
+  } else {
+    enterStop();
+  }
+}
+
+function showNextEvent() {
+  if (currentEventIndex >= pendingEvents.length) {
+    // After all events, check if we should die
+    if (checkDeath()) return;
+    enterStop();
+    return;
+  }
+
+  var event = pendingEvents[currentEventIndex];
+  eventAnswered = false;
+  eventHinted = false;
+  dimmedChoice = -1;
+  selectedEventChoice = 0;
+  currentEventType = event.type;
+  currentEventTitle = event.title;
+
+  // Shuffle choice order so correct answer isn't always first
+  shuffledIndices = [];
+  for (var si = 0; si < event.choices.length; si++) shuffledIndices.push(si);
+  for (var si = shuffledIndices.length - 1; si > 0; si--) {
+    var sj = Math.floor(Math.random() * (si + 1));
+    var tmp = shuffledIndices[si]; shuffledIndices[si] = shuffledIndices[sj]; shuffledIndices[sj] = tmp;
+  }
+
+  if (event.type === 'river') {
+    gameState = STATES.RIVER;
+    showRiver = true;
+  } else {
+    gameState = STATES.EVENT;
+    showRiver = false;
+  }
+
+  // Fortune events auto-apply health
+  if (event.type === 'fortune') {
+    health = Math.min(health + 20, maxHealthForGame);
+    eventAnswered = true;
+  }
+
+  renderEventScreen(event);
+  renderStatusBar();
+}
+
+function handleEventChoice(displayIdx) {
+  if (eventAnswered) return;
+  var event = pendingEvents[currentEventIndex];
+  if (!event || event.choices.length === 0) return;
+  if (displayIdx < 0 || displayIdx >= shuffledIndices.length) return;
+  if (eventHinted && dimmedChoice === displayIdx) return;
+
+  var prof = PROFESSIONS[difficulty];
+  var forgiving = prof && prof.forgiving;
+  var origIdx = shuffledIndices[displayIdx];
+  var choice = event.choices[origIdx];
+  var isRiver = event.type === 'river';
+
+  if (forgiving && !choice.correct) {
+    // Ralph Wiggum mode: dim the wrong answer, let them try again
+    var items = document.querySelectorAll('.choice-item');
+    if (items[displayIdx]) {
+      items[displayIdx].classList.add('choice-dimmed');
+      items[displayIdx].style.pointerEvents = 'none';
+    }
+    // Move selection to next available choice
+    for (var ni = 0; ni < shuffledIndices.length; ni++) {
+      var nextIdx = (displayIdx + 1 + ni) % shuffledIndices.length;
+      if (!(eventHinted && dimmedChoice === nextIdx) && !items[nextIdx].classList.contains('choice-dimmed')) {
+        selectedEventChoice = nextIdx;
+        updateChoiceHighlight();
+        break;
+      }
+    }
+    return;
+  }
+
+  eventAnswered = true;
+
+  totalQuestions++;
+
+  if (choice.correct) {
+    var bonus = streak >= 3 ? 5 : 0;
+    health = Math.min(health + 10 + bonus, maxHealthForGame);
+    score++;
+    streak++;
+    if (streak > bestStreak) bestStreak = streak;
+  } else {
+    var dmg = isRiver ? 20 : 15;
+    health -= dmg;
+    streak = 0;
+    // Damage related party member
+    var concept = event.concept;
+    var memberIdx = -1;
+    for (var mi = 0; mi < TRAIL_DATA.partyMembers.length; mi++) {
+      if (TRAIL_DATA.partyMembers[mi].name === concept) { memberIdx = mi; break; }
+    }
+    if (memberIdx >= 0 && partyHealth[memberIdx] > 0) {
+      partyHealth[memberIdx]--;
+    }
+  }
+
+  showEventResult(event, displayIdx);
+  renderStatusBar();
+}
+
+function handleEventHint() {
+  var prof = PROFESSIONS[difficulty];
+  var hintFree = prof && prof.hintFree;
+  if (eventAnswered || eventHinted) return;
+  if (!hintFree && supplies <= 0) return;
+  var event = pendingEvents[currentEventIndex];
+  if (!event || event.choices.length === 0) return;
+
+  if (!hintFree) supplies--;
+  hintsUsed++;
+  eventHinted = true;
+
+  // Find a wrong answer in display order (dimmedChoice is a display index)
+  var wrongDisplayIndices = [];
+  for (var i = 0; i < shuffledIndices.length; i++) {
+    if (!event.choices[shuffledIndices[i]].correct) wrongDisplayIndices.push(i);
+  }
+  dimmedChoice = wrongDisplayIndices[Math.floor(Math.random() * wrongDisplayIndices.length)];
+
+  renderEventScreen(event);
+  renderStatusBar();
+}
+
+function updateChoiceHighlight() {
+  var items = document.querySelectorAll('.choice-item');
+  for (var i = 0; i < items.length; i++) {
+    items[i].classList.toggle('choice-selected', i === selectedEventChoice);
+  }
+}
+
+function updateStopHighlight() {
+  var items = document.querySelectorAll('.stop-opt');
+  for (var i = 0; i < items.length; i++) {
+    items[i].classList.toggle('choice-selected', i === selectedStopChoice);
+  }
+}
+
+function checkDeath() {
+  if (health <= 0) {
+    enterDeath();
+    return true;
+  }
+  var allDead = true;
+  for (var i = 0; i < partyHealth.length; i++) {
+    if (partyHealth[i] > 0) { allDead = false; break; }
+  }
+  if (allDead) {
+    enterDeath();
+    return true;
+  }
+  return false;
+}
+
+function advanceFromEvent() {
+  currentEventIndex++;
+  if (currentEventIndex < pendingEvents.length) {
+    if (checkDeath()) return;
+    showNextEvent();
+  } else {
+    if (checkDeath()) return;
+    enterStop();
+  }
+}
+
+function enterStop() {
+  gameState = STATES.STOP;
+  showRiver = false;
+  selectedStopChoice = 0;
+
+  var stop = TRAIL_DATA.stops[currentStop];
+  if (stop && stop.landmarkType === 'river') {
+    showRiver = true;
+  }
+
+  renderStopScreen();
+  renderStatusBar();
+}
+
+function handleStopChoice(choice) {
+  if (choice === 2) {
+    var codeBox = textPanel.querySelector('.code-box');
+    if (codeBox) {
+      codeBox.style.maxHeight = '280px';
+      codeBox.scrollIntoView({ behavior: 'smooth' });
+    }
+    return;
+  }
+
+  currentStop++;
+  if (currentStop >= TRAIL_DATA.stops.length) {
+    enterWin();
+  } else {
+    enterTravel();
+  }
+}
+
+function enterDeath() {
+  gameState = STATES.DEATH;
+  showRiver = false;
+  renderDeathScreen();
+  renderStatusBar();
+}
+
+function enterWin() {
+  gameState = STATES.WIN;
+  showRiver = false;
+  renderWinScreen();
+  renderStatusBar();
+}
+
+// =====================================================================
+// INPUT HANDLING
+// =====================================================================
+function ensureAudio() {
+  if (!musicInitialized) {
+    initAudio();
+    startMusic();
+  }
+}
+
+document.addEventListener('keydown', function(e) {
+  var key = e.key;
+
+  // Music toggle always works
+  if (key === 'm' || key === 'M') {
+    if (!musicInitialized) initAudio();
+    toggleMusic();
+    return;
+  }
+
+  // Start audio on first interaction
+  if (!musicInitialized) ensureAudio();
+
+  switch (gameState) {
+    case STATES.TITLE:
+      if (key === ' ' || key === 'Enter') {
+        e.preventDefault();
+        gameState = STATES.SETUP;
+        renderSetupScreen();
+        renderStatusBar();
+      }
+      break;
+
+    case STATES.SETUP:
+      if (key === 'ArrowDown' || key === 'ArrowRight') {
+        e.preventDefault();
+        selectDifficulty((selectedDifficulty + 1) % PROFESSIONS.length);
+      } else if (key === 'ArrowUp' || key === 'ArrowLeft') {
+        e.preventDefault();
+        selectDifficulty((selectedDifficulty - 1 + PROFESSIONS.length) % PROFESSIONS.length);
+      } else if (key === '1') selectDifficulty(0);
+      else if (key === '2') selectDifficulty(1);
+      else if (key === '3') selectDifficulty(2);
+      else if (key === '4') selectDifficulty(3);
+      else if (key === 'Enter' || key === ' ') {
+        e.preventDefault();
+        startGame();
+      }
+      break;
+
+    case STATES.TRAVEL:
+      if (key === ' ' || key === 'Enter') {
+        e.preventDefault();
+        advanceFromTravel();
+      }
+      break;
+
+    case STATES.STOP:
+      if (key === 'ArrowLeft' || key === 'ArrowRight') {
+        e.preventDefault();
+        selectedStopChoice = (key === 'ArrowLeft') ? 0 : 1;
+        updateStopHighlight();
+      } else if (key === 'ArrowUp' || key === 'ArrowDown') {
+        e.preventDefault();
+        selectedStopChoice = selectedStopChoice === 0 ? 1 : 0;
+        updateStopHighlight();
+      } else if (key === 'Enter' || key === ' ') {
+        e.preventDefault();
+        handleStopChoice(selectedStopChoice + 1);
+      } else if (key === '1') {
+        handleStopChoice(1);
+      } else if (key === '2') {
+        handleStopChoice(2);
+      }
+      break;
+
+    case STATES.EVENT:
+    case STATES.RIVER:
+      if (!eventAnswered) {
+        var ev = pendingEvents[currentEventIndex];
+        if (ev && ev.choices.length > 0) {
+          var numChoices = ev.choices.length;
+          if (key === 'ArrowDown' || key === 'ArrowRight') {
+            e.preventDefault();
+            selectedEventChoice = (selectedEventChoice + 1) % numChoices;
+            // Skip dimmed choice
+            if (eventHinted && dimmedChoice === selectedEventChoice) selectedEventChoice = (selectedEventChoice + 1) % numChoices;
+            updateChoiceHighlight();
+          } else if (key === 'ArrowUp' || key === 'ArrowLeft') {
+            e.preventDefault();
+            selectedEventChoice = (selectedEventChoice - 1 + numChoices) % numChoices;
+            if (eventHinted && dimmedChoice === selectedEventChoice) selectedEventChoice = (selectedEventChoice - 1 + numChoices) % numChoices;
+            updateChoiceHighlight();
+          } else if (key === 'Enter' || key === ' ') {
+            e.preventDefault();
+            if (!(eventHinted && dimmedChoice === selectedEventChoice)) {
+              handleEventChoice(selectedEventChoice);
+            }
+          } else if (key === '1' || key === 'a' || key === 'A') handleEventChoice(0);
+          else if (key === '2' || key === 'b' || key === 'B') handleEventChoice(1);
+          else if (key === '3' || key === 'c' || key === 'C') handleEventChoice(2);
+          else if (key === 'h' || key === 'H') handleEventHint();
+        }
+        // Fortune: space/enter to continue
+        if (ev && ev.type === 'fortune' && (key === ' ' || key === 'Enter')) {
+          e.preventDefault();
+          advanceFromEvent();
+        }
+      } else {
+        if (key === ' ' || key === 'Enter') {
+          e.preventDefault();
+          if (checkDeath()) return;
+          advanceFromEvent();
+        }
+      }
+      break;
+
+    case STATES.DEATH:
+      if (key === ' ' || key === 'Enter') {
+        e.preventDefault();
+        resetGame();
+        renderTitleScreen();
+        renderStatusBar();
+      }
+      break;
+
+    case STATES.WIN:
+      if (key === ' ' || key === 'Enter') {
+        e.preventDefault();
+        resetGame();
+        renderTitleScreen();
+        renderStatusBar();
+      }
+      break;
+  }
+});
+
+// =====================================================================
+// ANIMATION LOOP + TECH DEBT DRAIN
+// =====================================================================
+var lastTime = 0;
+var drainAccumulator = 0;
+var DRAIN_INTERVAL = 3000; // drain 1 HP every 3 seconds
+var techDebtDeath = false;
+
+function gameLoop(timestamp) {
+  var dt = timestamp - lastTime;
+  lastTime = timestamp;
+
+  // Clamp dt to avoid huge jumps
+  if (dt > 100) dt = 16;
+
+  if (gameState === STATES.TRAVEL) {
+    scrollX += dt * 0.03;
+    wagonWheelAngle += dt * 0.004;
+  } else if (gameState === STATES.TITLE) {
+    scrollX += dt * 0.01;
+  } else {
+    // Gentle idle scroll
+    scrollX += dt * 0.002;
+  }
+
+  // Tech debt drain: HP ticks down during active gameplay (disabled for Ralph Wiggum)
+  var isForgiving = PROFESSIONS[difficulty] && PROFESSIONS[difficulty].forgiving;
+  var isActive = gameState === STATES.STOP || gameState === STATES.EVENT || gameState === STATES.RIVER;
+  if (isActive && !deathPending && !isForgiving) {
+    drainAccumulator += dt;
+    while (drainAccumulator >= DRAIN_INTERVAL) {
+      drainAccumulator -= DRAIN_INTERVAL;
+      health--;
+      renderStatusBar();
+      if (health <= 0) {
+        techDebtDeath = true;
+        enterDeath();
+        break;
+      }
+    }
+  }
+
+  renderCanvas(timestamp);
+  animFrame = requestAnimationFrame(gameLoop);
+}
+
+// =====================================================================
+// INITIALIZATION
+// =====================================================================
+resetGame();
+renderTitleScreen();
+renderStatusBar();
+updateMusicIndicator();
+animFrame = requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>

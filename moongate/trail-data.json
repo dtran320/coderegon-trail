@@ -1,0 +1,326 @@
+{
+  "framework": "moongate",
+  "trailName": "The Packet Trail",
+  "stops": [
+    {
+      "name": "Bootstrap Outpost",
+      "subtitle": "Server Initialization",
+      "concept": "Server Bootstrap",
+      "landmarkType": "town",
+      "code": {
+        "file": "src/Moongate.Server/Bootstrap/MoongateBootstrap.cs",
+        "content": "// MoongateBootstrap.cs\npublic sealed class MoongateBootstrap : IDisposable\n{\n    private readonly Container _container = new(Rules.Default.WithUseInterpretation());\n    private readonly MoongateConfig _moongateConfig;\n\n    public MoongateBootstrap(MoongateConfig config)\n    {\n        _moongateConfig = config;\n\n        var context = new BootstrapContext\n        {\n            Container = _container,\n            Config = _moongateConfig,\n            ConsoleUiService = _consoleUiService\n        };\n\n        IBootstrapPhase[] phases =\n        [\n            new InfrastructurePhase(),\n            new PluginConfigurationPhase(),\n            new ServiceRegistrationPhase(),\n            new WiringPhase()\n        ];\n\n        foreach (var phase in phases.OrderBy(p => p.Order))\n        {\n            phase.Configure(context);\n        }\n    }\n}",
+        "language": "csharp"
+      },
+      "narration": "Every journey on the Packet Trail begins at Bootstrap Outpost. Moongate uses DryIoc dependency injection and a phased startup sequence. Infrastructure first, then plugin config, service registration, and finally wiring. Each phase configures the DI container in order. The server won't accept a single client connection until all four phases complete."
+    },
+    {
+      "name": "TCP Listening Post",
+      "subtitle": "Socket Accept Loop",
+      "concept": "Network Transport",
+      "landmarkType": "camp",
+      "code": {
+        "file": "src/Moongate.Network/Server/MoongateTCPServer.cs",
+        "content": "// MoongateTCPServer.cs\nprivate async Task AcceptLoopAsync()\n{\n    while (!_listenerCancellationTokenSource.IsCancellationRequested)\n    {\n        try\n        {\n            var clientSocket = await _serverSocket.AcceptAsync(\n                _listenerCancellationTokenSource.Token\n            );\n\n            var middlewareSnapshot = _middlewares;\n            var client = new MoongateTCPClient(\n                clientSocket,\n                middlewareSnapshot,\n                _receiveBufferSize,\n                _historyBufferCapacity\n            );\n            WireClientEvents(client);\n\n            _clients[client.SessionId] = client;\n            await client.StartAsync(_listenerCancellationTokenSource.Token);\n        }\n        catch (OperationCanceledException) { break; }\n        catch (ObjectDisposedException) { break; }\n        catch (Exception ex)\n        {\n            _logger.Error(ex, \"Accept loop failed\");\n            OnException?.Invoke(this, new(ex));\n        }\n    }\n}",
+        "language": "csharp"
+      },
+      "narration": "The TCP Listening Post is where Ultima Online clients first knock on the door. The server binds to port 2593 and runs an async accept loop. Each accepted socket gets wrapped in a MoongateTCPClient with a snapshot of the current middleware chain. The client is tracked in a ConcurrentDictionary by session ID. Events are wired up for connect, disconnect, data, and errors."
+    },
+    {
+      "name": "Encryption Canyon",
+      "subtitle": "Twofish + MD5 Cipher Stream",
+      "concept": "Packet Encryption",
+      "landmarkType": "mountain",
+      "code": {
+        "file": "src/Moongate.Network/Encryption/GameEncryption.cs",
+        "content": "// GameEncryption.cs\npublic sealed class GameEncryption : IClientEncryption\n{\n    private const int CipherTableSize = 256;\n    private readonly TwofishEngine _twofish;\n    private readonly byte[] _cipherTable;\n    private readonly byte[] _xorKey;\n    private ushort _recvPos;\n\n    public GameEncryption(uint seed)\n    {\n        Span<byte> key = stackalloc byte[16];\n        key[0] = key[4] = key[8] = key[12] = (byte)((seed >> 24) & 0xFF);\n        key[1] = key[5] = key[9] = key[13] = (byte)((seed >> 16) & 0xFF);\n        key[2] = key[6] = key[10] = key[14] = (byte)((seed >> 8) & 0xFF);\n        key[3] = key[7] = key[11] = key[15] = (byte)(seed & 0xFF);\n\n        _twofish = new(key);\n        _cipherTable = GC.AllocateUninitializedArray<byte>(CipherTableSize);\n        IdentityTable.CopyTo(_cipherTable, 0);\n        RefreshCipherTable();\n        _xorKey = CreateXorKey(_cipherTable);\n    }\n\n    public void ClientDecrypt(Span<byte> buffer)\n    {\n        for (var i = 0; i < buffer.Length; i++)\n        {\n            if (_recvPos >= CipherTableSize) { RefreshCipherTable(); }\n            buffer[i] ^= _cipherTable[_recvPos++];\n        }\n    }\n}",
+        "language": "csharp"
+      },
+      "narration": "Deep in Encryption Canyon, Moongate implements Ultima Online's legacy game encryption. The client seed gets expanded into a 16-byte Twofish key by repeating each seed byte four times. A 256-byte cipher table is encrypted in 16-byte blocks, then an MD5 hash creates the XOR key for outbound traffic. Every 256 bytes received, the table refreshes. This is protocol archaeology brought to life in modern C#."
+    },
+    {
+      "name": "Middleware Pipeline Pass",
+      "subtitle": "Network Middleware Chain",
+      "concept": "Middleware Pipeline",
+      "landmarkType": "river",
+      "code": {
+        "file": "src/Moongate.Network/Pipeline/NetMiddlewarePipeline.cs",
+        "content": "// NetMiddlewarePipeline.cs\npublic sealed class NetMiddlewarePipeline\n{\n    private readonly Lock _middlewareSync = new();\n    private INetMiddleware[] _middlewares;\n\n    public async ValueTask<ReadOnlyMemory<byte>> ExecuteAsync(\n        MoongateTCPClient? client,\n        ReadOnlyMemory<byte> data,\n        CancellationToken cancellationToken\n    )\n    {\n        INetMiddleware[] middlewares;\n        lock (_middlewareSync) { middlewares = _middlewares; }\n\n        var current = data;\n\n        for (var i = 0; i < middlewares.Length; i++)\n        {\n            cancellationToken.ThrowIfCancellationRequested();\n            current = await middlewares[i]\n                .ProcessAsync(client, current, cancellationToken);\n\n            if (current.IsEmpty)\n            {\n                return ReadOnlyMemory<byte>.Empty;\n            }\n        }\n\n        return current;\n    }\n}",
+        "language": "csharp"
+      },
+      "narration": "Crossing the Middleware Pipeline Pass. Every incoming byte buffer flows through a chain of INetMiddleware components. Decryption, decompression, and packet framing all happen here. If any middleware returns empty data, the pipeline short-circuits and the packet is dropped. The middleware array is snapshotted under a lock so new middleware can be added without tearing reads. Think ASP.NET middleware, but for raw TCP game packets."
+    },
+    {
+      "name": "Packet Registry Fort",
+      "subtitle": "Opcode Routing and Dispatch",
+      "concept": "Packet Dispatch",
+      "landmarkType": "town",
+      "code": {
+        "file": "src/Moongate.Server/Services/Packets/PacketDispatchService.cs",
+        "content": "// PacketDispatchService.cs\npublic class PacketDispatchService : IPacketDispatchService\n{\n    private const double SlowOpcodeDispatchThresholdMilliseconds = 100;\n    private static readonly PacketRegistry _packetRegistry = CreatePacketRegistry();\n    private readonly ConcurrentDictionary<byte, List<IPacketListener>> _packetListeners = new();\n\n    public bool NotifyPacketListeners(IncomingGamePacket gamePacket)\n    {\n        var opCode = gamePacket.PacketId;\n\n        if (!_packetListeners.TryGetValue(opCode, out var listeners))\n        {\n            _logger.Warning(\"No packet listeners for opcode 0x{OpCode:X2}\", opCode);\n            return false;\n        }\n\n        var dispatchStart = Stopwatch.GetTimestamp();\n\n        for (var i = 0; i < listenerCount; i++)\n        {\n            IPacketListener listener;\n            lock (listeners) { listener = listeners[i]; }\n            NotifyListenerSafe(opCode, gamePacket, listener);\n        }\n\n        var dispatchElapsed = Stopwatch.GetElapsedTime(dispatchStart);\n        if (dispatchElapsed.TotalMilliseconds >= SlowOpcodeDispatchThresholdMilliseconds)\n        {\n            _logger.Warning(\"Slow packet dispatch opcode=0x{OpCode:X2}\", opCode);\n        }\n\n        return true;\n    }\n}",
+        "language": "csharp"
+      },
+      "narration": "At Packet Registry Fort, decoded packets are routed to their handlers. Each UO packet opcode maps to a list of IPacketListener instances stored in a ConcurrentDictionary. The dispatch loop notifies each listener safely, catching exceptions per-listener so one bad handler cannot crash the server. A built-in stopwatch flags any opcode taking over 100 milliseconds. This is the packet switchboard of the entire server."
+    },
+    {
+      "name": "Login Handler Crossing",
+      "subtitle": "Authentication and Server Select",
+      "concept": "Authentication",
+      "landmarkType": "camp",
+      "code": {
+        "file": "src/Moongate.Server/Handlers/LoginHandler.cs",
+        "content": "// LoginHandler.cs\n[RegisterGameEventListener,\n RegisterPacketHandler(PacketDefinition.AccountLoginPacket),\n RegisterPacketHandler(PacketDefinition.ServerSelectPacket),\n RegisterPacketHandler(PacketDefinition.GameLoginPacket),\n RegisterPacketHandler(PacketDefinition.LoginCharacterPacket)]\npublic class LoginHandler : BasePacketListener\n{\n    private async Task<bool> HandleAccountLoginPacketAsync(\n        GameSession session, AccountLoginPacket accountLoginPacket)\n    {\n        var account = await _accountService.LoginAsync(\n            accountLoginPacket.Account, accountLoginPacket.Password);\n\n        if (account == null)\n        {\n            Enqueue(session,\n                new LoginDeniedPacket(UOLoginDeniedReason.IncorrectNameOrPassword));\n            return true;\n        }\n\n        session.AccountId = account.Id;\n        session.AccountType = account.AccountType;\n\n        Enqueue(session,\n            CreateServerListPacket(_serverConfig.Game.ShardName,\n                ResolveShardAddress(session)));\n        return true;\n    }\n}",
+        "language": "csharp"
+      },
+      "narration": "Login Handler Crossing guards the trail. Source-generated attributes register this handler for multiple packet opcodes at once. The UO login is a multi-step dance: first a seed packet, then account credentials, then server selection with a redirect, and finally the game login with character selection. Failed credentials get a LoginDeniedPacket. Success attaches the account to the session and sends the server list. All authentication flows through this single handler class."
+    },
+    {
+      "name": "Game Loop Plateau",
+      "subtitle": "Deterministic Tick Processing",
+      "concept": "Game Loop",
+      "landmarkType": "mountain",
+      "code": {
+        "file": "src/Moongate.Server/Services/EventLoop/GameLoopService.cs",
+        "content": "// GameLoopService.cs\npublic class GameLoopService : BaseMoongateService, IGameLoopService\n{\n    private const int MaxInboundPacketsPerTick = 128;\n    private const int MaxOutboundPacketsPerTick = 1024;\n    private const double SlowTickThresholdMilliseconds = 250;\n\n    private TickWorkBreakdown ProcessTick(long timestampMilliseconds)\n    {\n        while (inbound < MaxInboundPacketsPerTick &&\n               _messageBusService.TryReadIncomingPacket(out var gamePacket))\n        {\n            _packetDispatchService.NotifyPacketListeners(gamePacket);\n            inbound++;\n            gameLoopCallbacks +=\n                _backgroundJobService.ExecutePendingOnGameLoop();\n        }\n\n        var timerTicks = _timerService.UpdateTicksDelta(timestampMilliseconds);\n\n        if (_outgoingPacketQueue.CurrentQueueDepth > 0)\n        {\n            _outboundWorkSignal.Set();\n        }\n\n        return new(inbound, gameLoopCallbacks, timerTicks, 0, ...);\n    }\n}",
+        "language": "csharp"
+      },
+      "narration": "The Game Loop Plateau runs the world. A dedicated thread processes up to 128 inbound packets per tick, dispatches background job callbacks, and advances all server timers. Outbound packets are drained on a separate writer thread signaled by an AutoResetEvent. If any tick exceeds 250 milliseconds, a warning is logged. This single-threaded game loop ensures deterministic processing, exactly like classic UO servers but with modern async patterns."
+    },
+    {
+      "name": "Persistence Frontier",
+      "subtitle": "MemoryPack Snapshot + Journal",
+      "concept": "World Persistence",
+      "landmarkType": "town",
+      "code": {
+        "file": "src/Moongate.Persistence/Services/Persistence/MemoryPackSnapshotService.cs",
+        "content": "// MemoryPackSnapshotService.cs\npublic sealed class MemoryPackSnapshotService : ISnapshotService, IDisposable\n{\n    private static readonly ConcurrentDictionary<string, byte> LockedPaths = new();\n    private readonly SemaphoreSlim _ioLock = new(1, 1);\n    private readonly FileStream _snapshotStream;\n\n    public async ValueTask SaveAsync(\n        WorldSnapshot snapshot, CancellationToken cancellationToken = default)\n    {\n        await _ioLock.WaitAsync(cancellationToken);\n        try\n        {\n            var payload = MemoryPackSerializer.Serialize(snapshot);\n            _snapshotStream.SetLength(0);\n            _snapshotStream.Position = 0;\n            await _snapshotStream.WriteAsync(payload, cancellationToken);\n            await _snapshotStream.FlushAsync(cancellationToken);\n        }\n        finally { _ioLock.Release(); }\n    }\n\n    public async ValueTask<WorldSnapshot?> LoadAsync(\n        CancellationToken cancellationToken = default)\n    {\n        await _ioLock.WaitAsync(cancellationToken);\n        try\n        {\n            if (_snapshotStream.Length == 0) { return null; }\n            _snapshotStream.Position = 0;\n            var payload = new byte[checked((int)_snapshotStream.Length)];\n            // ... read and deserialize\n            return MemoryPackSerializer.Deserialize<WorldSnapshot>(payload);\n        }\n        finally { _ioLock.Release(); }\n    }\n}",
+        "language": "csharp"
+      },
+      "narration": "You have arrived at the Persistence Frontier! Moongate saves the entire world state using MemoryPack binary serialization. A SemaphoreSlim guards concurrent access to a single snapshot file. Saving truncates the file and writes the new payload atomically. Loading deserializes back into a WorldSnapshot. A static ConcurrentDictionary prevents two server instances from locking the same file. Between snapshots, incremental journal entries capture changes. On restart, the server replays the journal on top of the last snapshot. Your Britannia survives server crashes."
+    }
+  ],
+  "events": [
+    {
+      "type": "weather",
+      "trigger": "after_stop",
+      "triggerStop": 1,
+      "title": "SYN Flood Storm!",
+      "text": "A storm of malicious TCP connections is hammering your accept loop! Hundreds of sockets open but never send data. How do you weather this storm?",
+      "choices": [
+        {
+          "text": "Track each client by SessionId in a ConcurrentDictionary and close idle connections after a timeout",
+          "correct": true,
+          "explanation": "Moongate tracks every client in _clients by SessionId. The receive loop detects zero-byte reads (peer disconnect) and calls CloseAsync. Combined with CancellationToken propagation, idle clients get cleaned up without blocking the accept loop."
+        },
+        {
+          "text": "Stop accepting new connections until the current ones finish",
+          "correct": false,
+          "explanation": "Blocking the accept loop would deny service to legitimate players. The server needs to accept and manage connections concurrently, timing out bad actors individually."
+        },
+        {
+          "text": "Increase the socket buffer size to handle more data",
+          "correct": false,
+          "explanation": "Buffer size doesn't help when attackers open connections but never send data. The issue is connection lifecycle management, not buffer capacity."
+        }
+      ],
+      "concept": "Network Transport",
+      "difficulty": "easy"
+    },
+    {
+      "type": "river",
+      "trigger": "after_stop",
+      "triggerStop": 2,
+      "title": "The Encryption River",
+      "text": "You must cross the Encryption River. The UO client sends an initial seed, then all subsequent traffic is encrypted. How does Moongate determine which encryption scheme to use?",
+      "choices": [
+        {
+          "text": "Try decrypting with computed login keys first, then attempt Twofish game encryption, using the packet header byte as validation",
+          "correct": true,
+          "explanation": "LoginEncryption.TryDecrypt checks if decrypted byte 0 is 0x80 (account login opcode). GameEncryption.TryDecrypt checks for 0x91 (game login opcode). The server tries both schemes and keeps whichever produces a valid packet header. Protocol archaeology at its finest."
+        },
+        {
+          "text": "The client sends an unencrypted flag byte telling the server which encryption to use",
+          "correct": false,
+          "explanation": "There is no plaintext negotiation in the UO protocol. The server must detect the encryption scheme by attempting decryption and validating the result against known packet opcodes."
+        },
+        {
+          "text": "All traffic uses the same Twofish encryption from the start",
+          "correct": false,
+          "explanation": "The login phase uses a different XOR-based cipher derived from seed manipulation, while the game phase uses Twofish with MD5-derived XOR keys. Two distinct encryption stages for two distinct protocol phases."
+        }
+      ],
+      "concept": "Packet Encryption",
+      "difficulty": "hard"
+    },
+    {
+      "type": "encounter",
+      "trigger": "after_stop",
+      "triggerStop": 3,
+      "title": "A Middleware Developer Appears",
+      "text": "A fellow traveler asks: 'The NetMiddlewarePipeline snapshots the middleware array under a lock, then iterates without the lock held. Why not just hold the lock for the entire iteration?'",
+      "choices": [
+        {
+          "text": "Holding the lock during async iteration would block AddMiddleware calls and risk deadlocks across await points",
+          "correct": true,
+          "explanation": "The snapshot pattern copies the array reference under the lock, then releases it immediately. Middleware processing involves async I/O that could take milliseconds. Holding a lock across await boundaries is dangerous and would serialize all packet processing unnecessarily."
+        },
+        {
+          "text": "The lock is only needed for writing, reads are always safe without locks",
+          "correct": false,
+          "explanation": "Array reference reads need synchronization too. Without the lock, you could read a partially-updated reference. The snapshot pattern ensures you get a consistent array reference, then iterate freely."
+        },
+        {
+          "text": "It is a performance bug and the lock should be held the entire time",
+          "correct": false,
+          "explanation": "Lock-free iteration after snapshot is an intentional optimization. The array is immutable after creation since AddMiddleware builds a new array each time. This is a well-known copy-on-write pattern."
+        }
+      ],
+      "concept": "Middleware Pipeline",
+      "difficulty": "medium"
+    },
+    {
+      "type": "misfortune",
+      "trigger": "after_stop",
+      "triggerStop": 4,
+      "title": "Slow Dispatch Breakdown!",
+      "text": "Disaster! A packet handler is taking over 100 milliseconds. The game loop stutters and players see rubber-banding. Your server metrics are flashing red!",
+      "choices": [
+        {
+          "text": "Use the Stopwatch-based per-listener timing to identify the slow handler and move its work to a background job",
+          "correct": true,
+          "explanation": "PacketDispatchService measures elapsed time per opcode AND per listener. The 100ms threshold warning logs the exact listener type, session ID, and packet type. Once identified, heavy work should be scheduled through BackgroundJobService and completed on the game loop via ExecutePendingOnGameLoop."
+        },
+        {
+          "text": "Increase MaxInboundPacketsPerTick to process more packets and catch up",
+          "correct": false,
+          "explanation": "Processing more packets per tick makes the problem worse. If one handler is slow, adding more work per tick increases total tick time. The fix is making the slow handler faster, not doing more work."
+        },
+        {
+          "text": "Run packet handlers on separate threads to avoid blocking the game loop",
+          "correct": false,
+          "explanation": "Moongate uses a single-threaded game loop for deterministic processing. Running handlers on separate threads would introduce race conditions on game state. The correct approach is async background jobs that marshal results back to the game loop."
+        }
+      ],
+      "concept": "Packet Dispatch",
+      "difficulty": "medium"
+    },
+    {
+      "type": "weather",
+      "trigger": "after_stop",
+      "triggerStop": 5,
+      "title": "Brute Force Blizzard!",
+      "text": "A blizzard of login attempts is hitting your server. Someone is brute-forcing account passwords with thousands of AccountLoginPackets per second!",
+      "choices": [
+        {
+          "text": "The LoginHandler validates credentials via IAccountService and sends LoginDeniedPacket for failures, which the game loop rate-limits naturally",
+          "correct": true,
+          "explanation": "Each login attempt goes through the single-threaded game loop with MaxInboundPacketsPerTick=128 per tick. Failed logins get a LoginDeniedPacket response. The game loop's tick-based processing naturally limits how fast an attacker can try credentials without special rate limiting code."
+        },
+        {
+          "text": "Block the IP address at the firewall after 3 failed attempts",
+          "correct": false,
+          "explanation": "While firewall rules help in production, Moongate's architecture provides inherent throttling. The game loop processes packets sequentially, and each failed login requires a full round trip. The question is about the server's built-in defenses."
+        },
+        {
+          "text": "Add a Thread.Sleep delay after each failed login to slow attackers down",
+          "correct": false,
+          "explanation": "Sleeping on the game loop thread would block ALL game processing for ALL players. The game loop is single-threaded. You would freeze the entire world to slow one attacker."
+        }
+      ],
+      "concept": "Authentication",
+      "difficulty": "medium"
+    },
+    {
+      "type": "encounter",
+      "trigger": "after_stop",
+      "triggerStop": 6,
+      "title": "A Game Designer Appears",
+      "text": "A traveler asks: 'The GameLoopService has separate threads for the game loop and outbound packets. Why not process outbound packets on the game loop thread too?'",
+      "choices": [
+        {
+          "text": "Separating outbound I/O prevents socket writes from stalling game logic processing",
+          "correct": true,
+          "explanation": "Socket SendAsync can block if the client's TCP window is full. The outbound writer thread drains the queue independently, signaled by an AutoResetEvent. The game loop thread never waits on network I/O, keeping tick times predictable. MaxOutboundPacketsPerTick=1024 caps each drain pass."
+        },
+        {
+          "text": "Multiple threads make the server run faster on multi-core CPUs",
+          "correct": false,
+          "explanation": "While it does use multiple cores, the primary reason is isolation. Game logic must be deterministic and fast. Network I/O is unpredictable. Separating them is about latency consistency, not raw throughput."
+        },
+        {
+          "text": "The outbound queue would overflow if packets were sent synchronously",
+          "correct": false,
+          "explanation": "Queue overflow is a secondary concern. The real issue is that synchronous socket writes on the game loop would introduce variable latency from TCP congestion, flow control, and client-side network issues directly into game tick timing."
+        }
+      ],
+      "concept": "Game Loop",
+      "difficulty": "hard"
+    },
+    {
+      "type": "misfortune",
+      "trigger": "after_stop",
+      "triggerStop": 7,
+      "title": "Corrupted Snapshot!",
+      "text": "The server crashed during a snapshot save. The file is truncated and MemoryPack cannot deserialize it. The last journal entries are all you have!",
+      "choices": [
+        {
+          "text": "LoadAsync checks if the stream length is zero or if the read is short, returning null to trigger a fresh start or journal-only replay",
+          "correct": true,
+          "explanation": "MemoryPackSnapshotService.LoadAsync checks _snapshotStream.Length == 0 and verifies totalRead == payloadLength. A corrupted file returns null, allowing the server to start fresh or replay from the last good snapshot plus journal. SaveAsync truncates with SetLength(0) before writing, making corruption detectable."
+        },
+        {
+          "text": "Keep two snapshot files and alternate between them for redundancy",
+          "correct": false,
+          "explanation": "While double-buffered snapshots are a good production practice, Moongate's current implementation uses a single file with truncate-then-write semantics. The static LockedPaths dictionary prevents two instances from corrupting the same file."
+        },
+        {
+          "text": "Use a database instead of binary snapshots to prevent corruption",
+          "correct": false,
+          "explanation": "Moongate deliberately chose MemoryPack binary serialization for performance. The median cross-map teleport is 2.85ms. A database would add significant latency. The snapshot plus journal pattern provides crash recovery without database overhead."
+        }
+      ],
+      "concept": "World Persistence",
+      "difficulty": "hard"
+    }
+  ],
+  "partyMembers": [
+    {
+      "name": "Network Transport",
+      "icon": "network",
+      "maxHealth": 3
+    },
+    {
+      "name": "Packet Encryption",
+      "icon": "encryption",
+      "maxHealth": 3
+    },
+    {
+      "name": "Game Loop",
+      "icon": "gameloop",
+      "maxHealth": 3
+    },
+    {
+      "name": "World Persistence",
+      "icon": "persistence",
+      "maxHealth": 3
+    }
+  ],
+  "deathMessages": [
+    "You have died of corrupted packet opcodes.",
+    "You have died of Twofish key exhaustion.",
+    "You have died of a slow game tick.",
+    "You have drowned in the Encryption River.",
+    "You have died of truncated snapshot files.",
+    "You have died of unhandled SocketExceptions.",
+    "You have died of middleware pipeline short-circuit.",
+    "You have died of brute-forced account credentials.",
+    "You have died of desynchronized move sequences.",
+    "You have starved waiting for the outbound packet queue to drain."
+  ],
+  "sourceInfo": {
+    "repo": "moongate-community/moongatev2",
+    "language": "C#",
+    "description": "Modern Ultima Online server emulator built from scratch in .NET 10 with AOT compilation, Lua scripting, and deterministic game loop",
+    "url": "https://github.com/moongate-community/moongatev2"
+  }
+}

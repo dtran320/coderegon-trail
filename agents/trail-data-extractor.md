@@ -1,6 +1,6 @@
 ---
 description: Detects the web framework in a repository and extracts trail data for the Coderegon Trail game
-tools: Read, Grep, Glob, Bash(git:*), Bash(gh:*)
+tools: Read, Grep, Glob, Bash(git:*), Bash(gh:*), Bash(curl:*), Bash(jq:*)
 model: sonnet
 ---
 
@@ -22,6 +22,30 @@ Read the framework-trails reference file and format its data as the JSON structu
 ### Repo Mode (repository path provided — Phase 3)
 When analyzing a real repository:
 
+0. **DeepWiki pre-analysis** (optional accelerator): If the repo is on GitHub, fetch its architectural wiki structure from DeepWiki to get a head start on understanding the pipeline. This step is best-effort — skip if it fails or returns nothing useful.
+
+   ```bash
+   # Fetch wiki table of contents for owner/repo
+   curl -s -X POST https://mcp.deepwiki.com/mcp \
+     -H "Content-Type: application/json" \
+     -H "Accept: application/json" \
+     -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"read_wiki_structure","arguments":{"repoName":"OWNER/REPO"}},"id":1}' \
+     | jq -r '.result.content[0].text // empty'
+   ```
+
+   The TOC reveals the repo's architectural sections — look for pipeline-related entries like "Request Lifecycle", "Middleware Flow", "Processing Pipeline", "Architecture", etc. Use these to guide which files to prioritize in steps 1-3 below.
+
+   If the TOC identifies clear pipeline stages, you can optionally fetch the full wiki content for deeper context (warning: can be very large):
+   ```bash
+   curl -s -X POST https://mcp.deepwiki.com/mcp \
+     -H "Content-Type: application/json" \
+     -H "Accept: application/json" \
+     -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"read_wiki_contents","arguments":{"repoName":"OWNER/REPO"}},"id":1}' \
+     | jq -r '.result.content[0].text // empty' | head -500
+   ```
+
+   Use any pipeline/architecture insights from DeepWiki to inform the steps below — it helps you identify the right files faster and write better narration.
+
 1. **Detect framework**: Look for telltale files and dependencies
    - `next.config.js` / `next.config.mjs` → Next.js
    - `Gemfile` with `rails` gem → Rails
@@ -29,8 +53,9 @@ When analyzing a real repository:
    - `package.json` with `express` → Express
    - `package.json` with `react` (no Next.js) + `vite.config` → React/Vite
    - `composer.json` with `laravel/framework` → Laravel
+   - If none of the above match, the repo may use a non-standard or custom framework — use DeepWiki TOC and code exploration to identify the primary pipeline
 
-2. **Map pipeline stages**: For the detected framework, identify the real files that correspond to each trail stop:
+2. **Map pipeline stages**: For the detected framework (or custom architecture), identify the real files that correspond to each trail stop:
    - Find the entry point (main file, index, config.ru, etc.)
    - Trace the middleware/interceptor chain
    - Find routing configuration
@@ -146,6 +171,8 @@ Each framework has 4 party members representing key concepts:
 | React/Vite | Component Tree, Hooks, State Management, Effect Lifecycle |
 | Laravel | Eloquent ORM, Blade Templates, Service Container, Artisan CLI |
 | OpenClaw | Gateway Control Plane, Channel Plugins, Route Resolution, Session Persistence |
+
+For repos that don't match a canonical framework, derive 4 party members from the project's core concepts/subsystems. Name them after the most important architectural components (e.g., for a TTS engine: Text Normalizer, Phoneme Encoder, Acoustic Model, Vocoder).
 
 ## Narration Guidelines
 
