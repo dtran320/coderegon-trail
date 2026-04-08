@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Coderegon Trail - RuView Edition</title>
+<title>The Coderegon Trail - gstack Edition</title>
 <style>
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 html, body {
@@ -135,7 +135,7 @@ html, body {
 // =====================================================================
 // TRAIL DATA
 // =====================================================================
-const TRAIL_DATA={"framework": "ruview", "trailName": "The WiFi Sensing Trail", "sourceInfo": {"repo": "ruvnet/RuView", "commit": "3c02f6c", "tag": "v0.5.1-esp32", "snapshotDate": "2026-03-28"}, "stops": [{"name": "Independence, MO", "subtitle": "CSI Capture", "concept": "CSI Pipeline", "landmarkType": "town", "code": {"file": "firmware/esp32-csi-node/main/csi_collector.c", "content": "// firmware/esp32-csi-node/main/csi_collector.c\n#include \"csi_collector.h\"\n#include \"nvs_config.h\"\n#include \"stream_sender.h\"\n#include \"edge_processing.h\"\n#include \"esp_wifi.h\"\n#include \"esp_timer.h\"\n\nextern nvs_config_t g_nvs_config;\nstatic uint32_t s_sequence = 0;\n\n// ADR-018 binary frame serialization\nsize_t csi_serialize_frame(\n    const wifi_csi_info_t *info,\n    uint8_t *buf, size_t buf_len)\n{\n    uint8_t n_antennas = 1;\n    uint16_t iq_len = (uint16_t)info->len;\n    // 56 subcarriers at 20 MHz bandwidth\n    uint16_t n_subcarriers =\n        iq_len / (2 * n_antennas);\n\n    // Derive frequency from channel\n    uint8_t channel = info->rx_ctrl.channel;\n    uint32_t freq_mhz;\n    if (channel >= 1 && channel <= 13)\n        freq_mhz = 2412 + (channel - 1) * 5;\n    else if (channel >= 36 && channel <= 177)\n        freq_mhz = 5000 + channel * 5;\n\n    // Pack header + I/Q payload\n    uint32_t magic = CSI_MAGIC;\n    memcpy(&buf[0], &magic, 4);\n    buf[4] = g_nvs_config.node_id;\n    buf[5] = n_antennas;\n    memcpy(&buf[6], &n_subcarriers, 2);\n    memcpy(&buf[8], &freq_mhz, 4);\n    memcpy(&buf[CSI_HEADER_SIZE],\n        info->buf, iq_len);\n    return CSI_HEADER_SIZE + iq_len;\n}", "language": "c"}, "narration": "Every journey starts at Independence, Missouri. The ESP32-S3 firmware captures Channel State Information from WiFi signals using ESP-IDF callbacks. Unlike regular WiFi that only sees signal strength, CSI reveals amplitude and phase for each of 56 subcarriers at 20 MHz bandwidth. The C firmware serializes raw I/Q data into ADR-018 binary frames for UDP transmission."}, {"name": "Chimney Rock", "subtitle": "Signal Preprocessing", "concept": "CSI Pipeline", "landmarkType": "camp", "code": {"file": "wifi-densepose-signal/src/csi_processor.rs", "content": "// csi_processor.rs + phase_sanitizer.rs\nuse ndarray::Array2;\nuse num_complex::Complex64;\nuse chrono::{DateTime, Utc};\n\n/// CSI data: amplitude + phase per antenna\npub struct CsiData {\n    pub timestamp: DateTime<Utc>,\n    pub amplitude: Array2<f64>,\n    pub phase: Array2<f64>,\n    pub frequency: f64,\n    pub bandwidth: f64,\n    pub num_subcarriers: usize,\n    pub num_antennas: usize,\n    pub snr: f64,\n}\n\n/// Phase unwrapping methods\npub enum UnwrappingMethod {\n    Standard,  // numpy-style\n    Custom,    // row-by-row\n    Itoh,      // 2D unwrapping\n    QualityGuided,\n}\n\n/// Phase sanitizer config\npub struct PhaseSanitizerConfig {\n    pub unwrapping_method: UnwrappingMethod,\n    pub outlier_threshold: f64,\n    pub smoothing_window: usize,\n    pub enable_outlier_removal: bool,\n}", "language": "rust"}, "narration": "At Chimney Rock, we clean the raw radio signals. The CsiProcessor handles amplitude and phase arrays for all 56 subcarriers. The PhaseSanitizer offers four unwrapping methods including Itoh 2D and quality-guided approaches. Outlier removal and smoothing filters eliminate hardware artifacts so the pipeline sees real environmental changes instead of noise."}, {"name": "Fort Laramie", "subtitle": "Subcarrier Selection", "concept": "CSI Pipeline", "landmarkType": "mountain", "code": {"file": "wifi-densepose-signal/src/subcarrier_selection.rs", "content": "// subcarrier_selection.rs\nuse ndarray::Array2;\n\npub struct SubcarrierSelectionConfig {\n    pub top_k: usize,          // default: 20\n    pub min_sensitivity: f64,  // default: 1.5\n}\n\npub struct SubcarrierSelection {\n    pub selected_indices: Vec<usize>,\n    pub sensitivity_scores: Vec<f64>,\n    pub selected_data: Option<Array2<f64>>,\n}\n\n/// Variance-ratio sensitivity scoring.\n/// Sensitivity = var(motion[k])\n///             / (var(static[k]) + epsilon)\npub fn select_sensitive_subcarriers(\n    motion_data: &Array2<f64>,\n    static_data: &Array2<f64>,\n    config: &SubcarrierSelectionConfig,\n) -> Result<SubcarrierSelection, SelectionError> {\n    let n_sc = motion_data.dim().1;\n    let mut scores = Vec::with_capacity(n_sc);\n    for k in 0..n_sc {\n        let motion_var = column_variance(\n            motion_data, k);\n        let static_var = column_variance(\n            static_data, k);\n        scores.push(\n            motion_var / (static_var + 1e-12));\n    }\n    // Rank descending, take top-K\n    let mut ranked: Vec<(usize, f64)> =\n        scores.iter().copied()\n            .enumerate().collect();\n    ranked.sort_by(|a, b|\n        b.1.partial_cmp(&a.1).unwrap());\n    // Filter by min_sensitivity threshold\n    let selected = ranked.iter()\n        .filter(|(_, s)| *s >= config.min_sensitivity)\n        .take(config.top_k)\n        .map(|(idx, _)| *idx).collect();\n    Ok(SubcarrierSelection {\n        selected_indices: selected,\n        sensitivity_scores: scores,\n        selected_data: None,\n    })\n}", "language": "rust"}, "narration": "Fort Laramie is where we read the room, literally. Each of 56 WiFi subcarriers travels a slightly different path through space. The selection algorithm uses variance-ratio sensitivity scoring: it compares motion variance against static variance for each subcarrier and picks the top-K most responsive ones. This improves signal-to-noise ratio by 6 to 10 dB compared to using all subcarriers."}, {"name": "Independence Rock", "subtitle": "Motion Detection", "concept": "Pose Estimation", "landmarkType": "camp", "code": {"file": "wifi-densepose-signal/src/motion.rs", "content": "// motion.rs\nuse crate::features::{\n    AmplitudeFeatures,\n    CorrelationFeatures,\n    CsiFeatures, PhaseFeatures,\n};\n\npub struct MotionScore {\n    pub total: f64,\n    pub variance_component: f64,\n    pub correlation_component: f64,\n    pub phase_component: f64,\n    pub doppler_component: Option<f64>,\n}\n\nimpl MotionScore {\n    pub fn new(\n        variance: f64,\n        correlation: f64,\n        phase: f64,\n        doppler: Option<f64>,\n    ) -> Self {\n        // Weighted fusion of CSI features\n        let total = if let Some(d) = doppler {\n            0.3 * variance\n            + 0.2 * correlation\n            + 0.2 * phase\n            + 0.3 * d\n        } else {\n            0.4 * variance\n            + 0.3 * correlation\n            + 0.3 * phase\n        };\n        Self {\n            total: total.clamp(0.0, 1.0),\n            variance_component: variance,\n            correlation_component: correlation,\n            phase_component: phase,\n            doppler_component: doppler,\n        }\n    }\n\n    pub fn is_motion_detected(\n        &self, threshold: f64\n    ) -> bool {\n        self.total >= threshold\n    }\n}", "language": "rust"}, "narration": "At Independence Rock, we detect human presence. The motion detector fuses four CSI feature components: amplitude variance at 0.3 weight, phase coherence at 0.3, temporal correlation at 0.2, and Doppler shift at 0.2. When Doppler is unavailable, variance gets 0.4 and the others split evenly. No RSSI, no cameras, no wearables, just multi-dimensional CSI analysis."}, {"name": "South Pass", "subtitle": "Pose Estimation", "concept": "Pose Estimation", "landmarkType": "mountain", "code": {"file": "wifi-densepose-nn/src/densepose.rs", "content": "// densepose.rs\nuse crate::tensor::{Tensor, TensorShape};\nuse ndarray::Array4;\n\npub struct DensePoseConfig {\n    pub input_channels: usize,    // 256\n    pub num_body_parts: usize,    // 24\n    pub num_uv_coordinates: usize, // 2\n    pub hidden_channels: Vec<usize>,\n    pub dropout_rate: f32,\n    pub use_fpn: bool,\n    pub output_stride: usize,     // 4\n}\n\npub struct DensePoseOutput {\n    /// (batch, num_parts+1, height, width)\n    pub segmentation: Tensor,\n    /// (batch, 2, height, width)\n    pub uv_coordinates: Tensor,\n    pub confidence: Option<ConfidenceScores>,\n}\n\npub struct DensePoseHead {\n    config: DensePoseConfig,\n    weights: Option<DensePoseWeights>,\n}\n\n/// Pre-trained weights for inference\n/// Supports ONNX, SafeTensors formats\npub struct DensePoseWeights {\n    pub shared_conv: Vec<ConvLayerWeights>,\n    pub segmentation_head: Vec<ConvLayerWeights>,\n    pub uv_head: Vec<ConvLayerWeights>,\n}\n\npub struct ConvLayerWeights {\n    pub weight: Array4<f32>,\n    pub bias: Option<ndarray::Array1<f32>>,\n    pub bn_gamma: Option<ndarray::Array1<f32>>,\n    pub bn_beta: Option<ndarray::Array1<f32>>,\n}", "language": "rust"}, "narration": "South Pass is where the magic happens. The DensePose head takes feature maps and outputs body part segmentation masks plus UV coordinate predictions for 24 body parts. Inference runs natively in Rust using pre-trained weights in ONNX or SafeTensors format. Different body parts create distinct CSI disturbance signatures that the network maps to dense surface coordinates."}, {"name": "Fort Bridger", "subtitle": "Vital Sign Detection", "concept": "Vital Signs", "landmarkType": "river", "code": {"file": "wifi-densepose-vitals/src/breathing.rs", "content": "// breathing.rs + heartrate.rs\npub struct BreathingExtractor {\n    filtered_history: Vec<f64>,\n    sample_rate: f64,\n    n_subcarriers: usize,\n    freq_low: f64,   // 0.1 Hz\n    freq_high: f64,  // 0.5 Hz\n    filter_state: IirState,\n}\n\nimpl BreathingExtractor {\n    /// ESP32 defaults: 56 subcarriers,\n    /// 100 Hz, 30s window\n    pub fn esp32_default() -> Self {\n        Self::new(56, 100.0, 30.0)\n    }\n    pub fn extract(&mut self,\n        residuals: &[f64],\n        weights: &[f64],\n    ) -> Option<VitalEstimate> {\n        // Weighted subcarrier fusion\n        // IIR bandpass filter (0.1-0.5 Hz)\n        // Zero-crossing rate -> frequency\n        let crossings = count_zero_crossings(\n            &self.filtered_history);\n        let duration_s = self.filtered_history\n            .len() as f64 / self.sample_rate;\n        let freq_hz = crossings as f64\n            / (2.0 * duration_s);\n        let bpm = freq_hz * 60.0;\n        Some(VitalEstimate {\n            value_bpm: bpm,\n            confidence: compute_confidence(\n                &self.filtered_history),\n            status: VitalStatus::Valid,\n        })\n    }\n}\n\n// HeartRateExtractor uses autocorrelation\n// Band: 0.8-2.0 Hz (48-120 BPM)\n// Phase-coherence weighted fusion across\n// subcarriers for cardiac signal", "language": "rust"}, "narration": "Fort Bridger is where WiFi becomes a medical instrument. Breathing detection uses zero-crossing analysis on IIR bandpass filtered signals at 0.1 to 0.5 Hz, with weighted subcarrier fusion. Heart rate extraction uses autocorrelation peak detection on phase-coherence data at 0.8 to 2.0 Hz. Both default to 56 subcarriers at 100 Hz sample rate. Contactless vital signs from radio waves alone."}, {"name": "The Dalles", "subtitle": "Fresnel Zone Breathing Model", "concept": "Edge Intelligence", "landmarkType": "forest", "code": {"file": "wifi-densepose-signal/src/fresnel.rs", "content": "// fresnel.rs — Fresnel Zone Breathing Model\nuse std::f64::consts::PI;\npub const SPEED_OF_LIGHT: f64 = 2.998e8;\n\npub struct FresnelGeometry {\n    pub d_tx_body: f64,  // TX to body (m)\n    pub d_body_rx: f64,  // body to RX (m)\n    pub frequency: f64,  // Hz (e.g. 5.8e9)\n}\n\nimpl FresnelGeometry {\n    pub fn wavelength(&self) -> f64 {\n        SPEED_OF_LIGHT / self.frequency\n    }\n    /// F_n = sqrt(n*lambda*d1*d2/(d1+d2))\n    pub fn fresnel_radius(&self, n: u32) -> f64 {\n        let l = self.wavelength();\n        let d1 = self.d_tx_body;\n        let d2 = self.d_body_rx;\n        (n as f64 * l * d1 * d2 / (d1+d2)).sqrt()\n    }\n    /// Phase change from chest displacement\n    /// DeltaPhi = 2*pi * 2*Dd / lambda\n    pub fn phase_change(\n        &self, displacement_m: f64\n    ) -> f64 {\n        2.0*PI * 2.0*displacement_m\n            / self.wavelength()\n    }\n    /// Amplitude varies as |sin(DPhi/2)|\n    /// when crossing Fresnel zone boundaries\n    pub fn expected_amplitude_variation(\n        &self, displacement_m: f64\n    ) -> f64 {\n        let dp = self.phase_change(\n            displacement_m);\n        (dp / 2.0).sin().abs()\n    }\n}\n\n// FresnelBreathingEstimator validates\n// observed amplitude against model\n// predictions for 4-12mm chest displacement\n// References: FarSense (MobiCom 2019),\n//             Wi-Sleep (UbiComp 2021)", "language": "rust"}, "narration": "At The Dalles, we model how breathing becomes visible in WiFi. The Fresnel zone geometry calculates how chest displacement of 4 to 12 millimeters crosses zone boundaries, producing measurable phase and amplitude changes. At 5 GHz the wavelength is 60 millimeters, so breathing displacement is a significant fraction. The estimator validates observed signals against physics-based predictions from FarSense and Wi-Sleep research."}, {"name": "Oregon City", "subtitle": "Edge Intelligence", "concept": "Edge Intelligence", "landmarkType": "town", "code": {"file": "firmware/esp32-csi-node/main/csi_collector.c", "content": "// csi_collector.c — WiFi CSI callback\nstatic void wifi_csi_callback(\n    void *ctx, wifi_csi_info_t *info)\n{\n    // MAC filter: drop non-matching sources\n    if (g_nvs_config.filter_mac_set) {\n        if (memcmp(info->mac,\n            g_nvs_config.filter_mac, 6) != 0)\n            return;\n    }\n\n    // Rate limit: 50 Hz max send rate\n    int64_t now = esp_timer_get_time();\n    if (now - s_last_send_us\n        < CSI_MIN_SEND_INTERVAL_US) {\n        s_rate_skip++;\n        return;\n    }\n    s_last_send_us = now;\n\n    // Serialize ADR-018 binary frame\n    uint8_t frame_buf[CSI_FRAME_MAX];\n    size_t len = csi_serialize_frame(\n        info, frame_buf, sizeof(frame_buf));\n    if (len > 0) {\n        stream_send(frame_buf, len);\n        s_send_ok++;\n    }\n}\n\n// ADR-029: channel-hop table\n// Channels 1/6/11/36/40/44\n// Timer-driven hopping at configurable\n// dwell intervals for multi-band sensing", "language": "c"}, "narration": "You made it to Oregon City! The ESP-IDF firmware ties the whole pipeline together. The CSI callback filters by MAC address, rate-limits at 50 Hz to avoid exhausting packet buffers, and serializes frames for UDP streaming. Channel hopping across bands 1, 6, 11, 36, 40, and 44 enables multi-band sensing. All capture runs on-device with no cloud required. Your wagon has arrived at the frontier of privacy-preserving edge intelligence."}], "events": [{"type": "weather", "trigger": "after_stop", "triggerStop": 1, "title": "Signal Storm!", "text": "A storm of electromagnetic interference hits your ESP32. Consumer WiFi routers everywhere, but your CSI stream is empty. Why can't standard consumer WiFi provide CSI?", "choices": [{"text": "Consumer WiFi only exposes RSSI, not per-subcarrier amplitude and phase data", "correct": true, "explanation": "Standard WiFi chips report a single RSSI value. CSI requires firmware-level access to the baseband processor to extract per-subcarrier amplitude and phase. The ESP32-S3 exposes this through a special API."}, {"text": "WiFi is too slow to capture detailed signal information", "correct": false, "explanation": "WiFi operates at GHz frequencies with plenty of bandwidth. The issue is access, not speed. Consumer firmware simply hides the raw subcarrier data."}, {"text": "It requires 5G cellular signals instead", "correct": false, "explanation": "WiFi CSI works on standard 2.4 and 5 GHz WiFi. No 5G needed. The ESP32-S3 provides special firmware access to the raw channel state."}], "concept": "CSI Pipeline", "difficulty": "easy"}, {"type": "encounter", "trigger": "after_stop", "triggerStop": 2, "title": "A Signal Engineer Appears!", "text": "A seasoned RF engineer approaches your camp. She asks: Why is phase calibration critical for WiFi sensing? Your raw phase data looks like random noise.", "choices": [{"text": "Raw phase data has hardware-induced offsets that mask real environmental changes", "correct": true, "explanation": "Each ESP32 has slightly different oscillator timing, creating phase offsets unrelated to the environment. Without calibration, these hardware artifacts dominate the signal and hide the subtle changes caused by human presence."}, {"text": "Phase calibration makes the WiFi signals louder and easier to detect", "correct": false, "explanation": "Calibration does not amplify signals. It removes systematic errors so the remaining phase changes reflect actual environmental disturbances rather than hardware quirks."}, {"text": "Phase calibration is required by WiFi standards for all devices", "correct": false, "explanation": "WiFi standards do not require CSI phase calibration. This is a sensing-specific preprocessing step needed because we use phase data far beyond what normal WiFi communication requires."}], "concept": "CSI Pipeline", "difficulty": "easy"}, {"type": "river", "trigger": "after_stop", "triggerStop": 4, "title": "The Presence Detection River!", "text": "A wide river blocks your path. Your motion detector triggers, but you see nothing. How does motion detection actually work with just WiFi signals?", "choices": [{"text": "Human movement changes signal multipath patterns, causing measurable variance in CSI", "correct": true, "explanation": "When a person moves through the Fresnel zones between transmitter and receiver, they alter the constructive and destructive interference patterns. This shows up as increased variance in CSI amplitude across subcarriers."}, {"text": "WiFi measures body heat like a thermal camera", "correct": false, "explanation": "WiFi radio waves do not detect heat. They detect changes in the electromagnetic propagation environment caused by physical movement of objects and people."}, {"text": "WiFi sends out radar pulses to detect motion", "correct": false, "explanation": "WiFi CSI sensing is passive. It analyzes the normal WiFi communication signals, not special radar pulses. The existing data packets are the sensing medium."}], "concept": "Pose Estimation", "difficulty": "medium"}, {"type": "weather", "trigger": "after_stop", "triggerStop": 5, "title": "Pose Estimation Storm!", "text": "Dark clouds gather. Your pose estimation model outputs impossible body positions. How can WiFi estimate body pose without any cameras?", "choices": [{"text": "Different body parts create distinct CSI disturbance patterns mapped to UV coordinates", "correct": true, "explanation": "Arms, legs, torso, and head each scatter WiFi signals differently due to their size, shape, and material properties. A trained neural network learns to map these distinct CSI patterns to DensePose UV body surface coordinates."}, {"text": "WiFi bounces off skin like sonar and creates an echo image", "correct": false, "explanation": "WiFi does not work like sonar. It does not create echo images. Instead, it measures how the overall multipath propagation pattern changes when body parts move through the signal field."}, {"text": "WiFi uses infrared light embedded in the signal", "correct": false, "explanation": "WiFi operates at radio frequencies around 2.4 and 5 GHz, far from infrared. There is no light component. The sensing relies purely on radio wave propagation effects."}], "concept": "Pose Estimation", "difficulty": "medium"}, {"type": "misfortune", "trigger": "after_stop", "triggerStop": 6, "title": "Vital Sign Failure!", "text": "Disaster strikes! Your vital sign detector shows zero breathing rate even though a person is clearly present. What makes breathing detection possible at 0.1 to 0.5 Hz?", "choices": [{"text": "Chest expansion during breathing causes periodic changes in signal path length", "correct": true, "explanation": "When a person breathes, their chest expands by 1 to 2 centimeters. This tiny movement changes the WiFi signal path length periodically at the breathing frequency, creating a detectable oscillation in CSI amplitude and phase."}, {"text": "WiFi measures blood oxygen saturation like a pulse oximeter", "correct": false, "explanation": "WiFi cannot measure blood oxygen. It detects the physical movement of breathing, not chemical properties of blood. The signal path length change from chest expansion is what creates the breathing signature."}, {"text": "WiFi detects body temperature changes during breathing", "correct": false, "explanation": "WiFi radio waves are not sensitive to temperature. The detection relies on the mechanical expansion and contraction of the chest, which physically alters the multipath propagation environment."}], "concept": "Vital Signs", "difficulty": "hard"}, {"type": "encounter", "trigger": "after_stop", "triggerStop": 7, "title": "Through-Wall Pioneer!", "text": "A frontier settler asks: I want to monitor my elderly parent in the next room without cameras. Why can WiFi sense through walls but cameras cannot?", "choices": [{"text": "Radio waves at 2.4 and 5 GHz penetrate common building materials while visible light cannot", "correct": true, "explanation": "WiFi radio waves have wavelengths of 6 to 12 centimeters, much larger than the molecular structure of drywall, wood, and glass. They pass through these materials with manageable attenuation. Visible light wavelengths are far too small and get absorbed or reflected."}, {"text": "WiFi signals are more powerful than camera light", "correct": false, "explanation": "Power is not the issue. A flashlight cannot see through a wall no matter how bright. The key is wavelength. Radio waves interact differently with building materials than visible light does."}, {"text": "Cameras need visible light to work but WiFi creates its own light", "correct": false, "explanation": "WiFi does not create light. It uses radio waves, which are a completely different part of the electromagnetic spectrum. The penetration ability comes from the much longer wavelength of radio compared to visible light."}], "concept": "Edge Intelligence", "difficulty": "easy"}], "partyMembers": [{"name": "CSI Pipeline", "icon": "server", "maxHealth": 3}, {"name": "Pose Estimation", "icon": "router", "maxHealth": 3}, {"name": "Vital Signs", "icon": "data", "maxHealth": 3}, {"name": "Edge Intelligence", "icon": "layout", "maxHealth": 3}], "deathMessages": ["Died of phase unwrapping errors. The CSI data was hopelessly corrupted.", "Lost in the multipath — too many reflections, no clear signal.", "Drowned in noise. The bandpass filter could not save you.", "Killed by a false positive. That was a ceiling fan, not a person.", "Your ESP32 ran out of memory during on-device inference.", "Starved waiting for CSI packets. The WiFi router was unplugged.", "Died of Fresnel zone miscalculation. Sensed through the wrong wall.", "Buried under 56 subcarriers of garbage data."]};
+const TRAIL_DATA={"framework":"gstack","trailName":"The Software Factory Trail","stops":[{"name":"Independence, MO","subtitle":"SKILL.md Discovery","concept":"Sprint Discipline","landmarkType":"town","code":{"file":"SKILL.md","content":"---\nname: gstack\npreamble-tier: 1\nversion: 1.1.0\ndescription: |\n  Fast headless browser for QA testing\n  and site dogfooding. Navigate pages,\n  interact with elements, verify state,\n  diff before/after, take screenshots.\nallowed-tools:\n  - Bash\n  - Read\n  - AskUserQuestion\n---\n\n## Preamble (run first)\n\nmkdir -p ~/.gstack/sessions\ntouch ~/.gstack/sessions/\"$PPID\"\n_SESSIONS=$(find ~/.gstack/sessions \\\n  -mmin -120 -type f | wc -l)\n_PROACTIVE=$(gstack-config get proactive)\necho \"PROACTIVE: $_PROACTIVE\"\necho \"REPO_MODE: $REPO_MODE\"","language":"yaml"},"narration":"Every gstack sprint begins here, at the master SKILL.md. When you invoke any slash command, gstack runs a preamble that tracks sessions, checks for updates, and detects your repo mode. The YAML frontmatter declares what tools the skill can use. No tool access means no tool access. The agent is constrained before it even starts thinking."},{"name":"Chimney Rock","subtitle":"/office-hours","concept":"Sprint Discipline","landmarkType":"mountain","code":{"file":"office-hours/SKILL.md","content":"# /office-hours\n# YC Office Hours: two modes\n\n## Startup Mode: Six Forcing Questions\n1. DEMAND: Who wants this so badly\n   they'd use a half-broken v1?\n2. STATUS QUO: What do they do today\n   without your thing?\n3. SPECIFICITY: What is the narrowest\n   possible description of your user?\n4. WEDGE: What is the smallest thing\n   you could build that is useful?\n5. OBSERVATION: What have you seen\n   that others have not?\n6. FUTURE-FIT: Why is NOW the right\n   time to build this?\n\n## Builder Mode:\nDesign thinking brainstorm for side\nprojects, hackathons, and open source.\nSaves a design doc to the repo.\n\n## Gate: No coding starts until the\n## design doc is written and saved.","language":"markdown"},"narration":"Chimney Rock is where gstack forces you to think before you code. Office hours asks six questions borrowed from YC partner sessions. Who wants this? What do they do today? What is the narrowest wedge? These questions kill bad ideas fast and sharpen good ones. No design doc, no coding."},{"name":"Fort Laramie","subtitle":"/plan-ceo-review","concept":"Agent Roles","landmarkType":"camp","code":{"file":"plan-ceo-review/SKILL.md","content":"# /plan-ceo-review\n# CEO/founder-mode plan review\n\n## Four Scope Modes:\n\n1. SCOPE EXPANSION\n   Dream big. Find the 10-star product.\n   Challenge every premise.\n\n2. SELECTIVE EXPANSION\n   Hold scope + cherry-pick expansions\n   that create outsized value.\n\n3. HOLD SCOPE\n   Maximum rigor. Lock the plan.\n   No new features, only quality.\n\n4. SCOPE REDUCTION\n   Strip to absolute essentials.\n   What is the MVP of the MVP?\n\n## The CEO agent asks:\n- Is this ambitious enough?\n- What would make this a 10?\n- Are we solving the right problem?\n- What would a competitor do here?\n\n## Output: Annotated plan with\n## scope decision and rationale.","language":"markdown"},"narration":"At Fort Laramie, the CEO agent reviews your plan. It has four modes from dream big to strip down. Scope Expansion asks what the ten-star version looks like. Scope Reduction asks what the MVP of the MVP is. The CEO agent challenges your premises before a single line of code is written. Strategy before tactics."},{"name":"Independence Rock","subtitle":"/plan-eng-review","concept":"Agent Roles","landmarkType":"mountain","code":{"file":"plan-eng-review/SKILL.md","content":"# /plan-eng-review\n# Eng manager-mode plan review\n\n## Lock in the execution plan:\n- Architecture with ASCII diagrams\n- Data flow between components\n- Edge cases and error paths\n- Test coverage matrix\n- Performance considerations\n\n## Review walks through issues\n## interactively with recommendations:\n\nIssue 1: No error handling for\n  network timeouts in the API layer.\n  RECOMMENDATION: Add retry with\n  exponential backoff, 3 attempts max.\n  Completeness: 8/10 vs 4/10.\n\nIssue 2: Missing index on user_id\n  in the orders table.\n  RECOMMENDATION: Add composite\n  index (user_id, created_at).\n\n## Output: Architecture locked.\n## ASCII diagrams committed to plan.","language":"markdown"},"narration":"Independence Rock is where the engineering manager locks down architecture. ASCII diagrams, data flow maps, test matrices, edge case lists. Every issue gets an opinionated recommendation with a completeness score. The eng review catches missing indexes, unhandled timeouts, and architecture gaps before they become production incidents."},{"name":"South Pass","subtitle":"/autoplan","concept":"Sprint Discipline","landmarkType":"river","code":{"file":"autoplan/SKILL.md","content":"# /autoplan\n# Auto-review pipeline\n\n## One command. Fully reviewed plan.\n\n## Pipeline stages:\n1. Read the full CEO review skill\n2. Run CEO review with auto-decisions\n3. Read the full design review skill\n4. Run design review with auto-decisions\n5. Read the full eng review skill\n6. Run eng review with auto-decisions\n\n## 6 Decision Principles:\n- Pick the more complete option\n- Prefer explicit over implicit\n- Prefer tested over untested\n- When close, pick the bolder option\n- When uncertain, ask the user\n- Log taste decisions for final gate\n\n## Surfaces taste decisions at a final\n## approval gate. Close approaches,\n## borderline scope, codex disagreements\n## all get surfaced for human judgment.","language":"markdown"},"narration":"South Pass is the automated pipeline. One command, three reviews, fully autonomous. Autoplan chains CEO review, design review, and eng review in sequence, making decisions automatically using six principles. But it does not hide hard calls. Taste decisions, borderline scope, and close approaches get surfaced at a final gate for human judgment."},{"name":"Fort Bridger","subtitle":"/review + /cso","concept":"Safety Guardrails","landmarkType":"camp","code":{"file":"review/SKILL.md + cso/SKILL.md","content":"# /review - Pre-landing PR review\n# Analyzes diff against base branch:\n- SQL safety (injection, migrations)\n- LLM trust boundary violations\n- Conditional side effects\n- Structural issues in the diff\n\n# /cso - Chief Security Officer\n# Infrastructure-first security audit:\n\n## Phase 1: Secrets archaeology\n  git log --all -p | scan for keys\n\n## Phase 2: Dependency supply chain\n  Check for typosquat packages\n\n## Phase 3: CI/CD pipeline security\n  Review workflow permissions\n\n## Phase 4: OWASP Top 10 scan\n  A01:2021 Broken Access Control\n  A02:2021 Cryptographic Failures\n  A03:2021 Injection\n\n## Phase 5: STRIDE threat modeling\n  Spoofing, Tampering, Repudiation,\n  Info Disclosure, DoS, Elevation","language":"markdown"},"narration":"Fort Bridger runs two agents in tandem. The review agent scans your diff for SQL injection, LLM trust boundary violations, and conditional side effects. The CSO agent goes deeper with secrets archaeology, dependency supply chain analysis, and OWASP Top 10 plus STRIDE threat modeling. Security is not a checklist. It is an adversarial mindset."},{"name":"The Dalles","subtitle":"/qa + /browse","concept":"Real Browser QA","landmarkType":"forest","code":{"file":"browse/SKILL.md","content":"# /qa + /browse\n# Real Chromium browser QA testing\n\n## Browse: persistent headless Chromium\n# First call: ~3s startup\n# Every call after: ~100ms\n\n$B goto https://app.example.com/login\n$B snapshot -i    # interactive elements\n$B fill @e3 \"$TEST_EMAIL\"\n$B fill @e4 \"$TEST_PASSWORD\"\n$B click @e5      # submit\n$B snapshot -D    # diff: what changed?\n$B is visible \".dashboard\"\n$B console        # any JS errors?\n\n## QA: three tiers\n# Quick:      critical + high only\n# Standard:   + medium severity\n# Exhaustive: + cosmetic issues\n\n## Produces:\n# - Before/after health scores\n# - Fix evidence (screenshots)\n# - Ship-readiness summary","language":"bash"},"narration":"The Dalles is where your code meets real browsers. No mocking, no simulation. gstack spins up persistent headless Chromium that stays running between commands. Snapshot captures every interactive element with refs you can click, fill, and assert. The QA agent tests at three severity tiers and produces before and after health scores with screenshot evidence."},{"name":"Oregon City","subtitle":"/ship + /land-and-deploy","concept":"Sprint Discipline","landmarkType":"town","code":{"file":"ship/SKILL.md + land-and-deploy/SKILL.md","content":"# /ship workflow:\n1. Detect + merge base branch\n2. Run full test suite\n3. Review diff (auto-review agent)\n4. Bump VERSION file\n5. Update CHANGELOG.md\n6. Commit, push, create PR\n\n# /land-and-deploy workflow:\n1. Merge the PR (squash or merge)\n2. Wait for CI checks to pass\n3. Wait for deploy to complete\n4. Run canary health checks:\n   $B goto https://prod.app.com\n   $B text    # does it load?\n   $B console # JS errors?\n   $B network # failed requests?\n5. Verify production health\n6. Report: DONE or DONE_WITH_CONCERNS\n\n# The sprint cycle completes.\n# Think -> Plan -> Build -> Review\n# -> Test -> Ship -> Reflect.","language":"bash"},"narration":"You made it to Oregon City! The ship skill runs tests, reviews your diff, bumps the version, writes the changelog, and creates the PR. Land-and-deploy takes over from there: merge, wait for CI, wait for deploy, then verify production health with real browser checks. The full sprint cycle is complete. Think, plan, build, review, test, ship, reflect."}],"events":[{"type":"weather","trigger":"after_stop","triggerStop":1,"title":"Preamble Storm!","text":"A storm of concurrent Claude Code sessions hits your machine. Three different projects, three different skill configurations. How does gstack ensure every session gets the right behavior without conflicts?","choices":[{"text":"The preamble tracks sessions in ~/.gstack/sessions/ and each skill declares its own allowed-tools in YAML frontmatter, constraining the agent per-skill","correct":true,"explanation":"Session tracking via touch files in ~/.gstack/sessions/ lets gstack count concurrent sessions. YAML frontmatter declares allowed-tools per skill. The agent cannot use tools not listed in the frontmatter. Isolation is enforced at the skill level, not the session level."},{"text":"Each session runs in a Docker container with its own filesystem","correct":false,"explanation":"gstack does not use containers. Session isolation comes from the skill system itself. Each skill's YAML frontmatter constrains which tools the agent can use. The preamble runs at skill load time, not in a container."},{"text":"Only one Claude Code session can run gstack at a time to prevent conflicts","correct":false,"explanation":"gstack supports multiple concurrent sessions. The preamble counts active sessions and adjusts behavior. When 3+ sessions are running, skills enter ELI16 mode to re-ground the user who is juggling windows."}],"concept":"Sprint Discipline","difficulty":"easy"},{"type":"encounter","trigger":"after_stop","triggerStop":2,"title":"A YC Partner Appears!","text":"A weathered YC partner approaches your wagon: 'Most startups fail because they build something nobody wants. What is the most important forcing question in /office-hours and why?'","choices":[{"text":"'Who wants this so badly they would use a half-broken v1?' because it tests real demand before any code is written","correct":true,"explanation":"This is the demand reality question. If nobody would use a broken version, the demand is not strong enough. It separates nice-to-have from must-have before you write a line of code. Real demand survives bad UX. Fake demand does not."},{"text":"'Why is NOW the right time?' because timing determines market success","correct":false,"explanation":"Timing matters, but it is secondary. You can have perfect timing for a product nobody wants. The demand question comes first because building the wrong thing is the most common startup failure mode, not bad timing."},{"text":"'What is the smallest thing you could build?' because shipping fast is everything","correct":false,"explanation":"The narrowest wedge question is important, but it assumes you have validated demand first. Building the smallest possible thing nobody wants is still a waste. Demand first, then scope."}],"concept":"Sprint Discipline","difficulty":"easy"},{"type":"river","trigger":"after_stop","triggerStop":3,"title":"The Scope Crossing!","text":"You reach a wide river. The CEO review offers four scope modes. Your team wants to add three more features, but the plan is already ambitious. When should you choose SELECTIVE EXPANSION over SCOPE EXPANSION?","choices":[{"text":"When the core plan is sound but one or two specific additions would create outsized value without derailing the timeline","correct":true,"explanation":"Selective Expansion holds the existing scope and cherry-picks expansions that punch above their weight. It is the disciplined middle ground. Full Scope Expansion risks derailing a good plan. Selective Expansion adds value surgically."},{"text":"When the budget is limited and you need to cut features","correct":false,"explanation":"Budget constraints call for HOLD SCOPE or SCOPE REDUCTION, not Selective Expansion. Selective Expansion is about strategic additions, not cuts. If you are cutting, you are in the wrong mode."},{"text":"When you want to explore multiple directions before committing to one","correct":false,"explanation":"Exploring multiple directions is brainstorming, not scope review. Selective Expansion assumes you have a committed plan and are evaluating whether specific additions are worth it. Exploration happens in /office-hours, not /plan-ceo-review."}],"concept":"Agent Roles","difficulty":"medium"},{"type":"weather","trigger":"after_stop","triggerStop":4,"title":"Architecture Blizzard!","text":"A blizzard hits as the eng review reveals your plan has no ASCII architecture diagram. The team is building components that do not connect. Why does gstack require ASCII diagrams in the engineering review?","choices":[{"text":"ASCII diagrams force you to map data flow between components before coding, exposing gaps that prose descriptions hide","correct":true,"explanation":"Prose hides ambiguity. When you draw boxes and arrows, missing connections become obvious. An ASCII diagram in the plan file is version-controlled, diffable, and readable without special tools. It forces the architect to be precise about what talks to what."},{"text":"ASCII art looks retro and cool in terminal output","correct":false,"explanation":"Aesthetics are not the point. The eng review requires diagrams because they expose architectural gaps that words hide. A missing arrow between two boxes is a missing data flow. That is a bug in the plan, caught before implementation."},{"text":"Fancy diagram tools like Mermaid or Excalidraw are too complex for most developers","correct":false,"explanation":"Tool complexity is not the reason. ASCII diagrams are required because they are plain text, version-controlled, and diffable in git. But the real reason is they force precision. Drawing a system reveals gaps that describing it does not."}],"concept":"Agent Roles","difficulty":"medium"},{"type":"misfortune","trigger":"after_stop","triggerStop":5,"title":"Decision Deadlock!","text":"Disaster! The autoplan pipeline surfaces a taste decision where the CEO review says expand scope but the eng review says hold scope. The completeness scores are 8/10 vs 7/10. What does autoplan do?","choices":[{"text":"Surfaces it at the final approval gate for human judgment, because close calls with competing expert opinions require human taste","correct":true,"explanation":"Autoplan's six decision principles handle clear cases automatically. But when two expert agents disagree on a close call, it logs it as a taste decision and surfaces it at the final gate. Taste decisions are where human judgment beats automated rules. The system knows its own limits."},{"text":"Always picks the CEO review because strategy outranks engineering","correct":false,"explanation":"Autoplan does not have a fixed hierarchy between agents. The decision principles say: pick the more complete option, prefer explicit over implicit, and when close, surface it for human judgment. An 8 vs 7 is close enough to require human input."},{"text":"Averages the completeness scores and picks whichever is above 7.5","correct":false,"explanation":"Averaging scores destroys the signal. An 8 from the CEO and a 7 from engineering represent different concerns, not different measurements of the same thing. Autoplan surfaces the disagreement rather than hiding it behind arithmetic."}],"concept":"Sprint Discipline","difficulty":"hard"},{"type":"encounter","trigger":"after_stop","triggerStop":6,"title":"Security Auditor!","text":"A security auditor blocks your wagon: 'Your CI pipeline has write permissions to the production database. How did this happen?' What does the /cso skill check FIRST before even looking at your code?","choices":[{"text":"Infrastructure: secrets in git history, CI/CD pipeline permissions, dependency supply chain, and environment variable exposure","correct":true,"explanation":"The CSO skill is infrastructure-first by design. Most real breaches come from exposed env vars in CI logs, stale API keys in git history, and forgotten staging servers with prod DB access. The CSO checks infrastructure before code because that is where the real attack surface lives."},{"text":"The application code for SQL injection and XSS vulnerabilities","correct":false,"explanation":"Code-level vulnerabilities like SQL injection are important but come later in the CSO audit. The CSO starts with infrastructure because that is where the highest-impact, most-overlooked vulnerabilities live. A perfect codebase with leaked secrets in git history is still compromised."},{"text":"The README and documentation for security best practices","correct":false,"explanation":"Documentation review is not part of the CSO audit. The CSO thinks like an attacker: where are the unlocked doors? That means scanning git history for secrets, checking CI permissions, and auditing the dependency supply chain before ever reading application code."}],"concept":"Safety Guardrails","difficulty":"hard"},{"type":"fortune","trigger":"after_stop","triggerStop":7,"title":"Browser QA Breakthrough!","text":"The /browse agent discovers that a deploy verification can be done in 3 commands: goto, text, console. Your production health check now runs in under a second. The trail ahead looks clear!","choices":[],"concept":"Real Browser QA","difficulty":"easy"}],"partyMembers":[{"name":"Sprint Discipline","icon":"server","maxHealth":3},{"name":"Agent Roles","icon":"router","maxHealth":3},{"name":"Real Browser QA","icon":"data","maxHealth":3},{"name":"Safety Guardrails","icon":"layout","maxHealth":3}],"deathMessages":["Died of shipping without /review. Production was never the same.","Lost to scope creep. Should have used /freeze.","Drowned in unreviewed PRs. The /autoplan pipeline was never run.","Killed by a secret in git history. The /cso audit was skipped.","Your QA used mocks instead of real browsers. The bug shipped to prod.","Starved waiting for manual testing. Should have used /browse.","Died of rationalization. 'This is too simple to need a plan' were the last words.","Buried under 47 open PRs. The /ship workflow was never adopted."],"sourceInfo":{"repo":"garrytan/gstack","commit":"78bc1d1","tag":"","snapshotDate":"2026-03-28"}};
 
 // =====================================================================
 // GAME STATE
@@ -187,21 +187,18 @@ let currentEventType = '';  // event type for canvas overlay
 let currentEventTitle = ''; // event title for canvas overlay
 
 const travelFlavors = [
-  "The CSI stream flows steady from the ESP32...",
-  "Subcarrier amplitudes are clean and stable...",
-  "The bandpass filter hums along nicely...",
-  "Phase calibration is holding true...",
-  "WiFi signals carry secrets about the room ahead...",
-  "The Fresnel zones are well-defined today...",
-  "Your antenna array picks up clear multipath patterns...",
-  "The motion detector is calm, no false positives...",
-  "Radio waves pass through walls like water through sand...",
-  "The FFT reveals clean frequency peaks...",
-  "A hawk circles overhead, invisible to cameras but not to WiFi...",
-  "The edge processor handles inference with room to spare...",
-  "Your Rust code compiles without warnings...",
-  "The OFDM subcarriers tell stories of the space...",
-  "Privacy is preserved. No cameras needed on this trail..."
+  "The preamble fires. Skills loaded. Sprint begins...",
+  "Office hours questions sharpen the product vision...",
+  "The CEO review grades your scope. Selective Expansion...",
+  "ASCII architecture diagrams lock in the data flow...",
+  "Autoplan chains CEO, design, eng reviews automatically...",
+  "The /review agent scans your diff for SQL injection...",
+  "The CSO runs OWASP Top 10 and STRIDE threat modeling...",
+  "Headless Chromium starts in 3 seconds. QA begins...",
+  "Snapshot refs map every interactive element on the page...",
+  "The /ship workflow bumps VERSION and writes CHANGELOG...",
+  "Land-and-deploy merges, waits for CI, verifies prod...",
+  "The Boil the Lake principle holds. No shortcuts today..."
 ];
 
 // =====================================================================
@@ -374,10 +371,10 @@ function drawWagon(wx, wy) {
     ctx.fillStyle = '#553300';
     ctx.fillRect(Math.floor(wcx - 1), Math.floor(wcy - 1), 2, 2);
   }
-  // Cyan flag (WiFi theme)
-  ctx.fillStyle = '#00AAAA';
+  // Purple flag
+  ctx.fillStyle = '#AA00AA';
   ctx.fillRect(Math.floor(wx + 14), Math.floor(wy - 22), 1, -7);
-  ctx.fillStyle = '#55FFFF';
+  ctx.fillStyle = '#FF55FF';
   ctx.fillRect(Math.floor(wx + 15), Math.floor(wy - 29), 6, 4);
 }
 
@@ -492,8 +489,8 @@ function drawEventOverlay(time) {
 
   var t = (time || 0) * 0.001; // seconds
 
-  // --- SIGNAL STORM: dark sky, lightning, radio interference ---
-  if (currentEventTitle.indexOf('Signal Storm') !== -1) {
+  // --- HOOK STORM: dark sky, lightning, rain ---
+  if (currentEventTitle.indexOf('Preamble Storm') !== -1) {
     // Darken sky
     ctx.fillStyle = 'rgba(0,0,50,0.45)';
     ctx.fillRect(0, 0, W, 110);
@@ -515,18 +512,6 @@ function drawEventOverlay(time) {
       ctx.lineTo(lx + 2, 95);
       ctx.stroke();
     }
-    // Radio wave interference lines
-    ctx.strokeStyle = '#55FFFF';
-    ctx.lineWidth = 1;
-    for (var i = 0; i < 6; i++) {
-      ctx.beginPath();
-      for (var wx = 0; wx < W; wx += 2) {
-        var wy = 30 + i * 14 + Math.sin((wx + t * 60) * 0.05 + i) * 5;
-        if (wx === 0) ctx.moveTo(wx, wy);
-        else ctx.lineTo(wx, wy);
-      }
-      ctx.stroke();
-    }
     // Rain
     ctx.strokeStyle = '#5555FF';
     ctx.lineWidth = 1;
@@ -541,8 +526,27 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- SIGNAL ENGINEER: person with antenna equipment ---
-  if (currentEventTitle.indexOf('Signal Engineer') !== -1) {
+  // --- DESIGN GATE CROSSING: rough rapids with white water ---
+  if (currentEventTitle.indexOf('Scope Crossing') !== -1) {
+    // Extra turbulence on the river
+    ctx.fillStyle = '#55FFFF';
+    for (var i = 0; i < 20; i++) {
+      var sx = (i * 17 + t * 40) % W;
+      var sy = 157 + Math.sin((i * 3 + t * 5)) * 3;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), 4, 2);
+    }
+    // Floating logs / debris
+    ctx.fillStyle = '#AA5500';
+    for (var i = 0; i < 3; i++) {
+      var logX = (i * 110 + t * 25) % W;
+      var logY = 159 + Math.sin(t * 2 + i) * 2;
+      ctx.fillRect(Math.floor(logX), Math.floor(logY), 8, 2);
+    }
+    return;
+  }
+
+  // --- PLANNING PIONEER: person standing by campfire ---
+  if (currentEventTitle.indexOf('YC Partner') !== -1) {
     var px = 200, py = 142;
     // Person body
     ctx.fillStyle = '#AA5500';
@@ -551,104 +555,94 @@ function drawEventOverlay(time) {
     ctx.fillRect(px, py - 15, 4, 3); // head
     ctx.fillRect(px - 1, py - 4, 2, 5); // left leg
     ctx.fillRect(px + 3, py - 4, 2, 5); // right leg
-    // Hard hat
-    ctx.fillStyle = '#FFFF55';
+    // Hat
+    ctx.fillStyle = '#555555';
     ctx.fillRect(px - 1, py - 17, 6, 2);
     ctx.fillRect(px, py - 19, 4, 2);
-    // Antenna equipment
-    var ax = 215, ay = 140;
-    ctx.fillStyle = '#AAAAAA';
-    ctx.fillRect(ax, ay - 20, 2, 20); // pole
-    ctx.fillStyle = '#55FFFF';
-    // Radio waves emanating from antenna
-    for (var i = 0; i < 3; i++) {
-      var waveR = 6 + i * 5 + Math.sin(t * 3) * 2;
-      ctx.strokeStyle = 'rgba(85,255,255,' + (0.4 - i * 0.1).toFixed(2) + ')';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(ax + 1, ay - 20, waveR, -Math.PI * 0.7, Math.PI * 0.7);
-      ctx.stroke();
-    }
-    return;
-  }
-
-  // --- PRESENCE DETECTION RIVER: signal waves crossing water ---
-  if (currentEventTitle.indexOf('Presence Detection') !== -1) {
-    // Extra turbulence on the river
-    ctx.fillStyle = '#55FFFF';
-    for (var i = 0; i < 20; i++) {
-      var sx = (i * 17 + t * 40) % W;
-      var sy = 157 + Math.sin((i * 3 + t * 5)) * 3;
-      ctx.fillRect(Math.floor(sx), Math.floor(sy), 4, 2);
-    }
-    // WiFi signal ripples in water
-    ctx.strokeStyle = 'rgba(85,255,255,0.3)';
-    ctx.lineWidth = 1;
-    for (var i = 0; i < 4; i++) {
-      var rippleR = 8 + i * 6 + Math.sin(t * 2) * 3;
-      ctx.beginPath();
-      ctx.arc(160, 162, rippleR, 0, Math.PI);
-      ctx.stroke();
-    }
-    return;
-  }
-
-  // --- POSE ESTIMATION STORM: purple tint, body outline ---
-  if (currentEventTitle.indexOf('Pose Estimation Storm') !== -1) {
-    // Purple atmosphere
-    ctx.fillStyle = 'rgba(85,0,170,0.2)';
-    ctx.fillRect(0, 0, W, H);
-    // Wireframe body outline (stick figure with UV mapping feel)
-    var bx = 160, by = 100;
-    ctx.strokeStyle = '#FF55FF';
-    ctx.lineWidth = 2;
-    // Head
-    ctx.beginPath();
-    ctx.arc(bx, by - 25, 6, 0, Math.PI * 2);
-    ctx.stroke();
-    // Torso
-    ctx.beginPath(); ctx.moveTo(bx, by - 19); ctx.lineTo(bx, by); ctx.stroke();
-    // Arms (animated)
-    var armAngle = Math.sin(t * 2) * 0.4;
-    ctx.beginPath(); ctx.moveTo(bx, by - 15); ctx.lineTo(bx - 12, by - 8 + Math.sin(t * 2.5) * 4); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(bx, by - 15); ctx.lineTo(bx + 12, by - 8 - Math.sin(t * 2.5) * 4); ctx.stroke();
-    // Legs
-    ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx - 8, by + 14); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + 8, by + 14); ctx.stroke();
-    // UV coordinate dots
+    // Campfire
+    var fx = 212, fy = 148;
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(fx - 3, fy, 2, 3);
+    ctx.fillRect(fx + 3, fy, 2, 3);
+    ctx.fillStyle = '#FF5555';
+    var flicker = Math.sin(t * 8) * 2;
+    ctx.fillRect(fx - 1, fy - 3 + Math.floor(flicker * 0.3), 4, 3);
     ctx.fillStyle = '#FFFF55';
-    var joints = [[bx, by-25],[bx, by-15],[bx-12, by-8],[bx+12, by-8],[bx, by],[bx-8, by+14],[bx+8, by+14]];
-    for (var i = 0; i < joints.length; i++) {
-      ctx.fillRect(joints[i][0]-1, joints[i][1]-1 + Math.sin(t*3+i)*1, 3, 3);
-    }
-    ctx.lineWidth = 1;
+    ctx.fillRect(fx, fy - 5 + Math.floor(flicker * 0.5), 2, 2);
+    ctx.fillStyle = '#FFAA00';
+    ctx.fillRect(fx - 1, fy - 2, 4, 2);
+    // Firelight glow (subtle)
+    ctx.fillStyle = 'rgba(255,170,0,0.08)';
+    ctx.beginPath();
+    ctx.arc(fx + 1, fy - 2, 15, 0, Math.PI * 2);
+    ctx.fill();
     return;
   }
 
-  // --- VITAL SIGN FAILURE: red danger, flatline ---
-  if (currentEventTitle.indexOf('Vital Sign') !== -1) {
+  // --- SUBAGENT STORM: dark clouds, multiple lightning, wind ---
+  if (currentEventTitle.indexOf('Architecture Blizzard') !== -1) {
+    // Darken sky more
+    ctx.fillStyle = 'rgba(0,0,50,0.55)';
+    ctx.fillRect(0, 0, W, 110);
+    // Multiple lightning bolts
+    for (var bolt = 0; bolt < 3; bolt++) {
+      var flashPhase = Math.sin(t * (1.7 + bolt * 0.9)) + Math.sin(t * (3.1 + bolt * 1.3));
+      if (flashPhase > 1.5) {
+        ctx.strokeStyle = '#FFFF55';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        var lx = 50 + bolt * 90 + Math.sin(t * 2.3 + bolt) * 30;
+        ctx.moveTo(lx, 5);
+        ctx.lineTo(lx - 4, 25);
+        ctx.lineTo(lx + 6, 30);
+        ctx.lineTo(lx - 2, 55);
+        ctx.lineTo(lx + 8, 58);
+        ctx.lineTo(lx + 1, 85);
+        ctx.stroke();
+      }
+    }
+    // Heavy rain
+    ctx.strokeStyle = '#5555FF';
+    ctx.lineWidth = 1;
+    for (var i = 0; i < 60; i++) {
+      var rx = (i * 5.7 + t * 100) % W;
+      var ry = (i * 11.3 + t * 150) % 110;
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(rx), Math.floor(ry));
+      ctx.lineTo(Math.floor(rx - 2), Math.floor(ry + 6));
+      ctx.stroke();
+    }
+    return;
+  }
+
+  // --- TDD FAILURE: red sky, smoke, warning ---
+  if (currentEventTitle.indexOf('Decision Deadlock') !== -1) {
     // Red danger tint
     ctx.fillStyle = 'rgba(170,0,0,0.25)';
     ctx.fillRect(0, 0, W, H);
-    // EKG/breathing line across screen
-    ctx.strokeStyle = '#FF5555';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    for (var wx = 0; wx < W; wx += 2) {
-      var baseY = 80;
-      var signal;
-      var phase = (wx + t * 100) % 120;
-      if (phase < 10) {
-        signal = Math.sin(phase * 0.6) * 20;
-      } else if (phase < 20) {
-        signal = -Math.sin((phase - 10) * 0.3) * 10;
-      } else {
-        signal = Math.random() * 2 - 1; // flatline noise
-      }
-      if (wx === 0) ctx.moveTo(wx, baseY + signal);
-      else ctx.lineTo(wx, baseY + signal);
+    // Smoke particles rising
+    ctx.fillStyle = '#555555';
+    for (var i = 0; i < 15; i++) {
+      var sx = 140 + Math.sin(i * 2.7 + t) * 30;
+      var sy = 130 - ((t * 20 + i * 15) % 90);
+      var size = 2 + (i % 3);
+      ctx.globalAlpha = 0.3 + Math.sin(t + i) * 0.15;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), size, size);
     }
-    ctx.stroke();
+    ctx.globalAlpha = 1.0;
+    // Fire at base
+    ctx.fillStyle = '#FF5555';
+    for (var i = 0; i < 8; i++) {
+      var fx = 130 + i * 5;
+      var fh = 4 + Math.sin(t * 6 + i * 1.5) * 3;
+      ctx.fillRect(fx, Math.floor(140 - fh), 3, Math.floor(fh));
+    }
+    ctx.fillStyle = '#FFFF55';
+    for (var i = 0; i < 5; i++) {
+      var fx = 135 + i * 6;
+      var fh = 2 + Math.sin(t * 8 + i * 2) * 2;
+      ctx.fillRect(fx, Math.floor(139 - fh), 2, Math.floor(fh));
+    }
     // Pulsing red border
     var pulse = (Math.sin(t * 4) + 1) * 0.15;
     ctx.strokeStyle = 'rgba(255,0,0,' + pulse.toFixed(2) + ')';
@@ -658,32 +652,31 @@ function drawEventOverlay(time) {
     return;
   }
 
-  // --- THROUGH-WALL PIONEER: person visible through wall outline ---
-  if (currentEventTitle.indexOf('Through-Wall') !== -1) {
-    // Wall
-    ctx.fillStyle = 'rgba(85,85,85,0.4)';
-    ctx.fillRect(140, 70, 8, 80);
-    // Brick lines
-    ctx.strokeStyle = 'rgba(170,170,170,0.3)';
-    ctx.lineWidth = 1;
-    for (var by = 70; by < 150; by += 8) {
-      ctx.beginPath(); ctx.moveTo(140, by); ctx.lineTo(148, by); ctx.stroke();
-    }
-    // Person silhouette behind wall (ghostly)
-    var px = 170, py = 115;
-    ctx.fillStyle = 'rgba(85,255,255,0.25)';
-    ctx.beginPath(); ctx.arc(px, py - 15, 5, 0, Math.PI * 2); ctx.fill(); // head
-    ctx.fillRect(px - 3, py - 10, 6, 12); // torso
-    ctx.fillRect(px - 5, py + 2, 4, 10); // left leg
-    ctx.fillRect(px + 1, py + 2, 4, 10); // right leg
-    // WiFi waves penetrating wall
-    ctx.strokeStyle = 'rgba(85,255,255,0.3)';
-    for (var i = 0; i < 3; i++) {
-      var waveR = 15 + i * 10 + Math.sin(t * 2) * 3;
-      ctx.beginPath();
-      ctx.arc(120, 110, waveR, -0.5, 0.5);
-      ctx.stroke();
-    }
+  // --- REVIEW GATE PIONEER: person standing by gate structure ---
+  if (currentEventTitle.indexOf('Security Auditor') !== -1) {
+    var px = 200, py = 142;
+    // Person body
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(px, py - 12, 4, 8);
+    ctx.fillStyle = '#FFAA00';
+    ctx.fillRect(px, py - 15, 4, 3);
+    ctx.fillRect(px - 1, py - 4, 2, 5);
+    ctx.fillRect(px + 3, py - 4, 2, 5);
+    // Hat
+    ctx.fillStyle = '#555555';
+    ctx.fillRect(px - 1, py - 17, 6, 2);
+    ctx.fillRect(px, py - 19, 4, 2);
+    // Gate structure
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(210, py - 20, 3, 22);
+    ctx.fillRect(225, py - 20, 3, 22);
+    ctx.fillRect(210, py - 22, 18, 3);
+    // Gate sign
+    ctx.fillStyle = '#FFFF55';
+    ctx.fillRect(214, py - 18, 10, 6);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(216, py - 16, 2, 2);
+    ctx.fillRect(220, py - 16, 2, 2);
     return;
   }
 }
@@ -1061,13 +1054,12 @@ function updateMusicIndicator() {
 // SYNTAX HIGHLIGHTING (EGA Colors)
 // =====================================================================
 const TS_KEYWORDS = new Set([
-  'use', 'pub', 'fn', 'let', 'mut', 'const', 'struct', 'impl', 'enum', 'match',
-  'return', 'if', 'else', 'for', 'while', 'loop', 'async', 'await', 'move',
-  'self', 'Self', 'true', 'false', 'mod', 'crate', 'super', 'where', 'trait',
-  'type', 'as', 'in', 'ref', 'static', 'extern', 'unsafe', 'break', 'continue',
-  'import', 'export', 'from', 'var', 'function', 'new', 'typeof', 'instanceof',
-  'interface', 'class', 'extends', 'implements', 'try', 'catch', 'throw',
-  'default', 'switch', 'case', 'null', 'undefined', 'void', 'of'
+  'import', 'export', 'from', 'const', 'let', 'var', 'function', 'async',
+  'await', 'return', 'if', 'else', 'for', 'while', 'new', 'typeof', 'instanceof',
+  'interface', 'type', 'class', 'extends', 'implements', 'try', 'catch', 'throw',
+  'default', 'switch', 'case', 'break', 'continue', 'true', 'false', 'null',
+  'undefined', 'void', 'of', 'in', 'do', 'then', 'fi', 'done', 'echo', 'cat',
+  'cd', 'pwd', 'set', 'git', 'IF', 'BLOCK', 'RETURN'
 ]);
 
 function escHtml(s) {
@@ -1076,7 +1068,7 @@ function escHtml(s) {
 
 function highlightCode(code) {
   return code.split('\n').map(function(line) {
-    if (line.trim().startsWith('//')) {
+    if (line.trim().startsWith('//') || line.trim().startsWith('#')) {
       return '<span style="color:#555555">' + escHtml(line) + '</span>';
     }
     var result = '';
@@ -1097,6 +1089,10 @@ function highlightCode(code) {
       }
       // Inline comment
       if (line[i] === '/' && i + 1 < line.length && line[i + 1] === '/') {
+        result += '<span style="color:#555555">' + escHtml(line.substring(i)) + '</span>';
+        break;
+      }
+      if (line[i] === '#') {
         result += '<span style="color:#555555">' + escHtml(line.substring(i)) + '</span>';
         break;
       }
@@ -1144,8 +1140,8 @@ function renderTitleScreen() {
   setTextPanel(
     '<div style="text-align:center; padding-top:20px;">' +
     '<div style="color:#FFFF55; font-size:16px; letter-spacing:2px;">THE CODEREGON TRAIL</div>' +
-    '<div style="color:#AAAAAA; margin-top:8px;">The WiFi Sensing Trail - A RuView Learning Adventure</div>' +
-    '<div style="color:#555555; margin-top:4px; font-size:10px;">Source: ' + TRAIL_DATA.sourceInfo.repo + ' @ ' + TRAIL_DATA.sourceInfo.commit + (TRAIL_DATA.sourceInfo.tag ? ' (' + TRAIL_DATA.sourceInfo.tag + ')' : '') + ' — ' + TRAIL_DATA.sourceInfo.snapshotDate + '</div>' +
+    '<div style="color:#AAAAAA; margin-top:8px;">The Software Factory Trail - A gstack Learning Adventure</div>' +
+    '<div style="color:#555555; margin-top:4px; font-size:10px;">Source: ' + TRAIL_DATA.sourceInfo.repo + ' @ ' + TRAIL_DATA.sourceInfo.commit + (TRAIL_DATA.sourceInfo.tag ? ' (' + TRAIL_DATA.sourceInfo.tag + ')' : '') + ' \u2014 ' + TRAIL_DATA.sourceInfo.snapshotDate + '</div>' +
     '<div style="margin-top:30px;" class="blink">Press SPACE BAR to begin</div>' +
     '</div>'
   );
@@ -1170,10 +1166,10 @@ function renderSetupScreen() {
     '<div style="padding:8px 20px;">' +
     '<div style="color:#55FFFF; margin-bottom:10px;">Your party of key concepts:</div>' +
     '<div style="margin-left:16px;">' +
-    '<div style="color:#55FF55;">1. CSI Pipeline             <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">2. Pose Estimation          <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">3. Vital Signs              <span style="color:#FF5555">' + hearts + '</span></div>' +
-    '<div style="color:#55FF55;">4. Edge Intelligence        <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">1. Sprint Discipline         <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">2. Agent Roles               <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">3. Real Browser QA           <span style="color:#FF5555">' + hearts + '</span></div>' +
+    '<div style="color:#55FF55;">4. Safety Guardrails         <span style="color:#FF5555">' + hearts + '</span></div>' +
     '</div>' +
     '<div style="color:#55FFFF; margin-top:14px; margin-bottom:6px;">What is your profession?</div>' +
     '<div style="margin-left:16px;">' + profsHtml + '</div>' +
@@ -1303,10 +1299,6 @@ function renderDeathScreen() {
   if (techDebtDeath) {
     var techDebtMsgs = [
       'You have died of tech debt dysentery.',
-      // 'You have died of refactoring dysentery.',
-      // 'You have died of unresolved TODOs.',
-      // 'You have died of scope creep.',
-      // 'You have died of dependency bloat.',
     ];
     deathMsg = techDebtMsgs[Math.floor(Math.random() * techDebtMsgs.length)];
     techDebtDeath = false;
@@ -1341,7 +1333,7 @@ function renderWinScreen() {
   var survivors = partyHealth.filter(function(h) { return h > 0; }).length;
   var pctScore = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 100;
 
-  var conceptNames = ['CSI Pipeline', 'Pose Estimation', 'Vital Signs', 'Edge Intelligence'];
+  var conceptNames = TRAIL_DATA.partyMembers.map(function(p) { return p.name; });
 
   var masteryHtml = '';
   var weakestName = '';
@@ -1367,9 +1359,9 @@ function renderWinScreen() {
 
   setTextPanel(
     '<div style="padding:8px 16px;">' +
-    '<div style="color:#FFFF55; text-align:center; font-size:16px;">\u2605 YOU MADE IT TO RESPONSE FRONTIER! \u2605</div>' +
+    '<div style="color:#FFFF55; text-align:center; font-size:16px;">\u2605 YOU MADE IT TO OREGON CITY! \u2605</div>' +
     '<div style="margin-top:10px; color:#AAAAAA;">' +
-    '<div>  Framework:    <span style="color:#55FFFF;">RuView (The WiFi Sensing Trail)</span></div>' +
+    '<div>  Framework:    <span style="color:#55FFFF;">gstack (The Software Factory Trail)</span></div>' +
     '<div>  Survivors:    <span style="color:#55FF55;">' + survivors + '/' + partyHealth.length + '</span></div>' +
     '<div>  Quiz Score:   <span style="color:#FFFF55;">' + score + '/' + totalQuestions + ' (' + pctScore + '%)</span></div>' +
     '<div>  Best Streak:  <span style="color:#FF55FF;">' + bestStreak + '</span></div>' +
@@ -1378,8 +1370,11 @@ function renderWinScreen() {
     '<div style="margin-top:10px; color:#FFFF55;">  Concept Mastery:</div>' +
     '<div>' + masteryHtml + '</div>' +
     '<div style="margin-top:10px; color:#55FF55; text-align:center;">' + tip + '</div>' +
-    '<div style="color:#555555; margin-top:8px; text-align:center; font-size:10px;">Source: ' + TRAIL_DATA.sourceInfo.repo + ' @ ' + TRAIL_DATA.sourceInfo.commit + (TRAIL_DATA.sourceInfo.tag ? ' (' + TRAIL_DATA.sourceInfo.tag + ')' : '') + ' — ' + TRAIL_DATA.sourceInfo.snapshotDate + '</div>' +
-    '<div style="margin-top:14px; text-align:center;" class="blink">Press SPACE BAR to play again</div>' +
+    '<div style="margin-top:12px; text-align:center;">' +
+    '<button onclick="copyProofToClipboard()" style="background:#003300; border:1px solid #55FF55; color:#55FF55; font-family:monospace; font-size:13px; padding:4px 14px; cursor:pointer;">[ Copy Proof of Understanding ]</button>' +
+    '</div>' +
+    '<div style="margin-top:8px; color:#555555; font-size:10px; text-align:center;">Source: ' + TRAIL_DATA.sourceInfo.repo + ' @ ' + TRAIL_DATA.sourceInfo.commit + (TRAIL_DATA.sourceInfo.tag ? ' (' + TRAIL_DATA.sourceInfo.tag + ')' : '') + ' \u2014 ' + TRAIL_DATA.sourceInfo.snapshotDate + '</div>' +
+    '<div style="margin-top:8px; text-align:center; color:#555555; font-size:12px;">Press C to copy  |  Press SPACE to play again</div>' +
     '</div>'
   );
 }
@@ -1729,6 +1724,84 @@ function enterWin() {
 }
 
 // =====================================================================
+// PROOF OF UNDERSTANDING
+// =====================================================================
+function generateHash() {
+  var survivors = partyHealth.filter(function(h) { return h > 0; }).length;
+  var identity = (TRAIL_DATA.trailTheme === 'pr')
+    ? (TRAIL_DATA.prSource || TRAIL_DATA.framework)
+    : TRAIL_DATA.framework;
+  var raw = identity + score + totalQuestions + survivors + Date.now();
+  try { return btoa(raw).substring(0, 6); } catch(e) { return 'xxxxxx'; }
+}
+
+function generateProofMarkdown() {
+  var survivors = partyHealth.filter(function(h) { return h > 0; }).length;
+  var pct = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 100;
+  var isPR = TRAIL_DATA.trailTheme === 'pr';
+  var header = isPR ? '## PR Understanding Proof' : '## Trail Understanding Proof';
+  var identityLabel = isPR ? 'PR' : 'Framework';
+  var identityValue = isPR
+    ? '[' + (TRAIL_DATA.prSource || '') + ' \u2014 ' + (TRAIL_DATA.prTitle || '') + '](' + (TRAIL_DATA.prUrl || '#') + ')'
+    : TRAIL_DATA.trailName;
+  var date = new Date().toISOString().slice(0, 10);
+  var hash = generateHash();
+
+  var md = header + '\n\n';
+  md += '| Field | Value |\n|-------|-------|\n';
+  md += '| ' + identityLabel + ' | ' + identityValue + ' |\n';
+  md += '| Score | ' + score + '/' + totalQuestions + ' (' + pct + '%) |\n';
+  md += '| Survivors | ' + survivors + '/' + partyHealth.length + ' |\n';
+  md += '| Best Streak | ' + bestStreak + ' |\n';
+  md += '| Date | ' + date + ' |\n\n';
+  md += '### Concept Mastery\n';
+  for (var i = 0; i < TRAIL_DATA.partyMembers.length; i++) {
+    var name = TRAIL_DATA.partyMembers[i].name;
+    var hp = partyHealth[i];
+    var maxHp = TRAIL_DATA.partyMembers[i].maxHealth;
+    var stars, summary;
+    if (hp >= maxHp) { stars = '\u2B50\u2B50\u2B50'; summary = '(all correct)'; }
+    else if (hp > 0) { stars = '\u2B50\u2B50'; summary = '(mostly correct)'; }
+    else { stars = '\u2B50'; summary = '(needs review)'; }
+    md += '- ' + stars + ' ' + name + ' ' + summary + '\n';
+  }
+  md += '\n*Coderegon Trail | Hash: `' + hash + '`*\n';
+  return md;
+}
+
+function copyProofToClipboard() {
+  var md = generateProofMarkdown();
+  function showFeedback() {
+    var fb = document.getElementById('copy-feedback');
+    if (!fb) {
+      fb = document.createElement('div');
+      fb.id = 'copy-feedback';
+      fb.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#003300;border:1px solid #55FF55;color:#55FF55;padding:6px 16px;font-family:monospace;font-size:13px;z-index:999;';
+      document.body.appendChild(fb);
+    }
+    fb.textContent = 'Copied to clipboard!';
+    setTimeout(function() { if (fb.parentNode) fb.parentNode.removeChild(fb); }, 2000);
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(md).then(showFeedback).catch(function() {
+      fallbackCopy(md); showFeedback();
+    });
+  } else {
+    fallbackCopy(md); showFeedback();
+  }
+}
+
+function fallbackCopy(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } catch(e) {}
+  document.body.removeChild(ta);
+}
+
+// =====================================================================
 // INPUT HANDLING
 // =====================================================================
 function ensureAudio() {
@@ -1855,6 +1928,11 @@ document.addEventListener('keydown', function(e) {
       break;
 
     case STATES.WIN:
+      if (key === 'c' || key === 'C') {
+        e.preventDefault();
+        copyProofToClipboard();
+        return;
+      }
       if (key === ' ' || key === 'Enter') {
         e.preventDefault();
         resetGame();

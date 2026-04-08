@@ -264,3 +264,107 @@ Each event in `framework-trails.md` follows this structure:
   concept: "Which party member concept this maps to"
   difficulty: easy | medium | hard
 ```
+
+## Proof of Understanding
+
+When the player wins, the win screen includes a "Copy Proof of Understanding" button that copies a markdown proof to the clipboard. This feature is required for all games (both framework and PR mode).
+
+### Proof Format
+
+```markdown
+## Trail Understanding Proof
+
+| Field | Value |
+|-------|-------|
+| Framework | The App Router Trail |
+| Score | 5/6 (83%) |
+| Survivors | 3/4 |
+| Best Streak | 4 |
+| Date | 2026-03-12 |
+
+### Concept Mastery
+- ⭐⭐⭐ Server Components (all correct)
+- ⭐⭐ File Router (mostly correct)
+- ⭐ Data Fetching (needs review)
+
+*Coderegon Trail | Hash: `a3f8b2`*
+```
+
+For PR mode, use `## PR Understanding Proof` header and `| PR | [source — title](url) |` instead of `| Framework |`.
+
+### Concept Mastery Rating
+
+| Party Member HP | Stars | Summary |
+|----------------|-------|---------|
+| Full HP (= maxHealth) | ⭐⭐⭐ | `(all correct)` |
+| Partial HP (> 0, < max) | ⭐⭐ | `(mostly correct)` |
+| Dead (0 HP) | ⭐ | `(needs review)` |
+
+### Integrity Hash
+
+Simple integrity check — not cryptographically secure, just proof of completion:
+
+```javascript
+function generateHash() {
+  var survivors = partyHealth.filter(function(h) { return h > 0; }).length;
+  var identity = (TRAIL_DATA.trailTheme === 'pr')
+    ? (TRAIL_DATA.prSource || TRAIL_DATA.framework)
+    : TRAIL_DATA.framework;
+  var raw = identity + score + totalQuestions + survivors + Date.now();
+  try { return btoa(raw).substring(0, 6); } catch(e) { return 'xxxxxx'; }
+}
+```
+
+### Win Screen Button
+
+After the score card, add a copy button and keyboard hint:
+
+```html
+<button onclick="copyProofToClipboard()" style="
+  background:#003300; border:1px solid #55FF55; color:#55FF55;
+  font-family:monospace; font-size:13px; padding:4px 14px; cursor:pointer;">
+  [ Copy Proof of Understanding ]
+</button>
+```
+
+- Press `C` to copy (add to WIN state keyboard handler)
+- On copy success: show "Copied to clipboard!" feedback for 2 seconds
+- Fallback: if `navigator.clipboard.writeText()` fails (common for local `file://` URLs), use a hidden textarea with `document.execCommand('copy')`
+
+### Proof Generation Function
+
+```javascript
+function generateProofMarkdown() {
+  var survivors = partyHealth.filter(function(h) { return h > 0; }).length;
+  var pct = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 100;
+  var isPR = TRAIL_DATA.trailTheme === 'pr';
+  var header = isPR ? '## PR Understanding Proof' : '## Trail Understanding Proof';
+  var identityLabel = isPR ? 'PR' : 'Framework';
+  var identityValue = isPR
+    ? '[' + (TRAIL_DATA.prSource || '') + ' — ' + (TRAIL_DATA.prTitle || '') + '](' + (TRAIL_DATA.prUrl || '#') + ')'
+    : TRAIL_DATA.trailName;
+  var date = new Date().toISOString().slice(0, 10);
+  var hash = generateHash();
+
+  var md = header + '\n\n';
+  md += '| Field | Value |\n|-------|-------|\n';
+  md += '| ' + identityLabel + ' | ' + identityValue + ' |\n';
+  md += '| Score | ' + score + '/' + totalQuestions + ' (' + pct + '%) |\n';
+  md += '| Survivors | ' + survivors + '/4 |\n';
+  md += '| Best Streak | ' + bestStreak + ' |\n';
+  md += '| Date | ' + date + ' |\n\n';
+  md += '### Concept Mastery\n';
+  for (var i = 0; i < TRAIL_DATA.partyMembers.length; i++) {
+    var name = TRAIL_DATA.partyMembers[i].name;
+    var hp = partyHealth[i];
+    var maxHp = TRAIL_DATA.partyMembers[i].maxHealth;
+    var stars, summary;
+    if (hp >= maxHp) { stars = '⭐⭐⭐'; summary = '(all correct)'; }
+    else if (hp > 0) { stars = '⭐⭐'; summary = '(mostly correct)'; }
+    else { stars = '⭐'; summary = '(needs review)'; }
+    md += '- ' + stars + ' ' + name + ' ' + summary + '\n';
+  }
+  md += '\n*Coderegon Trail | Hash: `' + hash + '`*\n';
+  return md;
+}
+```
