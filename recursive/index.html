@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Coderegon Trail - Recursive Edition</title>
+</head>
+<body>
+<div id="game-container">
+  <div id="canvas-area">
+    <canvas id="game-canvas" width="320" height="200"></canvas>
+    <div id="music-indicator">M: Music</div>
+  </div>
+  <div id="text-panel"></div>
+  <div id="status-bar"></div>
+</div>
+
+<script>
+window.TRAIL_DATA = {
+  "framework": "coderegon-trail",
+  "trailName": "The Recursive Trail",
+  "repoUrl": "https://github.com/dtran320/coderegon-trail",
+  "stops": [
+    {
+      "name": "Independence, MO",
+      "subtitle": "The Command Spec",
+      "concept": "Skill System",
+      "landmarkType": "town",
+      "code": {
+        "file": "commands/fly-visual.md",
+        "content": "---\ndescription: \"Launch a Coderegon Trail game\"\nargument-hint: \"[framework | PR# | git-range]\"\nallowed-tools:\n  - Bash(git:*)\n  - Bash(gh:*)\n  - Read\n  - Grep\n  - Glob\n  - Task\n  - Skill\n  - Write\nmodel: opus\n---\n\n# Fly Visual - Coderegon Trail Game\n\nYou generate and launch a retro pixel\nart Oregon Trail-style game that teaches\na web framework's request pipeline.",
+        "language": "yaml"
+      },
+      "narration": "Every Coderegon Trail journey starts right here, in a markdown command spec. The YAML frontmatter declares which tools the agent can use and what model to run on. Opus handles the orchestration. The agent cannot use tools not listed in the frontmatter. This is the entry point for the entire game generation pipeline."
+    },
+    {
+      "name": "Chimney Rock",
+      "subtitle": "Trail Data Extraction",
+      "concept": "Trail Data",
+      "landmarkType": "mountain",
+      "code": {
+        "file": "agents/trail-data-extractor.md",
+        "content": "# Trail Data Extractor Agent\n\n## Repo Mode (repository path provided)\n1. **Detect framework**: Look for\n   telltale files and dependencies\n   - next.config.js -> Next.js\n   - Gemfile with rails -> Rails\n   - manage.py + settings.py -> Django\n\n2. **Map pipeline stages**: Identify\n   the real files for each trail stop\n\n3. **Extract code snippets**: 15-25\n   lines per stop, complete functions\n\n4. **Generate narration**: 3-5 TTS-\n   friendly sentences per snippet\n\n5. **Generate events**: 4-6 quiz\n   events based on the actual code",
+        "language": "markdown"
+      },
+      "narration": "Chimney Rock is where a Sonnet agent analyzes your codebase. It detects the framework, maps the request pipeline to trail stops, extracts representative code snippets, and writes narration. Five steps turn a raw repository into structured game data. If DeepWiki is available, it gets a head start on understanding the architecture."
+    },
+    {
+      "name": "Fort Laramie",
+      "subtitle": "The Visualization Skill",
+      "concept": "Skill System",
+      "landmarkType": "camp",
+      "code": {
+        "file": "skills/visualization/SKILL.md",
+        "content": "# Visualization Skill\n\n## Core Principles\n1. **Shared Engine** - Each game HTML\n   defines only TRAIL_DATA and overrides.\n   engine.js handles all rendering.\n2. **Educational** - Game mechanics ARE\n   the learning. Trail stops map to\n   real framework stages.\n3. **Retro Aesthetic** - Pixel art,\n   8-bit palettes, CRT scanlines.\n4. **Actually Fun** - Humor in death\n   messages, satisfying progression.\n\n## HTML Generation Guidelines\n## Size Budget\n- Per-game HTML: ~200-250 lines\n- Shared engine.js: ~1900 lines",
+        "language": "markdown"
+      },
+      "narration": "Fort Laramie is the skill spec that governs game generation. Four principles guide every decision. The shared engine pattern keeps each game HTML thin. Educational value is baked into the mechanics, not bolted on. And the retro aesthetic is not just for show, it evokes 1990s educational games that made learning feel like play."
+    },
+    {
+      "name": "Independence Rock",
+      "subtitle": "The Game State Machine",
+      "concept": "Game Engine",
+      "landmarkType": "mountain",
+      "code": {
+        "file": "engine.js",
+        "content": "const STATES = {\n  TITLE: 'TITLE', SETUP: 'SETUP',\n  TRAVEL: 'TRAVEL', STOP: 'STOP',\n  EVENT: 'EVENT', RIVER: 'RIVER',\n  DEATH: 'DEATH', WIN: 'WIN'\n};\nconst PROFESSIONS = [\n  { name: 'Ralph Wiggum',\n    desc: '\"I\\'m learnding!\"',\n    health: 999, supplies: 999 },\n  { name: 'Vibe Coder',\n    desc: '\"It works on my machine\"',\n    health: 100, supplies: 5 },\n  { name: 'Engineer',\n    desc: '\"Let me check the docs\"',\n    health: 70, supplies: 2 },\n  { name: 'Staff Architect',\n    desc: '\"I designed this system\"',\n    health: 50, supplies: 0 }\n];",
+        "language": "javascript"
+      },
+      "narration": "Independence Rock is the heart of the game engine. Eight states control the entire flow from title screen to victory or death. Four difficulty tiers map to developer archetypes. Ralph Wiggum mode gives you infinite health. Staff Architect gives you fifty HP and zero hints. The state machine drives everything. Title to setup, travel to stop, event to death or win."
+    },
+    {
+      "name": "South Pass",
+      "subtitle": "Canvas Rendering",
+      "concept": "Game Engine",
+      "landmarkType": "river",
+      "code": {
+        "file": "engine.js",
+        "content": "function drawLandscape() {\n  // Sky gradient\n  var skyGrad = ctx.createLinearGradient(\n    0, 0, 0, groundY);\n  skyGrad.addColorStop(0, skyColor);\n  skyGrad.addColorStop(1, '#87CEEB');\n  ctx.fillStyle = skyGrad;\n  ctx.fillRect(0, 0, W, groundY);\n\n  // Mountains (parallax)\n  drawMountainRange(scrollX * 0.3);\n\n  // Trees (parallax)\n  drawTreeLine(scrollX * 0.6);\n\n  // Ground + trail\n  ctx.fillStyle = '#4a7c59';\n  ctx.fillRect(0, groundY, W, H);\n  ctx.fillStyle = '#8B7355';\n  ctx.fillRect(0, trailY, W, 8);\n\n  drawWagon();\n}",
+        "language": "javascript"
+      },
+      "narration": "South Pass is where pixels meet canvas. The landscape uses three-layer parallax scrolling. Mountains move at thirty percent speed, trees at sixty percent, ground at full speed. The sky gradient shifts from dawn to sunset as you progress. Every tree, mountain, and wagon wheel is drawn procedurally. No image assets. Just math and rectangles."
+    },
+    {
+      "name": "Fort Bridger",
+      "subtitle": "Code Display and Shiki",
+      "concept": "Trail Data",
+      "landmarkType": "camp",
+      "code": {
+        "file": "engine.js",
+        "content": "function renderStopScreen() {\n  var stop = TRAIL_DATA.stops[currentStop];\n  var useShiki = shikiReady\n    && shikiCache[stop.name];\n  var codeHtml = useShiki\n    ? shikiCache[stop.name]\n    : highlightCode(stop.code.content);\n\n  // File path links to GitHub\n  var fileLink = TRAIL_DATA.repoUrl\n    ? '<a href=\"' + TRAIL_DATA.repoUrl\n      + '/blob/main/'\n      + stop.code.file + '\"'\n      + ' target=\"_blank\">'\n      + stop.code.file + '</a>'\n    : stop.code.file;\n\n  // Code is clickable to expand\n  // full-screen over the canvas\n}",
+        "language": "javascript"
+      },
+      "narration": "Fort Bridger is where code gets beautiful. Shiki loads asynchronously from CDN and pre-highlights all stop snippets on startup. If Shiki has not loaded yet, a basic regex highlighter handles keywords in pink, strings in yellow, and comments in blue. File paths link directly to GitHub when a repo URL is set. Click any code block to expand it full-screen over the canvas."
+    },
+    {
+      "name": "The Dalles",
+      "subtitle": "Event and Scoring System",
+      "concept": "Trail Data",
+      "landmarkType": "forest",
+      "code": {
+        "file": "engine.js",
+        "content": "function handleEventChoice(displayIdx) {\n  var event = pendingEvents[currentIdx];\n  var realIdx = shuffledIndices[displayIdx];\n  var choice = event.choices[realIdx];\n\n  if (choice.correct) {\n    score++;\n    streak++;\n    if (streak > bestStreak)\n      bestStreak = streak;\n    health = Math.min(\n      health + prof.healOnCorrect,\n      maxHealthForGame);\n    if (streak >= 3)\n      health = Math.min(\n        health + 5, maxHealthForGame);\n  } else {\n    streak = 0;\n    health -= (event.type === 'river')\n      ? prof.riverDmg : prof.wrongDmg;\n    damagePartyMember(event.concept);\n  }\n}",
+        "language": "javascript"
+      },
+      "narration": "The Dalles is where learning meets consequences. Correct answers heal you and build streaks. Three correct in a row triggers bonus health. Wrong answers cost fifteen HP and damage the party member tied to that concept. River crossings hit harder. Choices are shuffled every time so the correct answer is never in the same position. The scoring system makes every question feel like a real trail decision."
+    },
+    {
+      "name": "Oregon City",
+      "subtitle": "TTS and Browser Launch",
+      "concept": "TTS Narration",
+      "landmarkType": "town",
+      "code": {
+        "file": "scripts/tts.sh",
+        "content": "#!/bin/bash\n# scripts/tts.sh - Universal TTS wrapper\n# Supports macOS say, OpenAI TTS API,\n# and ElevenLabs with auto fallback\nset -euo pipefail\n\nENGINE=\"${DIFF_REVIEW_TTS_ENGINE:-say}\"\nVOICE=\"${DIFF_REVIEW_TTS_VOICE:-}\"\nRATE=\"${DIFF_REVIEW_TTS_RATE:-200}\"\n\nexec_say_tts() {\n  say -v \"$voice\" -r \"$rate\" \"$text\" &\n}\n\nexec_openai_tts() {\n  curl -s $OPENAI_URL \\\n    -H \"Authorization: Bearer $KEY\" \\\n    -d '{\"model\":\"tts-1\",\"voice\":\"$v\"}'\n}\n\n# Fallback chain:\n# ElevenLabs -> OpenAI -> macOS say",
+        "language": "bash"
+      },
+      "narration": "You made it to Oregon City! The TTS wrapper ties the whole experience together. Three engines with automatic fallback: ElevenLabs for premium voices, OpenAI for reliability, and macOS say as the universal default. The open-viz script writes the HTML file and launches your browser. From markdown spec to playable game, the entire pipeline runs without a build step. Happy trails, partner."
+    }
+  ],
+  "events": [
+    {
+      "type": "weather",
+      "trigger": "after_stop",
+      "triggerStop": 1,
+      "title": "Markdown Storm!",
+      "text": "A storm of malformed YAML frontmatter sweeps across the trail! Your command spec is missing the allowed-tools field. What happens when a Claude Code plugin command has no allowed-tools in its frontmatter?",
+      "choices": [
+        {
+          "text": "The agent gets no tool access at all \u2014 it can only respond with text, making the command useless for game generation",
+          "correct": true,
+          "explanation": "The allowed-tools field in YAML frontmatter constrains which tools the agent can use. No field means no tools. The agent cannot read files, write HTML, or run scripts. The command becomes a text-only chatbot \u2014 useless for generating games."
+        },
+        {
+          "text": "The agent gets access to all tools by default \u2014 no constraint means full access",
+          "correct": false,
+          "explanation": "Claude Code plugins are secure by default. Missing allowed-tools means zero tool access, not full access. The principle is least privilege \u2014 you must explicitly declare what the agent can use."
+        },
+        {
+          "text": "The command fails to load entirely with a YAML parse error",
+          "correct": false,
+          "explanation": "The YAML is still valid without allowed-tools \u2014 it is an optional field. The command loads fine, but the agent has no tools available. It can think and respond, but cannot interact with the filesystem or run commands."
+        }
+      ],
+      "concept": "Skill System",
+      "difficulty": "easy"
+    },
+    {
+      "type": "encounter",
+      "trigger": "after_stop",
+      "triggerStop": 2,
+      "title": "A Trail Data Pioneer!",
+      "text": "A fellow traveler approaches your wagon: 'I tried to generate a trail for my custom Rust CLI app, but the extractor could not detect a framework. What should the extractor do when no canonical framework matches?'",
+      "choices": [
+        {
+          "text": "Derive 4 party members from the project's core architectural concepts and map the app's own pipeline to trail stops",
+          "correct": true,
+          "explanation": "The trail-data-extractor is designed to handle non-standard projects. It derives party members from the project's core subsystems and maps whatever pipeline exists to trail stops. A Rust CLI might have: Argument Parser, Command Router, Business Logic, Output Formatter. The trail works for any architecture, not just web frameworks."
+        },
+        {
+          "text": "Report low confidence and refuse to generate a trail without a recognized framework",
+          "correct": false,
+          "explanation": "The extractor reports confidence levels, but low confidence does not mean refusal. It asks the user to specify if ambiguous, but for truly custom projects, it proceeds by analyzing the codebase structure and deriving its own trail mapping."
+        },
+        {
+          "text": "Default to the Express trail since it is the most generic web framework",
+          "correct": false,
+          "explanation": "Defaulting to a wrong framework would produce irrelevant quiz questions and misleading code snippets. The extractor must analyze the actual codebase, not substitute a generic template. Every project has its own pipeline worth learning."
+        }
+      ],
+      "concept": "Trail Data",
+      "difficulty": "easy"
+    },
+    {
+      "type": "river",
+      "trigger": "after_stop",
+      "triggerStop": 4,
+      "title": "The Rendering River!",
+      "text": "You reach a wide river where DOM meets Canvas. The game engine uses a hybrid rendering approach. Why does Coderegon Trail use Canvas for the landscape but DOM elements for text panels, code display, and UI buttons?",
+      "choices": [
+        {
+          "text": "Canvas gives pixel-perfect control for procedural art and animation, while DOM provides accessible, selectable, scrollable text with native event handling",
+          "correct": true,
+          "explanation": "Each technology plays to its strength. Canvas draws mountains, wagons, and parallax landscapes with pixel-level control at 60fps. DOM handles text, links, buttons, and code blocks with native accessibility, text selection, and scrolling. The hybrid approach gets the best of both worlds."
+        },
+        {
+          "text": "Canvas cannot render text at all, so DOM is required for any text content",
+          "correct": false,
+          "explanation": "Canvas absolutely can render text with fillText and strokeText. But Canvas text is not selectable, not scrollable, not accessible to screen readers, and does not support HTML formatting. DOM text is better for code display and narration. It is a design choice, not a limitation."
+        },
+        {
+          "text": "Using only Canvas would make the file too large and exceed the size budget",
+          "correct": false,
+          "explanation": "File size is not the primary concern. A pure Canvas approach could be more compact since you avoid HTML structure. The real reason is UX: DOM gives you clickable links to GitHub, expandable code blocks, scrollable text panels, and accessible content that Canvas cannot provide natively."
+        }
+      ],
+      "concept": "Game Engine",
+      "difficulty": "medium"
+    },
+    {
+      "type": "misfortune",
+      "trigger": "after_stop",
+      "triggerStop": 5,
+      "title": "Shiki CDN Failure!",
+      "text": "Disaster strikes! The Shiki CDN is unreachable and your code blocks have no syntax highlighting. Players are staring at monochrome text. How does the engine handle this?",
+      "choices": [
+        {
+          "text": "engine.js has a built-in regex fallback highlighter that colors keywords pink, strings yellow, comments blue, and numbers purple using EGA-inspired colors",
+          "correct": true,
+          "explanation": "The engine loads Shiki asynchronously and pre-caches highlighted output per stop. But if Shiki fails or has not loaded yet, a basic regex-based highlighter kicks in with an EGA color palette. Keywords get pink, strings get yellow, comments get muted blue. Not as good as Shiki, but perfectly functional."
+        },
+        {
+          "text": "The game shows an error message and refuses to display code until Shiki loads",
+          "correct": false,
+          "explanation": "The game never blocks on Shiki. Code display works immediately with the fallback highlighter. If Shiki loads later, it re-renders the current stop with better highlighting. The game is playable from the first millisecond, regardless of CDN status."
+        },
+        {
+          "text": "The code is displayed as plain white text on a dark background with no highlighting at all",
+          "correct": false,
+          "explanation": "Even without Shiki, code is never plain white. The built-in regex highlighter provides basic but effective syntax coloring. It matches keywords, strings, comments, and numbers with distinct colors. The retro look actually fits the pixel art aesthetic."
+        }
+      ],
+      "concept": "Game Engine",
+      "difficulty": "medium"
+    },
+    {
+      "type": "weather",
+      "trigger": "after_stop",
+      "triggerStop": 6,
+      "title": "Scoring Sandstorm!",
+      "text": "A sandstorm of wrong answers blows through your wagon! A party member named 'File Router' has taken damage on two quiz questions about routing. What happens if they take one more hit at max health of 3?",
+      "choices": [
+        {
+          "text": "The party member dies, their portrait turns grey with strikethrough text, and future questions about their concept give no partial credit",
+          "correct": true,
+          "explanation": "Each party member has 3 HP max. At 0 HP they die permanently. Dead members show as ghosts in the status bar. Questions about their concept become harder with no partial credit. This creates real stakes \u2014 losing a concept member means you lose your safety net for that topic."
+        },
+        {
+          "text": "The party member revives at the next stop with 1 HP since the game is educational and should not punish too harshly",
+          "correct": false,
+          "explanation": "Death is permanent in Coderegon Trail. The stakes are what make the learning stick. If wrong answers had no lasting consequences, players would click randomly instead of thinking. The educational value comes from the consequences being meaningful."
+        },
+        {
+          "text": "The game ends immediately because all questions require at least one living party member",
+          "correct": false,
+          "explanation": "One party member dying does not end the game. The game continues until health reaches zero or all four party members die. You can complete the trail with dead members \u2014 you just lose the safety net for their concept area on the score card."
+        }
+      ],
+      "concept": "Trail Data",
+      "difficulty": "medium"
+    },
+    {
+      "type": "encounter",
+      "trigger": "after_stop",
+      "triggerStop": 7,
+      "title": "A TTS Engineer Appears!",
+      "text": "A voice engineer emerges from the forest: 'Your TTS system supports three engines. What is the fallback chain, and why does macOS say always come last?'",
+      "choices": [
+        {
+          "text": "ElevenLabs to OpenAI to macOS say \u2014 say is the universal fallback because it requires no API keys, no network, and ships with every Mac",
+          "correct": true,
+          "explanation": "The fallback chain prioritizes quality: ElevenLabs has the most natural voices, OpenAI is reliable and widely available, and macOS say works offline with zero configuration. say is always the final fallback because it has no dependencies. If your internet is down and your API keys expired, say still works."
+        },
+        {
+          "text": "macOS say to OpenAI to ElevenLabs \u2014 starting with the simplest engine first to minimize latency",
+          "correct": false,
+          "explanation": "The chain goes from highest quality to most reliable, not from simplest to complex. If the user has configured ElevenLabs, they want the premium voice quality. Falling back to say first would ignore their preference. The chain respects the user's configured engine and only falls back when it fails."
+        },
+        {
+          "text": "All three engines run simultaneously and the fastest response wins",
+          "correct": false,
+          "explanation": "Running all engines in parallel would waste API credits and bandwidth. The TTS wrapper tries one engine at a time and only falls back on failure. This is a sequential fallback chain, not a parallel race. Each engine gets one shot before the next one tries."
+        }
+      ],
+      "concept": "TTS Narration",
+      "difficulty": "hard"
+    },
+    {
+      "type": "misfortune",
+      "trigger": "after_stop",
+      "triggerStop": 3,
+      "title": "Thin HTML Violation!",
+      "text": "Your wagon wheel breaks! A game developer embedded 2000 lines of CSS and JavaScript directly in their game HTML file instead of using the shared engine.js. Why is this a problem?",
+      "choices": [
+        {
+          "text": "The thin HTML pattern exists so bug fixes and features in engine.js automatically apply to all games \u2014 embedding duplicates code and creates maintenance nightmares",
+          "correct": true,
+          "explanation": "With 17 games sharing engine.js, a single bug fix reaches every game instantly. If each game embeds its own engine code, fixing a bug means editing 17 files. The thin HTML pattern keeps each game at 200 lines of unique data while engine.js handles the 1900 lines of shared logic."
+        },
+        {
+          "text": "The file size exceeds the browser's maximum HTML file limit of 1MB",
+          "correct": false,
+          "explanation": "Browsers have no practical limit on HTML file size. The concern is not file size but maintainability. Seventeen copies of the engine means seventeen places to fix bugs, update features, and maintain consistency. The shared engine pattern is about developer sanity, not browser limits."
+        },
+        {
+          "text": "Inline scripts are blocked by Content Security Policy headers in modern browsers",
+          "correct": false,
+          "explanation": "These games run as local HTML files opened with file colon slash slash, not served from a web server. There are no CSP headers. Even on a server, inline scripts work fine without strict CSP. The thin HTML pattern is about code reuse and maintenance, not security policies."
+        }
+      ],
+      "concept": "Skill System",
+      "difficulty": "hard"
+    }
+  ],
+  "partyMembers": [
+    { "name": "Skill System", "icon": "server", "maxHealth": 3 },
+    { "name": "Game Engine", "icon": "router", "maxHealth": 3 },
+    { "name": "Trail Data", "icon": "data", "maxHealth": 3 },
+    { "name": "TTS Narration", "icon": "layout", "maxHealth": 3 }
+  ],
+  "deathMessages": [
+    "Died of infinite recursion. A game about itself about itself about itself...",
+    "Lost in the state machine. Never transitioned out of TRAVEL.",
+    "Here lies your trail. It died of missing TRAIL_DATA.",
+    "Drowned in the Rendering River. Canvas and DOM could not agree.",
+    "Killed by a YAML frontmatter parsing error. No tools, no game.",
+    "Starved waiting for Shiki CDN. The fallback highlighter was not enough.",
+    "Died of self-reference. The game tried to generate itself and stack overflowed.",
+    "Your TTS engine fell back to silence. Nobody heard the narration."
+  ],
+  "sourceInfo": {
+    "repo": "dtran320/coderegon-trail",
+    "commit": "a4dffe3",
+    "tag": "",
+    "snapshotDate": "2026-04-09"
+  }
+};
+
+window.TRAIL_FLAVORS = [
+  "The command spec parses your arguments...",
+  "A Sonnet agent analyzes the repo structure...",
+  "Framework detection confidence: high...",
+  "Trail data JSON takes shape, stop by stop...",
+  "The visualization skill guides game generation...",
+  "engine.js initializes the state machine...",
+  "Canvas draws mountains at 0.3x parallax speed...",
+  "Shiki loads asynchronously from CDN...",
+  "Quiz choices shuffle to randomize correct position...",
+  "The TTS wrapper selects the best available engine...",
+  "open-viz.sh writes HTML and launches the browser...",
+  "This trail is about itself. How recursive..."
+];
+
+window.TRAIL_CONFIG = {
+  mountainColors: { far: '#6B3FA0', near: '#9B59B6' }
+};
+
+window.drawCustomEventOverlay = function(time) {
+  if (!currentEventType && !currentEventTitle) return;
+  var t = (time || 0) * 0.001;
+
+  // --- MARKDOWN STORM: YAML fragments raining down ---
+  if (currentEventTitle.indexOf('Markdown Storm') !== -1) {
+    ctx.fillStyle = 'rgba(0,0,50,0.4)';
+    ctx.fillRect(0, 0, W, 110);
+    // Lightning
+    var flashPhase = Math.sin(t * 1.7) + Math.sin(t * 3.1);
+    if (flashPhase > 1.6) {
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = '#FFFF55';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      var lx = 90 + Math.sin(t * 2.3) * 50;
+      ctx.moveTo(lx, 10); ctx.lineTo(lx - 5, 35);
+      ctx.lineTo(lx + 8, 35); ctx.lineTo(lx - 3, 65);
+      ctx.lineTo(lx + 10, 65); ctx.lineTo(lx + 2, 95);
+      ctx.stroke();
+    }
+    // YAML-like "rain" - small dashes
+    ctx.fillStyle = '#55FFFF';
+    for (var i = 0; i < 30; i++) {
+      var rx = (i * 11 + t * 60) % W;
+      var ry = (i * 17 + t * 100) % 110;
+      ctx.fillRect(Math.floor(rx), Math.floor(ry), 3, 1);
+      ctx.fillRect(Math.floor(rx + 5), Math.floor(ry + 2), 2, 1);
+    }
+    return;
+  }
+
+  // --- RENDERING RIVER: turbulent crossing ---
+  if (currentEventTitle.indexOf('Rendering River') !== -1) {
+    ctx.fillStyle = '#55FFFF';
+    for (var i = 0; i < 25; i++) {
+      var sx = (i * 14 + t * 35) % W;
+      var sy = 157 + Math.sin((i * 3 + t * 5)) * 3;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), 5, 2);
+    }
+    // Floating DOM/Canvas labels as debris
+    ctx.fillStyle = '#AA5500';
+    for (var i = 0; i < 4; i++) {
+      var logX = (i * 80 + t * 20) % W;
+      var logY = 159 + Math.sin(t * 2 + i) * 2;
+      ctx.fillRect(Math.floor(logX), Math.floor(logY), 10, 2);
+    }
+    return;
+  }
+
+  // --- TRAIL DATA PIONEER: traveler with campfire ---
+  if (currentEventTitle.indexOf('Trail Data Pioneer') !== -1) {
+    var px = 200, py = 142;
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(px, py - 12, 4, 8);
+    ctx.fillStyle = '#FFAA00';
+    ctx.fillRect(px, py - 15, 4, 3);
+    ctx.fillRect(px - 1, py - 4, 2, 5);
+    ctx.fillRect(px + 3, py - 4, 2, 5);
+    ctx.fillStyle = '#9B59B6';
+    ctx.fillRect(px - 1, py - 17, 6, 2);
+    ctx.fillRect(px, py - 19, 4, 2);
+    // Campfire
+    var fx = 212, fy = 148;
+    ctx.fillStyle = '#FF5555';
+    var flicker = Math.sin(t * 8) * 2;
+    ctx.fillRect(fx - 1, fy - 3 + Math.floor(flicker * 0.3), 4, 3);
+    ctx.fillStyle = '#FFFF55';
+    ctx.fillRect(fx, fy - 5 + Math.floor(flicker * 0.5), 2, 2);
+    ctx.fillStyle = '#FFAA00';
+    ctx.fillRect(fx - 1, fy - 2, 4, 2);
+    ctx.fillStyle = 'rgba(255,170,0,0.08)';
+    ctx.beginPath();
+    ctx.arc(fx + 1, fy - 2, 15, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+
+  // --- SHIKI FAILURE: glitchy screen ---
+  if (currentEventTitle.indexOf('Shiki CDN Failure') !== -1) {
+    // Glitch lines
+    for (var i = 0; i < 8; i++) {
+      var gy = (i * 25 + t * 40) % H;
+      var gx = Math.sin(t * 3 + i) * 10;
+      ctx.fillStyle = 'rgba(255,121,198,' + (0.1 + Math.sin(t * 5 + i) * 0.08).toFixed(2) + ')';
+      ctx.fillRect(Math.floor(gx), Math.floor(gy), W, 2);
+    }
+    // Static noise
+    ctx.fillStyle = '#f1fa8c';
+    for (var i = 0; i < 20; i++) {
+      var nx = Math.floor(Math.random() * W);
+      var ny = Math.floor(Math.random() * 100);
+      ctx.fillRect(nx, ny, 2, 1);
+    }
+    return;
+  }
+
+  // --- SCORING SANDSTORM: sand and wind ---
+  if (currentEventTitle.indexOf('Scoring Sandstorm') !== -1) {
+    ctx.fillStyle = 'rgba(194,178,128,0.3)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#c2b280';
+    for (var i = 0; i < 40; i++) {
+      var sx = (i * 8 + t * 90) % W;
+      var sy = (i * 12 + t * 30 + Math.sin(i) * 20) % H;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), 2, 1);
+    }
+    // Wind lines
+    ctx.strokeStyle = 'rgba(194,178,128,0.4)';
+    ctx.lineWidth = 1;
+    for (var i = 0; i < 5; i++) {
+      var wy = 30 + i * 20 + Math.sin(t + i) * 5;
+      ctx.beginPath();
+      ctx.moveTo((t * 60 + i * 40) % W, Math.floor(wy));
+      ctx.lineTo((t * 60 + i * 40 + 20) % W, Math.floor(wy - 2));
+      ctx.stroke();
+    }
+    return;
+  }
+
+  // --- TTS ENGINEER: person with sound waves ---
+  if (currentEventTitle.indexOf('TTS Engineer') !== -1) {
+    var px = 200, py = 142;
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(px, py - 12, 4, 8);
+    ctx.fillStyle = '#FFAA00';
+    ctx.fillRect(px, py - 15, 4, 3);
+    ctx.fillRect(px - 1, py - 4, 2, 5);
+    ctx.fillRect(px + 3, py - 4, 2, 5);
+    // Headphones
+    ctx.fillStyle = '#555555';
+    ctx.fillRect(px - 2, py - 14, 2, 4);
+    ctx.fillRect(px + 4, py - 14, 2, 4);
+    ctx.fillRect(px - 1, py - 16, 6, 2);
+    // Sound waves
+    ctx.strokeStyle = '#55FFFF';
+    ctx.lineWidth = 1;
+    for (var w = 0; w < 3; w++) {
+      var radius = 8 + w * 6 + Math.sin(t * 4) * 2;
+      ctx.globalAlpha = 0.5 - w * 0.15;
+      ctx.beginPath();
+      ctx.arc(px + 10, py - 10, radius, -0.5, 0.5);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1.0;
+    return;
+  }
+
+  // --- THIN HTML VIOLATION: broken wheel ---
+  if (currentEventTitle.indexOf('Thin HTML Violation') !== -1) {
+    ctx.fillStyle = 'rgba(170,0,0,0.2)';
+    ctx.fillRect(0, 0, W, H);
+    // Smoke
+    ctx.fillStyle = '#555555';
+    for (var i = 0; i < 12; i++) {
+      var sx = 150 + Math.sin(i * 2.7 + t) * 25;
+      var sy = 130 - ((t * 18 + i * 12) % 80);
+      var size = 2 + (i % 3);
+      ctx.globalAlpha = 0.25 + Math.sin(t + i) * 0.1;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), size, size);
+    }
+    ctx.globalAlpha = 1.0;
+    // Broken wheel pieces
+    ctx.fillStyle = '#8B4513';
+    var angle = t * 0.5;
+    for (var i = 0; i < 4; i++) {
+      var wx = 160 + Math.cos(angle + i * 1.57) * 8;
+      var wy = 150 + Math.sin(angle + i * 1.57) * 4 + (t > 2 ? (t - 2) * 3 : 0);
+      ctx.fillRect(Math.floor(wx), Math.floor(Math.min(wy, 160)), 3, 2);
+    }
+    return;
+  }
+};
+</script>
+<script src="../engine.js"></script>
+</body>
+</html>
