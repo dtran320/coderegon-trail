@@ -1,6 +1,6 @@
 #!/bin/bash
 # scripts/open-viz.sh - Write an HTML visualization file and open it in the browser
-# Used by /fly-visual to display the Coderegon Trail game
+# Used by /trail to display the Coderegon Trail game
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

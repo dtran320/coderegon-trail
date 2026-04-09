@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A Claude Code plugin for learning codebases through play. The flagship feature is **Coderegon Trail** (`/fly-visual`) — a retro pixel art Oregon Trail-style game that teaches web framework request pipelines via an interactive HTML game. Also includes TTS-narrated code walkthroughs (`/diff-review`, `/walkthrough`) for PRs, diffs, and codebases. No build step; the plugin is entirely markdown specs + shell scripts following Claude Code plugin conventions.
+A Claude Code plugin for learning codebases through play. The flagship feature is **Coderegon Trail** (`/trail`) — a retro pixel art Oregon Trail-style game that teaches web framework request pipelines via an interactive HTML game. Also includes TTS-narrated code walkthroughs (`/diff-review`, `/walkthrough`) for PRs, diffs, and codebases. No build step; the plugin is entirely markdown specs + shell scripts following Claude Code plugin conventions.
 
 ## Architecture
 
 ```
 commands/          User-facing CLI commands (markdown specs)
-  fly-visual.md      /fly-visual - Coderegon Trail game (primary command)
+  trail.md           /trail - Coderegon Trail game (primary command)
   diff-review.md     /diff-review - walk through diffs ranked by importance
   walkthrough.md     /walkthrough - guided codebase tour (8 sections)
 
@@ -60,7 +60,7 @@ examples/          Example generated game files
 
 ## Key Execution Flows
 
-**Coderegon Trail (`/fly-visual`):** Parse framework arg (or auto-detect from repo) → extract trail data from `framework-trails.md` or via `trail-data-extractor` agent → generate thin HTML game file (defines TRAIL_DATA + overrides, loads shared `engine.js`) → write HTML file and open in browser → game plays in browser (title → setup → travel/stop/event loop → win or death)
+**Coderegon Trail (`/trail`):** Parse framework arg (or auto-detect from repo) → extract trail data from `framework-trails.md` or via `trail-data-extractor` agent → generate thin HTML game file (defines TRAIL_DATA + overrides, loads shared `engine.js`) → write HTML file and open in browser → game plays in browser (title → setup → travel/stop/event loop → win or death)
 
 **Coderegon Trail Game Loop:** Title screen → party setup (4 members = framework concepts) → travel between ~8 stops (each = a pipeline stage with code + narration) → quiz events between stops (weather/river/encounter/misfortune/fortune), filtered by profession difficulty tier → wrong answers damage health and party members → arrive at Response Frontier to win, or die trying
 

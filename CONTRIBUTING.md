@@ -59,7 +59,7 @@ python3 -m http.server 8080
 # visit http://localhost:8080 to browse games
 ```
 
-To test the Claude Code plugin commands (`/fly-visual`, `/diff-review`, `/walkthrough`), install the plugin locally:
+To test the Claude Code plugin commands (`/trail`, `/diff-review`, `/walkthrough`), install the plugin locally:
 
 ```bash
 claude plugin add ./coderegon-trail
@@ -81,7 +81,7 @@ Testing is manual. After any change:
 1. Serve locally and play through the affected game in a browser
 2. Verify code snippets render with syntax highlighting
 3. Check that quiz events display correctly and answers are scored right
-4. For plugin changes, test the relevant `/fly-visual`, `/diff-review`, or `/walkthrough` command in Claude Code
+4. For plugin changes, test the relevant `/trail`, `/diff-review`, or `/walkthrough` command in Claude Code
 
 ## Conventions
 

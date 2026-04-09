@@ -6,26 +6,26 @@ The flagship feature is **Coderegon Trail** — a retro pixel art Oregon Trail-s
 
 Also includes TTS-narrated code walkthroughs for PRs, diffs, and codebases.
 
-## Coderegon Trail (`/fly-visual`)
+## Coderegon Trail (`/trail`)
 
 Launch a retro pixel art game that teaches a web framework's request pipeline:
 
 ```
-/fly-visual next          # Next.js App Router Trail
-/fly-visual rails         # Rails Convention Trail
-/fly-visual django        # Django WSGI Wagon Trail
-/fly-visual express       # Express Middleware Prairie
-/fly-visual react         # React/Vite Component Canyon
-/fly-visual laravel       # Laravel Artisan Trail
-/fly-visual openclaw      # OpenClaw Gateway Trail
-/fly-visual               # auto-detect from current repo
+/trail next          # Next.js App Router Trail
+/trail rails         # Rails Convention Trail
+/trail django        # Django WSGI Wagon Trail
+/trail express       # Express Middleware Prairie
+/trail react         # React/Vite Component Canyon
+/trail laravel       # Laravel Artisan Trail
+/trail openclaw      # OpenClaw Gateway Trail
+/trail               # auto-detect from current repo
 ```
 
 You can also play against a PR:
 
 ```
-/fly-visual pr 123        # PR #123 becomes the trail
-/fly-visual pr main..feat # branch comparison
+/trail pr 123        # PR #123 becomes the trail
+/trail pr main..feat # branch comparison
 ```
 
 **How it works:**

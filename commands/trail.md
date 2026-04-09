@@ -17,7 +17,7 @@ allowed-tools:
 model: opus
 ---
 
-# Fly Visual — Coderegon Trail Game
+# Trail — Coderegon Trail Game
 
 You generate and launch a retro pixel art Oregon Trail-style game that teaches a web framework's request pipeline — or reviews a pull request. The game is a self-contained HTML file opened in the browser.
 
@@ -307,6 +307,6 @@ Then wait for the user to type `done` to end the session.
 
 ## Error Handling
 
-- If framework is not supported yet (Phase 2 frameworks without trail data), say: "The {framework} trail is coming soon! Currently available: Next.js, OpenClaw. Try `/fly-visual next` or `/fly-visual openclaw`."
+- If framework is not supported yet (Phase 2 frameworks without trail data), say: "The {framework} trail is coming soon! Currently available: Next.js, OpenClaw. Try `/trail next` or `/trail openclaw`."
 - If auto-detection fails, list available frameworks and ask user to pick.
 - If HTML generation fails, show error and suggest retrying with a specific framework.
