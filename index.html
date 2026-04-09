@@ -763,9 +763,28 @@ const crate = buildCrate(); scene.add(crate);
 buildAllDisks(crate);
 scene.add(buildLamp());
 
+// Check for ?game= URL param to preselect a trail
+const urlGame = new URLSearchParams(window.location.search).get('game');
+let initialIndex = 0;
+if (urlGame) {
+  // Find in ALL_TRAILS first, switch category if needed
+  const allIdx = ALL_TRAILS.findIndex(t => t.href.replace(/\/$/, '') === urlGame);
+  if (allIdx !== -1) {
+    const trail = ALL_TRAILS[allIdx];
+    if (trail.cat !== currentCategory && currentCategory !== 'all') {
+      switchCategory('all');
+    }
+    initialIndex = TRAILS.findIndex(t => t.href === trail.href);
+    if (initialIndex === -1) initialIndex = 0;
+  }
+}
+selectedIndex = initialIndex;
+targetIndex = initialIndex;
+carouselT = initialIndex;
+
 updateDiskPositions(false);
-updateHUD(0);
-setCRTPreview(0);
+updateHUD(initialIndex);
+setCRTPreview(initialIndex);
 
 // ============================================================
 // CATEGORY FILTERING

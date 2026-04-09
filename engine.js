@@ -1763,6 +1763,13 @@ function generateProofMarkdown() {
     md += TRAIL_DATA.prUrl + '\n';
   }
 
+  // Add shareable hub link
+  var gameDir = getGameDir();
+  var hubBase = window.location.href.replace(/\/[^\/]+\/index\.html.*$/, '/').replace(/\/[^\/]+\/$/, '/');
+  if (hubBase && !isPR) {
+    md += hubBase + '?game=' + gameDir + '\n';
+  }
+
   md += hash + ' \u00B7 ' + date + '\n';
   return md;
 }
