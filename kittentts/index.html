@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Coderegon Trail - KittenTTS Edition</title>
+</head>
+<body>
+<div id="game-container">
+  <div id="canvas-area">
+    <canvas id="game-canvas" width="320" height="200"></canvas>
+    <div id="music-indicator">M: Music</div>
+  </div>
+  <div id="text-panel"></div>
+  <div id="status-bar"></div>
+</div>
+
+<script>
+window.TRAIL_DATA = {
+  "framework": "kittentts",
+  "trailName": "The Synthesis Trail",
+  "stops": [
+    {
+      "name": "Model Loading Depot",
+      "subtitle": "Model Initialization",
+      "concept": "ONNX Runtime",
+      "landmarkType": "town",
+      "code": {
+        "file": "kittentts/get_model.py",
+        "content": "class KittenTTS:\n    \"\"\"Main KittenTTS class for text-to-speech synthesis.\"\"\"\n    \n    def __init__(self, model_name=\"KittenML/kitten-tts-nano-0.8\", cache_dir=None, backend=None):\n        \"\"\"Initialize KittenTTS with a model from Hugging Face.\"\"\"\n        # Handle different model name formats\n        if \"/\" not in model_name:\n            repo_id = f\"KittenML/{model_name}\"\n        else:\n            repo_id = model_name\n            \n        self.model = download_from_huggingface(repo_id=repo_id, cache_dir=cache_dir, backend=backend)\n    \n    def generate(self, text, voice=\"expr-voice-5-m\", speed=1.0, clean_text=False):\n        \"\"\"Generate audio from text.\"\"\"\n        print(f\"Generating audio for text: {text}\")\n        return self.model.generate(text, voice=voice, speed=speed, clean_text=clean_text)",
+        "language": "python",
+        "startLine": 7,
+        "endLine": 25
+      },
+      "narration": "Every speech synthesis journey starts by loading the model. KittenTTS downloads ONNX model files from Hugging Face Hub. The constructor figures out which repo to pull from and delegates to the download function. This thin wrapper keeps the user-facing API clean while hiding the complexity of model management underneath."
+    },
+    {
+      "name": "Hub Download Station",
+      "subtitle": "Model Download & Config",
+      "concept": "ONNX Runtime",
+      "landmarkType": "camp",
+      "code": {
+        "file": "kittentts/get_model.py",
+        "content": "def download_from_huggingface(repo_id=\"KittenML/kitten-tts-nano-0.1\", cache_dir=None, backend=None):\n    \"\"\"Download model files from Hugging Face repository.\"\"\"\n    config_path = hf_hub_download(\n        repo_id=repo_id,\n        filename=\"config.json\",\n        cache_dir=cache_dir\n    )\n    \n    with open(config_path, 'r') as f:\n        config = json.load(f)\n\n    if config.get(\"type\") not in [\"ONNX1\", \"ONNX2\"]:\n        raise ValueError(\"Unsupported model type.\")\n\n    model_path = hf_hub_download(\n        repo_id=repo_id,\n        filename=config[\"model_file\"],\n        cache_dir=cache_dir\n    )\n    \n    voices_path = hf_hub_download(\n        repo_id=repo_id,\n        filename=config[\"voices\"],\n        cache_dir=cache_dir\n    )",
+        "language": "python",
+        "startLine": 60,
+        "endLine": 84
+      },
+      "narration": "The config file is downloaded first because it tells us what else to fetch. It contains the model filename and voice data filename. The type check ensures we only load compatible ONNX formats. Then the actual model weights and voice embeddings get pulled from the Hub. Caching means you only download once."
+    },
+    {
+      "name": "Text Preprocessing Plains",
+      "subtitle": "Text Normalization Pipeline",
+      "concept": "Text Preprocessing",
+      "landmarkType": "forest",
+      "code": {
+        "file": "kittentts/preprocess.py",
+        "content": "class TextPreprocessor:\n    def __init__(\n        self,\n        lowercase: bool = True,\n        replace_numbers: bool = True,\n        expand_contractions: bool = True,\n        expand_currency: bool = True,\n        expand_time: bool = True,\n        expand_units: bool = True,\n        expand_scale_suffixes: bool = True,\n        expand_fractions: bool = True,\n        expand_decades: bool = True,\n        expand_phone_numbers: bool = True,\n        expand_ip_addresses: bool = True,\n        remove_urls: bool = True,\n        remove_emails: bool = True,\n        remove_punctuation: bool = True,\n        remove_extra_whitespace: bool = True,\n        **kwargs\n    ):\n        self.config = {k: v for k, v in locals().items() if k != \"self\"}",
+        "language": "python",
+        "startLine": 737,
+        "endLine": 770
+      },
+      "narration": "Raw text is messy. You cannot feed dollar signs and percentages to a phonemizer. The TextPreprocessor is a configurable pipeline with over twenty expansion steps. Numbers become words. Currencies become spoken amounts. Each flag lets you toggle behavior. Order matters here, which is why currency expands before generic numbers."
+    },
+    {
+      "name": "Number Expansion Crossing",
+      "subtitle": "Number-to-Words Conversion",
+      "concept": "Text Preprocessing",
+      "landmarkType": "river",
+      "code": {
+        "file": "kittentts/preprocess.py",
+        "content": "_ONES = [\n    \"\", \"one\", \"two\", \"three\", \"four\", \"five\", \"six\", \"seven\", \"eight\", \"nine\",\n    \"ten\", \"eleven\", \"twelve\", \"thirteen\", \"fourteen\", \"fifteen\", \"sixteen\",\n    \"seventeen\", \"eighteen\", \"nineteen\",\n]\n_TENS = [\"\", \"\", \"twenty\", \"thirty\", \"forty\", \"fifty\", \"sixty\", \"seventy\", \"eighty\", \"ninety\"]\n_SCALE = [\"\", \"thousand\", \"million\", \"billion\", \"trillion\"]\n\ndef number_to_words(n: int) -> str:\n    if n == 0:\n        return \"zero\"\n    if n < 0:\n        return f\"negative {number_to_words(-n)}\"\n\n    if 100 <= n <= 9999 and n % 100 == 0 and n % 1000 != 0:\n        hundreds = n // 100\n        if hundreds < 20:\n            return f\"{_ONES[hundreds]} hundred\"\n\n    parts = []\n    for i, scale in enumerate(_SCALE):\n        chunk = n % 1000\n        if chunk:\n            chunk_words = _three_digits_to_words(chunk)\n            parts.append(f\"{chunk_words} {scale}\".strip() if scale else chunk_words)\n        n //= 1000\n        if n == 0:\n            break\n    return \" \".join(reversed(parts))",
+        "language": "python",
+        "startLine": 14,
+        "endLine": 97
+      },
+      "narration": "This is the heart of text normalization. A TTS model cannot pronounce the digits one-two-zero-zero. It needs the words twelve hundred. The function breaks numbers into three-digit chunks, maps each chunk to words, then attaches scale labels like thousand or million. There is a clever special case for numbers like twelve hundred instead of one thousand two hundred."
+    },
+    {
+      "name": "Chunking Camp",
+      "subtitle": "Text Chunking for Long Input",
+      "concept": "Text Preprocessing",
+      "landmarkType": "camp",
+      "code": {
+        "file": "kittentts/onnx_model.py",
+        "content": "def chunk_text(text, max_len=400):\n    \"\"\"Split text into chunks for processing long texts.\"\"\"\n    import re\n    \n    sentences = re.split(r'[.!?]+', text)\n    chunks = []\n    \n    for sentence in sentences:\n        sentence = sentence.strip()\n        if not sentence:\n            continue\n        \n        if len(sentence) <= max_len:\n            chunks.append(ensure_punctuation(sentence))\n        else:\n            words = sentence.split()\n            temp_chunk = \"\"\n            for word in words:\n                if len(temp_chunk) + len(word) + 1 <= max_len:\n                    temp_chunk += \" \" + word if temp_chunk else word\n                else:\n                    if temp_chunk:\n                        chunks.append(ensure_punctuation(temp_chunk.strip()))\n                    temp_chunk = word\n            if temp_chunk:\n                chunks.append(ensure_punctuation(temp_chunk.strip()))\n    \n    return chunks",
+        "language": "python",
+        "startLine": 25,
+        "endLine": 52
+      },
+      "narration": "Neural TTS models have a maximum input length. Long paragraphs need to be split into digestible pieces. This function first splits on sentence boundaries, then breaks overly long sentences by word. Each chunk gets punctuation appended if missing, because the model uses punctuation to control prosody. Without that trailing comma, the last word sounds cut off."
+    },
+    {
+      "name": "Phonemizer Pass",
+      "subtitle": "Phoneme Encoding",
+      "concept": "Phonemizer",
+      "landmarkType": "mountain",
+      "code": {
+        "file": "kittentts/onnx_model.py",
+        "content": "class TextCleaner:\n    def __init__(self, dummy=None):\n        _pad = \"$\"\n        _punctuation = ';:,.!?\\u00a1\\u00bf\\u2014\\u2026\\u201c\\u00ab\\u00bb\\u201d\\u201c '\n        _letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'\n        _letters_ipa = \"\\u0251\\u0250\\u0252\\u00e6\\u0253\\u0299\\u03b2\\u0254\\u0255\\u00e7\\u0257\\u0256\\u00f0\\u02a4\\u0259\\u0258\\u025a\\u025b\\u025c\\u025d\\u025e\\u025f\\u0284\\u0261\\u0260\\u0262\\u029b\\u0266\\u0267\\u0127\\u0265\\u029c\\u0268\\u026a\\u029d\\u026d\\u026c\\u026b\\u026e\\u029f\\u0271\\u026f\\u0270\\u014b\\u0273\\u0272\\u0274\\u00f8\\u0275\\u0278\\u03b8\\u0153\\u0276\\u0298\\u0279\\u027a\\u027e\\u027b\\u0280\\u0281\\u027d\\u0282\\u0283\\u0288\\u02a7\\u0289\\u028a\\u028b\\u2c71\\u028c\\u0263\\u0264\\u028d\\u03c7\\u028e\\u028f\\u0291\\u0290\\u0292\\u0294\\u02a1\\u0295\\u02a2\\u01c0\\u01c1\\u01c2\\u01c3\\u02c8\\u02cc\\u02d0\\u02d1\\u02bc\\u02b4\\u02b0\\u02b1\\u02b2\\u02b7\\u02e0\\u02e4\\u02de\\u2193\\u2191\\u2192\\u2197\\u2198\\u2019\\u0329\\u2019\\u1d7b\"\n\n        symbols = [_pad] + list(_punctuation) + list(_letters) + list(_letters_ipa)\n        \n        dicts = {}\n        for i in range(len(symbols)):\n            dicts[symbols[i]] = i\n\n        self.word_index_dictionary = dicts\n\n    def __call__(self, text):\n        indexes = []\n        for char in text:\n            try:\n                indexes.append(self.word_index_dictionary[char])\n            except KeyError:\n                pass\n        return indexes",
+        "language": "python",
+        "startLine": 55,
+        "endLine": 80
+      },
+      "narration": "Before the neural network can process text, letters need to become phonemes, then token IDs. The TextCleaner builds a vocabulary of pad tokens, punctuation, ASCII letters, and IPA symbols. Each character maps to an integer index. Unknown characters are silently dropped. This is the bridge between human-readable text and the numerical world the model understands."
+    },
+    {
+      "name": "ONNX Inference Summit",
+      "subtitle": "Model Inference",
+      "concept": "ONNX Runtime",
+      "landmarkType": "mountain",
+      "code": {
+        "file": "kittentts/onnx_model.py",
+        "content": "def _prepare_inputs(self, text: str, voice: str, speed: float = 1.0) -> dict:\n    \"\"\"Prepare ONNX model inputs from text and voice parameters.\"\"\"\n    if voice in self.voice_aliases:\n        voice = self.voice_aliases[voice]\n\n    if voice not in self.available_voices:\n        raise ValueError(f\"Voice '{voice}' not available. Choose from: {self.available_voices}\")\n    \n    phonemes_list = self.phonemizer.phonemize([text])\n    \n    phonemes = basic_english_tokenize(phonemes_list[0])\n    phonemes = ' '.join(phonemes)\n    tokens = self.text_cleaner(phonemes)\n    \n    tokens.insert(0, 0)\n    tokens.append(10)\n    tokens.append(0)\n    \n    input_ids = np.array([tokens], dtype=np.int64)\n    ref_id = min(len(text), self.voices[voice].shape[0] - 1)\n    ref_s = self.voices[voice][ref_id:ref_id+1]\n    \n    return {\n        \"input_ids\": input_ids,\n        \"style\": ref_s,\n        \"speed\": np.array([speed], dtype=np.float32),\n    }",
+        "language": "python",
+        "startLine": 97,
+        "endLine": 124
+      },
+      "narration": "This is where everything comes together before hitting the model. Text gets phonemized through eSpeak, tokenized through TextCleaner, then padded with start and end tokens. The voice style vector is selected from a pre-computed NPZ file. The ref_id picks a style embedding based on text length. These three inputs, token IDs plus style plus speed, are all the ONNX model needs."
+    },
+    {
+      "name": "Audio Output Frontier",
+      "subtitle": "Waveform Generation & Output",
+      "concept": "Voice Synthesis",
+      "landmarkType": "town",
+      "code": {
+        "file": "kittentts/onnx_model.py",
+        "content": "def generate(self, text: str, voice: str = \"expr-voice-5-m\", speed: float = 1.0, clean_text: bool=True) -> np.ndarray:\n    out_chunks = []\n    if clean_text:\n        text = self.preprocessor(text)\n    for text_chunk in chunk_text(text):\n        out_chunks.append(self.generate_single_chunk(text_chunk, voice, speed))\n    return np.concatenate(out_chunks, axis=-1)\n\ndef generate_single_chunk(self, text: str, voice: str = \"expr-voice-5-m\", speed: float = 1.0) -> np.ndarray:\n    \"\"\"Synthesize speech from text.\"\"\"\n    onnx_inputs = self._prepare_inputs(text, voice, speed)\n    outputs = self.session.run(None, onnx_inputs)\n    audio = outputs[0][..., :-5000]\n    return audio\n\ndef generate_to_file(self, text: str, output_path: str, voice: str = \"expr-voice-5-m\", \n                      speed: float = 1.0, sample_rate: int = 24000, clean_text: bool=True) -> None:\n    \"\"\"Synthesize speech and save to file.\"\"\"\n    audio = self.generate(text, voice, speed, clean_text=clean_text)\n    sf.write(output_path, audio, sample_rate)\n    print(f\"Audio saved to {output_path}\")",
+        "language": "python",
+        "startLine": 126,
+        "endLine": 164
+      },
+      "narration": "You made it to Audio Output Frontier! The generate method orchestrates the whole pipeline. Text gets preprocessed, chunked, and each chunk runs through the ONNX model. The output arrays are concatenated into one continuous waveform. Notice the trim at the end, removing the last five thousand samples to cut trailing silence. Finally, soundfile writes the numpy array to a WAV at twenty-four kilohertz."
+    }
+  ],
+  "events": [
+    {
+      "type": "weather",
+      "trigger": "after_stop",
+      "triggerStop": 1,
+      "title": "Dependency Storm!",
+      "text": "A storm rolls in! Your model download is failing because the config.json specifies a model type your code doesn't recognize. The config says type is 'ONNX3'. What do you do?",
+      "choices": [
+        {"text": "Check the config type against the supported list and raise a ValueError for unsupported types", "correct": true, "explanation": "The code explicitly checks config.get('type') not in ['ONNX1', 'ONNX2'] and raises ValueError. This fail-fast approach prevents loading incompatible model formats that could produce garbage output."},
+        {"text": "Try loading the model anyway and hope the ONNX runtime handles it", "correct": false, "explanation": "Loading an unsupported model format could produce silent failures or corrupted audio. The type check exists to catch incompatible models early."},
+        {"text": "Download a different config file from a backup URL", "correct": false, "explanation": "There is no backup URL mechanism. The config comes from the Hugging Face repo and defines what model files to download. The right approach is to validate the type field."}
+      ],
+      "concept": "ONNX Runtime",
+      "difficulty": "easy"
+    },
+    {
+      "type": "encounter",
+      "trigger": "after_stop",
+      "triggerStop": 2,
+      "title": "A Preprocessing Pioneer Appears",
+      "text": "A fellow traveler shows you their TTS input: '$100 at 3:30pm on the 1st'. They say: 'My TTS model garbles all of this. But KittenTTS handles it perfectly because of the preprocessing pipeline order.' Why does order matter?",
+      "choices": [
+        {"text": "Currency must expand before generic numbers, so $100 becomes 'one hundred dollars' not just 'one hundred'", "correct": true, "explanation": "Exactly right. If generic number replacement ran first, $100 would lose the dollar sign context and become just 'one hundred'. The pipeline expands currencies, percentages, and times before the catch-all number replacement runs."},
+        {"text": "All expansions are independent and order does not matter", "correct": false, "explanation": "Order absolutely matters. If numbers expand before currencies, '$100' loses the dollar context. If ranges expand before phone numbers, '555-1234' becomes 'five hundred fifty-five to twelve thirty-four' instead of digit-by-digit."},
+        {"text": "The preprocessor only handles numbers, not currency or time", "correct": false, "explanation": "The TextPreprocessor handles over twenty types of expansions including currency, time, ordinals, percentages, units, phone numbers, IP addresses, and more."}
+      ],
+      "concept": "Text Preprocessing",
+      "difficulty": "easy"
+    },
+    {
+      "type": "river",
+      "trigger": "after_stop",
+      "triggerStop": 4,
+      "title": "The Chunking Rapids",
+      "text": "You reach a raging river! Your input text is 800 characters long, but the model's maximum chunk length is 400 characters. How does KittenTTS handle this without cutting words in half?",
+      "choices": [
+        {"text": "Split on sentence boundaries first, then break long sentences by words, keeping each chunk under the limit", "correct": true, "explanation": "The chunk_text function splits on sentence-ending punctuation first for natural breaks. Only when a single sentence exceeds max_len does it fall back to word-level splitting. Each chunk also gets punctuation appended to maintain prosody."},
+        {"text": "Truncate the text at exactly 400 characters regardless of word boundaries", "correct": false, "explanation": "Hard truncation would cut words in half, producing garbled phonemes. The chunking function respects both sentence and word boundaries to keep each piece meaningful."},
+        {"text": "Process the entire text at once and let ONNX Runtime handle the overflow", "correct": false, "explanation": "Neural TTS models have fixed-size attention mechanisms. Feeding oversized input causes memory errors or degraded quality. Chunking is essential for long text."}
+      ],
+      "concept": "Text Preprocessing",
+      "difficulty": "medium"
+    },
+    {
+      "type": "misfortune",
+      "trigger": "after_stop",
+      "triggerStop": 5,
+      "title": "Phoneme Plague!",
+      "text": "Disaster strikes! A user passes text containing emoji and Chinese characters. The TextCleaner encounters characters not in its vocabulary dictionary. What happens?",
+      "choices": [
+        {"text": "Unknown characters are silently skipped via the try/except KeyError block", "correct": true, "explanation": "The TextCleaner's __call__ method wraps each character lookup in a try/except. Unknown characters simply produce no token. This is intentional: the model only understands IPA phonemes, ASCII letters, and punctuation. Everything else is gracefully ignored."},
+        {"text": "The program crashes with a KeyError exception", "correct": false, "explanation": "The TextCleaner explicitly catches KeyError in a try/except block. Unknown characters are silently dropped rather than crashing the pipeline."},
+        {"text": "Unknown characters are replaced with a special UNK token", "correct": false, "explanation": "There is no UNK token in the vocabulary. Unknown characters are simply skipped, producing no output token. The model only processes characters it recognizes."}
+      ],
+      "concept": "Phonemizer",
+      "difficulty": "medium"
+    },
+    {
+      "type": "weather",
+      "trigger": "after_stop",
+      "triggerStop": 6,
+      "title": "Voice Vector Blizzard!",
+      "text": "A blizzard of voice requests! A user asks for voice 'Morgan' but the model only has 8 voices: Bella, Jasper, Luna, Bruno, Rosie, Hugo, Kiki, and Leo. These friendly names map to internal IDs like 'expr-voice-5-m'. What mechanism connects them?",
+      "choices": [
+        {"text": "A voice_aliases dictionary in the model config maps friendly names to internal voice IDs", "correct": true, "explanation": "The config.json includes a voice_aliases mapping. When _prepare_inputs receives a voice name, it first checks this alias dictionary to resolve friendly names like 'Bruno' to internal IDs like 'expr-voice-3-m'. This keeps the user API clean."},
+        {"text": "The voice names are used directly as keys into the NPZ voice data file", "correct": false, "explanation": "The NPZ file uses internal voice IDs like 'expr-voice-3-m' as keys, not friendly names. The alias mapping in config.json bridges between user-facing names and internal identifiers."},
+        {"text": "Voice names are converted to IDs by a naming convention, like lowercase plus a number", "correct": false, "explanation": "There is no algorithmic conversion. The mapping is explicit in the config.json file's voice_aliases dictionary, loaded at model initialization time."}
+      ],
+      "concept": "Voice Synthesis",
+      "difficulty": "medium"
+    },
+    {
+      "type": "encounter",
+      "trigger": "after_stop",
+      "triggerStop": 6,
+      "title": "The Streaming Scout",
+      "text": "A scout rides up with news: 'For real-time applications, you do not need to wait for the entire audio to generate! KittenTTS has a generate_stream method.' What does it yield?",
+      "choices": [
+        {"text": "One numpy array of audio samples per text chunk, so playback can start before the full text is processed", "correct": true, "explanation": "generate_stream is a Python generator that yields audio for each text chunk as it's synthesized. This lets you start playing audio immediately while the rest of the text is still being processed. Perfect for real-time applications."},
+        {"text": "Individual audio samples one at a time for maximum granularity", "correct": false, "explanation": "Yielding individual samples would be far too slow. The generator yields complete audio arrays for each text chunk, which is the natural unit the ONNX model produces."},
+        {"text": "Raw ONNX model output tensors that need post-processing", "correct": false, "explanation": "generate_stream yields fully processed numpy audio arrays, not raw tensors. Each chunk is ready for playback via sounddevice or saving via soundfile."}
+      ],
+      "concept": "Voice Synthesis",
+      "difficulty": "hard"
+    },
+    {
+      "type": "misfortune",
+      "trigger": "after_stop",
+      "triggerStop": 7,
+      "title": "The Trailing Silence Trap!",
+      "text": "Your generated audio has an annoying burst of noise at the very end of every clip. Looking at generate_single_chunk, there is a suspicious line: audio = outputs[0][..., :-5000]. What is it doing and why?",
+      "choices": [
+        {"text": "It trims the last 5000 samples to remove model artifacts at the end of the generated waveform", "correct": true, "explanation": "Neural TTS models often produce artifacts or silence padding at the end of their output. Trimming the last 5000 samples, roughly 0.2 seconds at 24kHz, is a practical workaround that removes these trailing artifacts while preserving all the meaningful speech."},
+        {"text": "It selects only the last 5000 samples because the beginning is noise", "correct": false, "explanation": "The slice [..,-5000] removes the last 5000 samples, it does not select them. The colon-negative notation in numpy means 'everything except the last N elements'."},
+        {"text": "It is a bug that accidentally cuts off the end of every audio clip", "correct": false, "explanation": "This is intentional. TTS models commonly produce trailing artifacts from the decoder's stop prediction. The 5000-sample trim is a standard cleanup step that only removes about 0.2 seconds of non-speech content."}
+      ],
+      "concept": "ONNX Runtime",
+      "difficulty": "hard"
+    }
+  ],
+  "partyMembers": [
+    {"name": "Text Preprocessing", "icon": "scroll", "maxHealth": 3},
+    {"name": "Phonemizer", "icon": "book", "maxHealth": 3},
+    {"name": "ONNX Runtime", "icon": "gear", "maxHealth": 3},
+    {"name": "Voice Synthesis", "icon": "music", "maxHealth": 3}
+  ],
+  "deathMessages": [
+    "You have died of spectral leakage.",
+    "You have died of uninitialized phonemes.",
+    "You have died of catastrophic aliasing at twenty-four kilohertz.",
+    "You have died of a hydration mismatch between mel and linear spectrograms.",
+    "You have died of runaway attention weights in the decoder.",
+    "You have died of an out-of-vocabulary emoji explosion.",
+    "You have died of voice embedding drift — nobody recognized you.",
+    "You have died of infinite trailing silence.",
+    "You have died of a chunking mishap — your last words were split across two buffers.",
+    "You have died of negative speech speed — time ran backwards."
+  ],
+  "sourceInfo": {
+    "repo": "KittenML/KittenTTS",
+    "snapshotDate": "2026-04-08"
+  }
+};
+
+// FLAVORS
+window.TRAIL_FLAVORS = [
+  "The mel spectrograms look crisp today...",
+  "Your party hums at a comfortable twenty-four kilohertz...",
+  "The phonemes are flowing smoothly through the pipeline...",
+  "A gentle breeze carries the sound of eSpeak in the distance...",
+  "The ONNX runtime is warm and the inference is fast...",
+  "Your voice embeddings are well-aligned for the journey ahead...",
+  "The text preprocessor found twelve numbers to expand — a good omen...",
+  "The trail echoes with perfectly chunked sentences...",
+  "Someone in the party is humming in IPA notation...",
+  "The NumPy arrays are stacked neatly in the wagon...",
+  "A fellow traveler waves — they are running the nano model on a Raspberry Pi...",
+  "The attention weights are focused and the decoder is steady...",
+  "Your party crosses a buffer boundary without dropping a single sample...",
+  "The Hugging Face cache is warm — no downloads needed today...",
+  "Eight voices ride with you: Bella, Jasper, Luna, Bruno, Rosie, Hugo, Kiki, and Leo...",
+];
+// END FLAVORS
+
+window.drawCustomEventOverlay = function(time) {
+  if (!currentEventType && !currentEventTitle) return;
+  var t = (time || 0) * 0.001;
+
+// OVERLAYS
+  // --- Dependency Storm: swirling config files and lightning ---
+  if (currentEventTitle.indexOf('Dependency Storm') !== -1) {
+    // Dark storm sky
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, 320, 200);
+    // Lightning bolt
+    var lx = 160 + Math.sin(t * 3) * 40;
+    if (Math.floor(t * 4) % 3 === 0) {
+      ctx.strokeStyle = '#FFFF00';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(lx, 0);
+      ctx.lineTo(lx - 10, 60);
+      ctx.lineTo(lx + 15, 65);
+      ctx.lineTo(lx - 5, 130);
+      ctx.stroke();
+    }
+    // Falling config.json files
+    ctx.fillStyle = '#88CCFF';
+    for (var i = 0; i < 6; i++) {
+      var fx = (i * 57 + t * 40) % 320;
+      var fy = (i * 43 + t * 60) % 200;
+      ctx.fillRect(fx, fy, 16, 20);
+      ctx.fillStyle = '#334455';
+      ctx.fillRect(fx + 2, fy + 4, 12, 2);
+      ctx.fillRect(fx + 2, fy + 8, 10, 2);
+      ctx.fillRect(fx + 2, fy + 12, 12, 2);
+      ctx.fillStyle = '#88CCFF';
+    }
+    // Storm clouds
+    ctx.fillStyle = '#333355';
+    for (var ci = 0; ci < 4; ci++) {
+      var cx = ci * 90 + Math.sin(t + ci) * 10;
+      ctx.beginPath();
+      ctx.arc(cx, 30, 35, 0, Math.PI * 2);
+      ctx.arc(cx + 30, 25, 30, 0, Math.PI * 2);
+      ctx.arc(cx + 15, 15, 25, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    return;
+  }
+
+  // --- Preprocessing Pioneer: text transforming on screen ---
+  if (currentEventTitle.indexOf('Preprocessing Pioneer') !== -1) {
+    ctx.fillStyle = '#2d1b00';
+    ctx.fillRect(0, 0, 320, 200);
+    // NPC traveler (simple pixel person)
+    ctx.fillStyle = '#DEB887';
+    ctx.beginPath();
+    ctx.arc(80, 80, 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#8B4513';
+    ctx.fillRect(74, 92, 12, 30);
+    // Hat
+    ctx.fillStyle = '#654321';
+    ctx.fillRect(68, 66, 24, 6);
+    ctx.fillRect(72, 60, 16, 8);
+    // Speech bubble
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(110, 40, 190, 60);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath();
+    ctx.moveTo(110, 70);
+    ctx.lineTo(96, 80);
+    ctx.lineTo(110, 75);
+    ctx.fill();
+    // Transforming text animation
+    ctx.fillStyle = '#333333';
+    ctx.font = '10px monospace';
+    var phase = Math.floor(t * 2) % 3;
+    if (phase === 0) {
+      ctx.fillText('$100 at 3:30pm', 118, 60);
+      ctx.fillText('on the 1st', 118, 75);
+    } else if (phase === 1) {
+      ctx.fillText('one hundred dollars', 118, 60);
+      ctx.fillText('at three thirty pm', 118, 75);
+    } else {
+      ctx.fillText('one hundred dollars', 118, 60);
+      ctx.fillText('at three thirty pm', 118, 75);
+      ctx.fillText('on the first', 118, 90);
+    }
+    // Ground
+    ctx.fillStyle = '#3d2b00';
+    ctx.fillRect(0, 160, 320, 40);
+    return;
+  }
+
+  // --- Chunking Rapids: river with text chunks floating ---
+  if (currentEventTitle.indexOf('Chunking Rapids') !== -1) {
+    // Sky
+    ctx.fillStyle = '#4488AA';
+    ctx.fillRect(0, 0, 320, 80);
+    // River
+    ctx.fillStyle = '#2255AA';
+    ctx.fillRect(0, 80, 320, 80);
+    // River waves
+    ctx.fillStyle = '#3366BB';
+    for (var wi = 0; wi < 10; wi++) {
+      var wx = (wi * 35 + t * 50) % 340 - 10;
+      ctx.beginPath();
+      ctx.arc(wx, 110 + Math.sin(t * 2 + wi) * 5, 18, 0, Math.PI);
+      ctx.fill();
+    }
+    // Floating text chunks (like logs)
+    ctx.fillStyle = '#DEB887';
+    for (var ci = 0; ci < 3; ci++) {
+      var chunkX = (ci * 120 + t * 30) % 380 - 30;
+      var chunkY = 95 + Math.sin(t * 1.5 + ci * 2) * 8;
+      ctx.fillRect(chunkX, chunkY, 60, 14);
+      ctx.fillStyle = '#333333';
+      ctx.font = '8px monospace';
+      ctx.fillText('chunk ' + (ci + 1), chunkX + 6, chunkY + 10);
+      ctx.fillStyle = '#DEB887';
+    }
+    // Banks
+    ctx.fillStyle = '#228833';
+    ctx.fillRect(0, 155, 320, 45);
+    ctx.fillRect(0, 0, 320, 20);
+    return;
+  }
+
+  // --- Phoneme Plague: emoji and strange characters raining down ---
+  if (currentEventTitle.indexOf('Phoneme Plague') !== -1) {
+    ctx.fillStyle = '#1a0a2e';
+    ctx.fillRect(0, 0, 320, 200);
+    // Falling unknown characters (represented as red squares with ?)
+    ctx.font = '14px monospace';
+    for (var pi = 0; pi < 12; pi++) {
+      var px = (pi * 29 + Math.sin(t + pi) * 10) % 310;
+      var py = (pi * 37 + t * 45) % 220 - 10;
+      // Red warning box
+      ctx.fillStyle = '#FF3333';
+      ctx.fillRect(px, py, 18, 18);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillText('?', px + 4, py + 14);
+    }
+    // Healthy phonemes passing through (green)
+    ctx.fillStyle = '#33FF66';
+    ctx.font = '11px monospace';
+    var phonemes = ['a', 'e', 'i', 'o', 'u', 'k', 't', 'p'];
+    for (var hi = 0; hi < 5; hi++) {
+      var hx = 40 + hi * 55;
+      var hy = 150 + Math.sin(t * 2 + hi) * 10;
+      ctx.fillText(phonemes[hi % phonemes.length], hx, hy);
+    }
+    // Pipeline arrow at bottom
+    ctx.fillStyle = '#666688';
+    ctx.fillRect(20, 180, 280, 4);
+    ctx.beginPath();
+    ctx.moveTo(300, 182);
+    ctx.lineTo(290, 175);
+    ctx.lineTo(290, 189);
+    ctx.fill();
+    return;
+  }
+
+  // --- Voice Vector Blizzard: snowflakes and voice waveforms ---
+  if (currentEventTitle.indexOf('Voice Vector Blizzard') !== -1) {
+    ctx.fillStyle = '#DDEEFF';
+    ctx.fillRect(0, 0, 320, 200);
+    // Snowflakes
+    ctx.fillStyle = '#FFFFFF';
+    for (var si = 0; si < 30; si++) {
+      var sx = (si * 11 + t * 20 + Math.sin(t + si * 0.5) * 15) % 320;
+      var sy = (si * 7 + t * 35) % 200;
+      var sr = 1 + (si % 3);
+      ctx.beginPath();
+      ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Voice waveform display
+    ctx.strokeStyle = '#3355AA';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (var vx = 0; vx < 320; vx += 2) {
+      var vy = 100 + Math.sin(vx * 0.05 + t * 3) * 25 * Math.sin(vx * 0.02);
+      if (vx === 0) ctx.moveTo(vx, vy);
+      else ctx.lineTo(vx, vy);
+    }
+    ctx.stroke();
+    // Voice name labels
+    ctx.fillStyle = '#334466';
+    ctx.font = '9px monospace';
+    var voices = ['Bella', 'Jasper', 'Luna', 'Bruno', 'Rosie', 'Hugo', 'Kiki', 'Leo'];
+    var activeV = Math.floor(t) % 8;
+    for (var vi = 0; vi < 8; vi++) {
+      ctx.fillStyle = vi === activeV ? '#FF4444' : '#334466';
+      ctx.fillText(voices[vi], 10 + vi * 38, 170);
+    }
+    return;
+  }
+
+  // --- Streaming Scout: chunks flowing out of a wagon ---
+  if (currentEventTitle.indexOf('Streaming Scout') !== -1) {
+    // Prairie background
+    ctx.fillStyle = '#88AA44';
+    ctx.fillRect(0, 0, 320, 200);
+    ctx.fillStyle = '#77BB55';
+    ctx.fillRect(0, 140, 320, 60);
+    // Sky
+    ctx.fillStyle = '#88CCEE';
+    ctx.fillRect(0, 0, 320, 100);
+    // Scout on horseback (simplified)
+    var horseX = 200 + Math.sin(t) * 5;
+    // Horse body
+    ctx.fillStyle = '#8B4513';
+    ctx.fillRect(horseX - 15, 110, 30, 18);
+    // Horse legs
+    ctx.fillRect(horseX - 12, 128, 5, 14);
+    ctx.fillRect(horseX + 8, 128, 5, 14);
+    // Horse head
+    ctx.fillRect(horseX + 15, 100, 10, 16);
+    // Rider
+    ctx.fillStyle = '#DEB887';
+    ctx.beginPath();
+    ctx.arc(horseX, 100, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#4444AA';
+    ctx.fillRect(horseX - 5, 104, 10, 12);
+    // Streaming audio chunks flowing from left
+    ctx.fillStyle = '#33CC66';
+    for (var ai = 0; ai < 4; ai++) {
+      var ax = (ai * 45 + t * 60) % 180;
+      var ay = 115 + Math.sin(t * 3 + ai) * 5;
+      ctx.fillRect(ax, ay, 30, 8);
+      ctx.fillStyle = '#226633';
+      ctx.font = '6px monospace';
+      ctx.fillText('WAV', ax + 5, ay + 6);
+      ctx.fillStyle = '#33CC66';
+    }
+    return;
+  }
+
+  // --- Trailing Silence Trap: waveform with noisy end being trimmed ---
+  if (currentEventTitle.indexOf('Trailing Silence') !== -1) {
+    ctx.fillStyle = '#111111';
+    ctx.fillRect(0, 0, 320, 200);
+    // Waveform - clean part
+    ctx.strokeStyle = '#33FF66';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (var wx = 0; wx < 220; wx += 2) {
+      var wy = 100 + Math.sin(wx * 0.08 + t * 2) * 30 * (1 - wx / 300);
+      if (wx === 0) ctx.moveTo(wx, wy);
+      else ctx.lineTo(wx, wy);
+    }
+    ctx.stroke();
+    // Waveform - noisy end (red, being trimmed)
+    ctx.strokeStyle = '#FF3333';
+    ctx.beginPath();
+    for (var nx = 220; nx < 300; nx += 2) {
+      var ny = 100 + (Math.random() - 0.5) * 40;
+      if (nx === 220) ctx.moveTo(nx, ny);
+      else ctx.lineTo(nx, ny);
+    }
+    ctx.stroke();
+    // Scissors / trim line
+    var trimX = 220 + Math.sin(t * 2) * 5;
+    ctx.strokeStyle = '#FFFF00';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(trimX, 40);
+    ctx.lineTo(trimX, 160);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Label
+    ctx.fillStyle = '#FFFF00';
+    ctx.font = '10px monospace';
+    ctx.fillText(':-5000]', trimX - 20, 35);
+    // Label for clean part
+    ctx.fillStyle = '#33FF66';
+    ctx.fillText('speech', 90, 180);
+    // Label for noise
+    ctx.fillStyle = '#FF3333';
+    ctx.fillText('artifacts', 240, 180);
+    return;
+  }
+// END OVERLAYS
+};
+</script>
+<script src="../engine.js"></script>
+</body>
+</html>

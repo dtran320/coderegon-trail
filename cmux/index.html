@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Coderegon Trail - cmux Edition</title>
+</head>
+<body>
+<div id="game-container">
+  <div id="canvas-area">
+    <canvas id="game-canvas" width="320" height="200"></canvas>
+    <div id="music-indicator">M: Music</div>
+  </div>
+  <div id="text-panel"></div>
+  <div id="status-bar"></div>
+</div>
+
+<script>
+window.TRAIL_DATA = {
+  "framework": "cmux",
+  "trailName": "The Terminal Trail",
+  "stops": [
+    {
+      "name": "App Launch Depot",
+      "subtitle": "Application Bootstrap",
+      "concept": "App Lifecycle",
+      "landmarkType": "town",
+      "code": {
+        "file": "Sources/AppDelegate.swift",
+        "content": "func applicationDidFinishLaunching(_ notification: Notification) {\n    let env = ProcessInfo.processInfo.environment\n    let isRunningUnderXCTest = isRunningUnderXCTest(env)\n    let telemetryEnabled = TelemetrySettings.enabledForCurrentLaunch\n\n    DistributedNotificationCenter.default().addObserver(\n        self,\n        selector: #selector(handleThemesReloadNotification(_:)),\n        name: CmuxThemeNotifications.reloadConfig,\n        object: nil,\n        suspensionBehavior: .deliverImmediately\n    )\n\n    NSWindow.allowsAutomaticWindowTabbing = false\n    disableNativeTabbingShortcut()\n    ensureApplicationIcon()\n    configureUserNotifications()\n    installMenuBarVisibilityObserver()\n    installMainWindowKeyObserver()\n    refreshGhosttyGotoSplitShortcuts()\n    installShortcutMonitor()\n    SystemWideHotkeyController.shared.start()\n}",
+        "language": "swift",
+        "startLine": 2483,
+        "endLine": 2506
+      },
+      "narration": "Every terminal journey starts with the macOS app delegate. When cmux launches, it wires up theme notifications, configures the user notification center for agent alerts, and installs keyboard shortcut monitors. Notice how it disables native macOS tab grouping because cmux manages its own vertical tab sidebar. The system-wide hotkey controller starts last, letting you toggle cmux from anywhere."
+    },
+    {
+      "name": "Config Loading Camp",
+      "subtitle": "Ghostty Configuration",
+      "concept": "Configuration",
+      "landmarkType": "camp",
+      "code": {
+        "file": "Sources/GhosttyConfig.swift",
+        "content": "struct GhosttyConfig {\n    var fontFamily: String = \"Menlo\"\n    var fontSize: CGFloat = 12\n    var theme: String?\n    var workingDirectory: String?\n    var scrollbackLimit: Int = 10000\n    var unfocusedSplitOpacity: Double = 0.7\n    var unfocusedSplitFill: NSColor?\n    var splitDividerColor: NSColor?\n\n    var backgroundColor: NSColor = NSColor(hex: \"#272822\")!\n    var backgroundOpacity: Double = 1.0\n    var foregroundColor: NSColor = NSColor(hex: \"#fdfff1\")!\n    var cursorColor: NSColor = NSColor(hex: \"#c0c1b5\")!\n    var selectionBackground: NSColor = NSColor(hex: \"#57584f\")!\n\n    var palette: [Int: NSColor] = [:]\n\n    static func load(\n        preferredColorScheme: ColorSchemePreference? = nil,\n        useCache: Bool = true\n    ) -> GhosttyConfig {\n        let resolvedColorScheme = preferredColorScheme ?? currentColorSchemePreference()\n        if useCache, let cached = cachedLoad(for: resolvedColorScheme) {\n            return cached\n        }\n        let loaded = loadFromDisk(resolvedColorScheme)\n        if useCache { storeCachedLoad(loaded, for: resolvedColorScheme) }\n        return loaded\n    }\n}",
+        "language": "swift",
+        "startLine": 1,
+        "endLine": 30
+      },
+      "narration": "cmux reads your existing Ghostty config for themes, fonts, and colors. The GhosttyConfig struct holds all the visual settings with sensible defaults. Notice the color scheme awareness: it caches separate configs for light and dark mode. When you switch system appearance, cmux instantly picks up the right palette. It reads from tilde-config-ghostty-config first, then falls back to the Application Support directory."
+    },
+    {
+      "name": "Keyboard Dispatch Junction",
+      "subtitle": "Key Event Routing",
+      "concept": "Input Handling",
+      "landmarkType": "forest",
+      "code": {
+        "file": "Sources/AppDelegate.swift",
+        "content": "@objc func cmux_performKeyEquivalent(with event: NSEvent) -> Bool {\n    let firstResponderGhosttyView = cmuxOwningGhosttyView(for: self.firstResponder)\n    let firstResponderWebView = self.firstResponder.flatMap {\n        Self.cmuxOwningWebView(for: $0, in: self, event: event)\n    }\n\n    if let ghosttyView = firstResponderGhosttyView {\n        if ghosttyView.hasMarkedText(),\n           !event.modifierFlags.intersection(.deviceIndependentFlagsMask).contains(.command) {\n            return cmux_performKeyEquivalent(with: event)\n        }\n\n        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)\n        if !flags.contains(.command) {\n            return ghosttyView.performKeyEquivalent(with: event)\n        }\n    }\n\n    if firstResponderGhosttyView != nil,\n       shouldRouteCommandEquivalentDirectlyToMainMenu(event),\n       let mainMenu = NSApp.mainMenu {\n        let consumedByMenu = mainMenu.performKeyEquivalent(with: event)\n        if consumedByMenu { return true }\n    }\n\n    let result = cmux_performKeyEquivalent(with: event)\n    return result\n}",
+        "language": "swift",
+        "startLine": 14137,
+        "endLine": 14164
+      },
+      "narration": "This is the keyboard dispatch crossroads. cmux swizzles NSWindow's performKeyEquivalent to intercept every key event. When the terminal has focus, non-Command keys go straight to Ghostty for processing. Command shortcuts bypass SwiftUI entirely and route to the main menu. This prevents a known SwiftUI focus bug where the hosting view silently swallows key events after a browser panel has been active."
+    },
+    {
+      "name": "Workspace Prairie",
+      "subtitle": "Tab & Workspace Management",
+      "concept": "Workspace System",
+      "landmarkType": "river",
+      "code": {
+        "file": "Sources/TabManager.swift",
+        "content": "func addWorkspace(\n    title: String? = nil,\n    workingDirectory overrideWorkingDirectory: String? = nil,\n    initialTerminalCommand: String? = nil,\n    select: Bool = true,\n    eagerLoadTerminal: Bool = false,\n    placementOverride: NewWorkspacePlacement? = nil\n) -> Workspace {\n    let sourceWorkspace = selectedWorkspace\n    let capturedTabs = tabs\n    return withExtendedLifetime((capturedTabs, sourceWorkspace)) {\n        let dir = preferredWorkingDirectoryForNewTab(workspace: sourceWorkspace)\n        let font = inheritedTerminalFontPointsForNewWorkspace(workspace: sourceWorkspace)\n        let insertIndex = newTabInsertIndex(\n            snapshot: snapshot, placementOverride: placementOverride\n        )\n        let newWorkspace = makeWorkspaceForCreation(\n            title: title ?? \"Terminal \\(nextTabCount)\",\n            workingDirectory: workingDirectory,\n            portOrdinal: ordinal,\n            configTemplate: inheritedConfig\n        )\n        var updatedTabs = tabs\n        updatedTabs.insert(newWorkspace, at: insertIndex)\n        tabs = updatedTabs\n        if select { selectedTabId = newWorkspace.id }\n        return newWorkspace\n    }\n}",
+        "language": "swift",
+        "startLine": 1935,
+        "endLine": 1964
+      },
+      "narration": "Creating a new workspace is like establishing a new camp on the trail. The TabManager inherits the working directory and font size from the currently selected workspace. Notice the withExtendedLifetime call. This is a clever workaround for a crash in optimized arm64 builds where ARC would release the source workspace too early during the creation chain. The new workspace slots into the sidebar at the configured position."
+    },
+    {
+      "name": "Split Pane Pass",
+      "subtitle": "Bonsplit Layout Engine",
+      "concept": "Workspace System",
+      "landmarkType": "mountain",
+      "code": {
+        "file": "Sources/Workspace.swift",
+        "content": "final class Workspace: Identifiable, ObservableObject {\n    let id: UUID\n    @Published var title: String\n    @Published var customTitle: String?\n    @Published var isPinned: Bool = false\n    @Published var customColor: String?\n    @Published var currentDirectory: String\n\n    let bonsplitController: BonsplitController\n    @Published private(set) var panels: [UUID: any Panel] = [:]\n\n    var focusedPanelId: UUID? {\n        guard let paneId = bonsplitController.focusedPaneId,\n              let tab = bonsplitController.selectedTab(inPane: paneId) else {\n            return nil\n        }\n        return panelIdFromSurfaceId(tab.id)\n    }\n\n    var focusedTerminalPanel: TerminalPanel? {\n        guard let panelId = focusedPanelId,\n              let panel = panels[panelId] as? TerminalPanel else {\n            return nil\n        }\n        return panel\n    }\n}",
+        "language": "swift",
+        "startLine": 6482,
+        "endLine": 6508
+      },
+      "narration": "Each workspace is a self-contained world with its own split layout. The BonsplitController manages horizontal and vertical splits, while the panels dictionary maps surface IDs to terminal or browser panel instances. Workspaces track everything: git branch, pull request status, listening ports, and custom colors. The focusedPanelId computed property navigates through the split tree to find the active panel."
+    },
+    {
+      "name": "Terminal Rendering Range",
+      "subtitle": "GPU-Accelerated Display",
+      "concept": "Terminal Rendering",
+      "landmarkType": "camp",
+      "code": {
+        "file": "Sources/GhosttyTerminalView.swift",
+        "content": "func cmuxShouldApplyWindowGlass(\n    sidebarBlendMode: String,\n    bgGlassEnabled: Bool,\n    glassEffectAvailable _: Bool\n) -> Bool {\n    sidebarBlendMode == \"behindWindow\" && bgGlassEnabled\n}\n\nstatic func stringContents(from pasteboard: NSPasteboard) -> String? {\n    if let urls = pasteboard.readObjects(forClasses: [NSURL.self]) as? [URL],\n       !urls.isEmpty {\n        return urls\n            .map { $0.isFileURL ? escapeForShell($0.path) : $0.absoluteString }\n            .joined(separator: \" \")\n    }\n    let htmlText = attributedStringContents(from: pasteboard, type: .html, documentType: .html)\n    if hasImageData(in: pasteboard),\n       let html = pasteboard.string(forType: .html),\n       htmlHasNoVisibleText(html) {\n        return nil\n    }\n    if let value = plainTextContents(from: pasteboard) {\n        return value\n    }\n    return htmlText\n}",
+        "language": "swift",
+        "startLine": 12,
+        "endLine": 37
+      },
+      "narration": "cmux uses libghostty for GPU-accelerated terminal rendering through Metal. The glass effect support enables macOS Tahoe's new translucent window style when the sidebar blends behind the window. Clipboard handling is surprisingly nuanced. When you paste a file URL, it gets shell-escaped automatically. Rich HTML paste is supported too, with a special check to avoid pasting invisible image-only HTML as empty text."
+    },
+    {
+      "name": "Notification Outpost",
+      "subtitle": "Agent Notification System",
+      "concept": "Notification System",
+      "landmarkType": "forest",
+      "code": {
+        "file": "Sources/Panels/Panel.swift",
+        "content": "enum WorkspaceAttentionFlashReason: String, Equatable, Sendable {\n    case navigation\n    case notificationArrival\n    case notificationDismiss\n    case manualUnreadDismiss\n    case debug\n}\n\nenum WorkspaceAttentionCoordinator {\n    static func decideFlash(\n        targetPanelID: UUID,\n        reason: WorkspaceAttentionFlashReason,\n        persistentState: WorkspaceAttentionPersistentState\n    ) -> WorkspaceAttentionFlashDecision {\n        let isAllowed: Bool\n        switch reason {\n        case .navigation:\n            isAllowed = !persistentState.hasCompetingIndicator(for: targetPanelID)\n        case .notificationArrival, .notificationDismiss,\n             .manualUnreadDismiss, .debug:\n            isAllowed = true\n        }\n        return WorkspaceAttentionFlashDecision(\n            panelID: targetPanelID,\n            reason: reason,\n            isAllowed: isAllowed\n        )\n    }\n}",
+        "language": "swift",
+        "startLine": 38,
+        "endLine": 66
+      },
+      "narration": "This is the notification nerve center. When a coding agent like Claude Code needs attention, its pane gets a blue ring and the sidebar tab lights up. The WorkspaceAttentionCoordinator decides whether a flash animation should play. Navigation flashes are suppressed when another panel already has an unread indicator, preventing visual noise. But notification arrivals always flash through, because that is the whole point of cmux."
+    },
+    {
+      "name": "Socket Control Frontier",
+      "subtitle": "Unix Socket API",
+      "concept": "Socket API",
+      "landmarkType": "town",
+      "code": {
+        "file": "Sources/TerminalController.swift",
+        "content": "@MainActor\nclass TerminalController {\n    static let shared = TerminalController()\n\n    private nonisolated(unsafe) var socketPath = SocketControlSettings.stableDefaultSocketPath\n    private nonisolated(unsafe) var serverSocket: Int32 = -1\n    private nonisolated(unsafe) var isRunning = false\n    private nonisolated(unsafe) var acceptLoopAlive = false\n    private nonisolated(unsafe) var activeAcceptLoopGeneration: UInt64 = 0\n    private var tabManager: TabManager?\n    private var accessMode: SocketControlMode = .cmuxOnly\n\n    private static let focusIntentV2Methods: Set<String> = [\n        \"window.focus\",\n        \"workspace.select\",\n        \"workspace.next\",\n        \"workspace.previous\",\n        \"surface.focus\",\n        \"pane.focus\",\n        \"pane.last\",\n        \"browser.focus_webview\",\n        \"browser.focus\",\n        \"browser.tab.switch\"\n    ]\n}",
+        "language": "swift",
+        "startLine": 30,
+        "endLine": 54
+      },
+      "narration": "You made it to Socket Control Frontier! The TerminalController exposes a Unix socket API that lets the CLI and external tools control everything. Create workspaces, split panes, send keystrokes, and automate the browser, all through socket commands. The focus intent allowlist ensures that only explicit focus commands can steal window focus. Telemetry commands like port scanning run off the main thread to avoid blocking typing."
+    }
+  ],
+  "events": [
+    {
+      "type": "weather",
+      "trigger": "after_stop",
+      "triggerStop": 1,
+      "title": "Configuration Blizzard!",
+      "text": "A blizzard of config files! cmux reads Ghostty settings from multiple locations. The config load order matters because later files override earlier ones. Where does cmux look for config files, and why does this ordering exist?",
+      "choices": [
+        {"text": "It checks ~/.config/ghostty/config first, then Application Support, so user dotfiles take priority over app-managed settings", "correct": true, "explanation": "cmux matches Ghostty's own load order: ~/.config/ghostty/config first, then ~/Library/Application Support. This lets power users keep their config in dotfiles under version control while the app store default path also works."},
+        {"text": "It only reads from ~/Library/Application Support because that is the macOS standard", "correct": false, "explanation": "cmux supports both XDG-style dotfile paths and macOS Application Support paths. The dual lookup ensures compatibility with users who came from Linux Ghostty or prefer dotfile management."},
+        {"text": "It generates a default config at launch if no config file exists anywhere", "correct": false, "explanation": "GhosttyConfig uses hardcoded defaults in the struct definition, like Menlo font at 12pt. No default config file is generated. The app works with zero configuration."}
+      ],
+      "concept": "Configuration",
+      "difficulty": "easy"
+    },
+    {
+      "type": "encounter",
+      "trigger": "after_stop",
+      "triggerStop": 2,
+      "title": "A SwiftUI Focus Bug Approaches!",
+      "text": "A fellow traveler warns you: 'After switching between terminal and browser panes, my arrow keys stopped working in the terminal!' cmux works around a SwiftUI hosting view bug. How does the key routing fix this?",
+      "choices": [
+        {"text": "It swizzles NSWindow.performKeyEquivalent to bypass the SwiftUI content view and send non-Command keys directly to the Ghostty terminal surface", "correct": true, "explanation": "Exactly right. When a browser WKWebView has been in the responder chain, SwiftUI's internal focus system breaks. The swizzled method detects the terminal first responder and routes key events directly to the GhosttyNSView, skipping the broken SwiftUI path entirely."},
+        {"text": "It reinstalls the terminal as first responder on every keystroke", "correct": false, "explanation": "Constantly resigning and becoming first responder would cause flickering and break IME composition. The fix is more surgical: the performKeyEquivalent swizzle routes events around SwiftUI without touching the responder chain."},
+        {"text": "It disables the browser pane's WKWebView after each use to prevent focus contamination", "correct": false, "explanation": "Browser panes stay live and interactive. The fix operates at the key dispatch level, not by disabling browser views. Users can freely switch between terminal and browser without losing functionality."}
+      ],
+      "concept": "Input Handling",
+      "difficulty": "medium"
+    },
+    {
+      "type": "river",
+      "trigger": "after_stop",
+      "triggerStop": 3,
+      "title": "The ARC Rapids!",
+      "text": "You reach a treacherous river! The addWorkspace method uses withExtendedLifetime to keep the source workspace and captured tabs alive during workspace creation. Without it, the app crashes on ARM64 release builds. Why does ARC cause trouble here?",
+      "choices": [
+        {"text": "In optimized builds, ARC can release objects earlier than expected when references cross helper function boundaries, causing use-after-free in the creation chain", "correct": true, "explanation": "The Swift optimizer in release mode can determine that a reference is no longer needed sooner than in debug builds. When addWorkspace calls helper methods that read from the source workspace, ARC may free the workspace mid-chain. withExtendedLifetime forces the retain until the closure completes."},
+        {"text": "The crash is caused by threading because addWorkspace runs on a background queue", "correct": false, "explanation": "addWorkspace runs on the main actor. The crash is purely an ARC optimization issue where the compiler releases objects too aggressively in the middle of a complex creation flow."},
+        {"text": "It is a SwiftUI bug where Published properties trigger deinit during observation", "correct": false, "explanation": "The issue is ARC lifetime management at the Swift compiler level, not SwiftUI observation. The captured references lose their retain count when the optimizer determines they are no longer read in the current scope."}
+      ],
+      "concept": "Workspace System",
+      "difficulty": "hard"
+    },
+    {
+      "type": "misfortune",
+      "trigger": "after_stop",
+      "triggerStop": 4,
+      "title": "Split Layout Plague!",
+      "text": "Disaster! A custom command in cmux.json defines a workspace layout, but the split node has three children instead of two. The CmuxLayoutNode decoder rejects it. Why does cmux enforce exactly two children per split?",
+      "choices": [
+        {"text": "Binary splits are the fundamental building block: any complex layout can be composed by nesting binary splits, and the Bonsplit library's divider model requires exactly two sides", "correct": true, "explanation": "The BonsplitController uses a binary tree where each split has a left/right or top/bottom child separated by a draggable divider. Three-way splits are expressed as a binary split where one child is itself another split. The decoder validates this invariant at parse time to prevent runtime crashes."},
+        {"text": "It is a temporary limitation that will be lifted in a future version", "correct": false, "explanation": "Binary splits are fundamental to the layout model, not a limitation. The Bonsplit library's divider tracking, resize handles, and focus navigation all depend on exactly two children per split node."},
+        {"text": "macOS constraints prevent more than two NSViews in a split arrangement", "correct": false, "explanation": "NSSplitView supports multiple children, but cmux uses its own Bonsplit library with a binary tree model. This gives it precise control over divider rendering, focus traversal, and the drag-and-drop tab system."}
+      ],
+      "concept": "Workspace System",
+      "difficulty": "medium"
+    },
+    {
+      "type": "weather",
+      "trigger": "after_stop",
+      "triggerStop": 5,
+      "title": "Clipboard Sandstorm!",
+      "text": "A sandstorm of paste events! A user drags a file from Finder into the terminal. Instead of pasting garbage, the path appears shell-escaped. How does cmux handle file URL pastes differently from plain text?",
+      "choices": [
+        {"text": "It checks for NSURL pasteboard objects first and shell-escapes each file path, converting spaces and special characters to their backslash-escaped equivalents", "correct": true, "explanation": "The stringContents method prioritizes NSURL objects on the pasteboard. File URLs get their paths extracted and run through escapeForShell, which handles spaces, parentheses, quotes, and other shell metacharacters. Non-file URLs paste as their absolute string instead."},
+        {"text": "It converts the file to base64 and pastes the encoded content", "correct": false, "explanation": "cmux pastes the file path, not the file contents. The escapeForShell function handles special characters in the path so the terminal can work with the file reference directly."},
+        {"text": "It opens a file picker dialog instead of pasting", "correct": false, "explanation": "File drops go directly through the pasteboard system. The shell-escaped path is pasted inline, letting you immediately use it in commands like cat or vim."}
+      ],
+      "concept": "Terminal Rendering",
+      "difficulty": "easy"
+    },
+    {
+      "type": "encounter",
+      "trigger": "after_stop",
+      "triggerStop": 6,
+      "title": "The Notification Scout Arrives!",
+      "text": "A scout rides up: 'I have three Claude Code agents running in different workspaces. Two just finished, but only one flash played!' The WorkspaceAttentionCoordinator suppresses some flashes. Under what condition is a navigation flash blocked?",
+      "choices": [
+        {"text": "Navigation flashes are suppressed when another panel in the workspace already has a competing unread or manual-unread indicator", "correct": true, "explanation": "The decideFlash method checks persistentState.hasCompetingIndicator for navigation events. If another panel already shows an unread ring, a navigation flash would be visual noise. But notification arrivals always flash through regardless of competing indicators, because alerting you is their primary purpose."},
+        {"text": "Flashes are rate-limited to one per second across all workspaces", "correct": false, "explanation": "There is no global rate limit. The suppression is per-workspace and reason-specific: only navigation flashes check for competing indicators. Notification flashes always play."},
+        {"text": "All flashes are suppressed when the app is in the background", "correct": false, "explanation": "The attention coordinator does not check app activation state. The decision is based solely on the flash reason and whether competing indicators exist on the target workspace."}
+      ],
+      "concept": "Notification System",
+      "difficulty": "medium"
+    },
+    {
+      "type": "misfortune",
+      "trigger": "after_stop",
+      "triggerStop": 7,
+      "title": "Socket Path Overflow!",
+      "text": "A rare calamity! The Unix socket path exceeds the maximum length allowed by the kernel. The TerminalController calculates the max path length dynamically. What system constraint causes this limit?",
+      "choices": [
+        {"text": "The sockaddr_un structure has a fixed-size sun_path field, typically 104 bytes on macOS, minus one byte for the null terminator", "correct": true, "explanation": "Unix domain sockets store their path in struct sockaddr_un's sun_path char array. On macOS this is 104 bytes. The code calculates unixSocketPathMaxLength as MemoryLayout.size(ofValue: addr.sun_path) - 1. Long usernames or deep build directory paths can exceed this limit, which is why cmux has fallback socket path logic."},
+        {"text": "The macOS Gatekeeper service rejects socket paths longer than 255 characters", "correct": false, "explanation": "Gatekeeper checks app signatures, not socket paths. The limit comes from the POSIX sockaddr_un structure, which has a fixed-size character array for the path."},
+        {"text": "NSFileManager enforces a 200-character path limit for security reasons", "correct": false, "explanation": "NSFileManager has no such limit. The constraint is at the kernel level in the sockaddr_un structure, which cmux measures at compile time using MemoryLayout."}
+      ],
+      "concept": "Socket API",
+      "difficulty": "hard"
+    }
+  ],
+  "partyMembers": [
+    {"name": "Input Handling", "icon": "keyboard", "maxHealth": 3},
+    {"name": "Workspace System", "icon": "layout", "maxHealth": 3},
+    {"name": "Terminal Rendering", "icon": "monitor", "maxHealth": 3},
+    {"name": "Notification System", "icon": "bell", "maxHealth": 3}
+  ],
+  "deathMessages": [
+    "You have died of a use-after-free in an optimized ARM64 build.",
+    "You have died of a SwiftUI focus system corruption.",
+    "You have died of a sockaddr_un path overflow.",
+    "You have died of an undelivered agent notification.",
+    "You have died of a run loop stall on the main thread.",
+    "You have died of a swizzle that swizzled itself.",
+    "You have died of an orphaned submodule commit on a detached HEAD.",
+    "You have died of an infinite performKeyEquivalent re-entry loop.",
+    "You have died of a pasteboard containing only invisible HTML.",
+    "You have died of a binary split with three children."
+  ],
+  "sourceInfo": {
+    "repo": "manaflow-ai/cmux",
+    "snapshotDate": "2026-04-08"
+  }
+};
+
+// FLAVORS
+window.TRAIL_FLAVORS = [
+  "The app delegate finishes launching. Observers installed...",
+  "Ghostty config loaded from ~/.config/ghostty/config...",
+  "Key event swizzle intercepts a rogue performKeyEquivalent...",
+  "A new workspace spawns in the sidebar. Terminal one of many...",
+  "BonsplitController divides the pane. Left terminal, right browser...",
+  "The Metal renderer redraws at sixty frames per second...",
+  "A blue notification ring pulses on workspace three...",
+  "The Unix socket accepts a new client connection...",
+  "Port scanner coalesces kicks across all panels...",
+  "Session persistence autosaves every eight seconds...",
+  "The IME composing flag blocks performKeyEquivalent bypass...",
+  "withExtendedLifetime keeps the workspace alive through ARC rapids...",
+  "cmux.json custom commands load into the command palette...",
+  "Cmd+Shift+U jumps to the latest unread notification...",
+  "The sidebar shows git branch, PR status, and listening ports..."
+];
+// END FLAVORS
+
+window.drawCustomEventOverlay = function(time) {
+  if (!currentEventType && !currentEventTitle) return;
+  var t = (time || 0) * 0.001;
+
+// OVERLAYS
+  // --- CONFIG BLIZZARD: snow and cold wind ---
+  if (currentEventTitle && currentEventTitle.indexOf('Configuration Blizzard') !== -1) {
+    ctx.fillStyle = 'rgba(200,210,230,0.3)';
+    ctx.fillRect(0, 0, W, 110);
+    // Snowflakes
+    ctx.fillStyle = '#FFFFFF';
+    for (var i = 0; i < 30; i++) {
+      var sx = (i * 37 + t * 40 * (1 + (i % 3) * 0.5)) % W;
+      var sy = (i * 23 + t * 25 * (1 + (i % 2))) % 110;
+      var size = 1 + (i % 3);
+      ctx.fillRect(sx, sy, size, size);
+    }
+    // Wind lines
+    ctx.strokeStyle = 'rgba(200,220,255,0.3)';
+    ctx.lineWidth = 1;
+    for (var w = 0; w < 5; w++) {
+      var wy = 20 + w * 18;
+      var wx = (t * 80 + w * 60) % (W + 40) - 20;
+      ctx.beginPath();
+      ctx.moveTo(wx, wy);
+      ctx.lineTo(wx + 30, wy - 2);
+      ctx.stroke();
+    }
+  }
+
+  // --- SWIFTUI FOCUS BUG: glitchy screen tearing effect ---
+  if (currentEventTitle && currentEventTitle.indexOf('SwiftUI Focus Bug') !== -1) {
+    // Horizontal glitch bars
+    for (var g = 0; g < 6; g++) {
+      var gy = Math.floor((Math.sin(t * 3.7 + g * 1.2) * 0.5 + 0.5) * 100);
+      var gw = 20 + Math.sin(t * 5 + g) * 15;
+      var gx = Math.floor(Math.sin(t * 2.3 + g * 0.7) * 30);
+      ctx.fillStyle = 'rgba(0,255,100,' + (0.15 + Math.sin(t * 8 + g) * 0.1) + ')';
+      ctx.fillRect(gx, gy, gw, 2);
+    }
+    // Static noise
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    for (var n = 0; n < 40; n++) {
+      var nx = Math.floor(Math.random() * W);
+      var ny = Math.floor(Math.random() * 110);
+      ctx.fillRect(nx, ny, 1, 1);
+    }
+  }
+
+  // --- ARC RAPIDS: rushing water ---
+  if (currentEventTitle && currentEventTitle.indexOf('ARC Rapids') !== -1) {
+    // River water
+    ctx.fillStyle = 'rgba(0,80,200,0.25)';
+    ctx.fillRect(0, 85, W, 25);
+    // Wave crests
+    ctx.strokeStyle = '#55AAFF';
+    ctx.lineWidth = 1;
+    for (var r = 0; r < 8; r++) {
+      ctx.beginPath();
+      var rx = (r * 40 - t * 50) % W;
+      if (rx < 0) rx += W;
+      ctx.moveTo(rx, 90 + Math.sin(t * 3 + r) * 3);
+      ctx.lineTo(rx + 15, 88 + Math.sin(t * 3 + r + 1) * 3);
+      ctx.lineTo(rx + 30, 90 + Math.sin(t * 3 + r + 2) * 3);
+      ctx.stroke();
+    }
+    // Spray particles
+    ctx.fillStyle = '#AADDFF';
+    for (var s = 0; s < 10; s++) {
+      var spx = (s * 31 + t * 35) % W;
+      var spy = 82 + Math.sin(t * 4 + s * 1.5) * 5;
+      ctx.fillRect(spx, spy, 2, 2);
+    }
+  }
+
+  // --- SPLIT LAYOUT PLAGUE: falling blocks / broken grid ---
+  if (currentEventTitle && currentEventTitle.indexOf('Split Layout Plague') !== -1) {
+    ctx.strokeStyle = '#FF5555';
+    ctx.lineWidth = 1;
+    // Falling broken rectangles
+    for (var p = 0; p < 8; p++) {
+      var px = 20 + p * 35;
+      var py = (t * 30 + p * 15) % 120;
+      var pw = 10 + (p % 3) * 5;
+      var ph = 8 + (p % 2) * 4;
+      ctx.strokeRect(px, py, pw, ph);
+      // Crack through the rectangle
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(px + pw, py + ph);
+      ctx.stroke();
+    }
+  }
+
+  // --- CLIPBOARD SANDSTORM: swirling particles ---
+  if (currentEventTitle && currentEventTitle.indexOf('Clipboard Sandstorm') !== -1) {
+    ctx.fillStyle = 'rgba(180,140,60,0.2)';
+    ctx.fillRect(0, 0, W, 110);
+    // Sand particles swirling
+    ctx.fillStyle = '#CCAA55';
+    for (var d = 0; d < 35; d++) {
+      var angle = t * 1.5 + d * 0.4;
+      var radius = 20 + d * 2 + Math.sin(t + d) * 10;
+      var dx = W / 2 + Math.cos(angle) * radius;
+      var dy = 55 + Math.sin(angle * 0.7) * 30;
+      var ds = 1 + (d % 3);
+      if (dx > 0 && dx < W && dy > 0 && dy < 110) {
+        ctx.fillRect(dx, dy, ds, ds);
+      }
+    }
+  }
+
+  // --- NOTIFICATION SCOUT: blue pulsing rings ---
+  if (currentEventTitle && currentEventTitle.indexOf('Notification Scout') !== -1) {
+    // Pulsing blue notification rings
+    for (var nr = 0; nr < 3; nr++) {
+      var ringX = 60 + nr * 80;
+      var ringY = 55;
+      var ringPhase = t * 2.5 + nr * 2.1;
+      var ringRadius = 8 + Math.sin(ringPhase) * 4;
+      var ringAlpha = 0.3 + Math.sin(ringPhase) * 0.2;
+      ctx.strokeStyle = 'rgba(0,145,255,' + ringAlpha + ')';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(ringX, ringY, ringRadius, 0, Math.PI * 2);
+      ctx.stroke();
+      // Inner dot
+      ctx.fillStyle = 'rgba(0,145,255,' + (ringAlpha + 0.2) + ')';
+      ctx.beginPath();
+      ctx.arc(ringX, ringY, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // --- SOCKET PATH OVERFLOW: cascading error text ---
+  if (currentEventTitle && currentEventTitle.indexOf('Socket Path Overflow') !== -1) {
+    ctx.font = '6px monospace';
+    ctx.fillStyle = '#FF5555';
+    var chars = '/tmp/cmux-debug-very-long-tag-name-that-exceeds-the-sockaddr-un-limit.sock';
+    for (var c = 0; c < 5; c++) {
+      var cx = 5;
+      var cy = 15 + c * 18 + (t * 12 + c * 5) % 20;
+      var visibleChars = chars.substring(0, Math.min(chars.length, Math.floor(t * 8 + c * 10) % (chars.length + 5)));
+      ctx.fillText(visibleChars, cx, cy);
+    }
+    // Truncation marker
+    var truncY = 95 + Math.sin(t * 3) * 5;
+    ctx.fillStyle = '#FFFF55';
+    ctx.font = '8px monospace';
+    ctx.fillText('ENOBUFS: path too long!', 60, truncY);
+  }
+// END OVERLAYS
+};
+</script>
+<script src="../engine.js"></script>
+</body>
+</html>

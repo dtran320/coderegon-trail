@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Coderegon Trail - miniDiffusion Edition</title>
+</head>
+<body>
+<div id="game-container">
+  <div id="canvas-area">
+    <canvas id="game-canvas" width="320" height="200"></canvas>
+    <div id="music-indicator">M: Music</div>
+  </div>
+  <div id="text-panel"></div>
+  <div id="status-bar"></div>
+</div>
+
+<script>
+window.TRAIL_DATA = {
+  "framework": "minidiffusion",
+  "trailName": "The Diffusion Trail",
+  "stops": [
+    {
+      "name": "Tokenizer Trading Post",
+      "subtitle": "BPE and Unigram Text Encoding",
+      "concept": "Tokenization",
+      "landmarkType": "town",
+      "code": {
+        "file": "src/model/tokenizer.py",
+        "content": "class TorchTokenizer: # Byte-Level Byte-Pair Tokenizer\n    def __init__(self, tokenizer_path: str = \"tokenizer.json\", max_length: int = 77):\n\n        # Load the tokenizer.json file\n        file_path = os.path.join(os.getcwd(), \"src\", \"model\", tokenizer_path)\n\n        with open(file_path, \"r\", encoding=\"utf-8\") as f:\n            tokenizer_data = json.load(f)\n        \n        self.max_length = max_length\n\n        # extract vocabulary and merges\n        self.vocab = tokenizer_data[\"model\"][\"vocab\"]\n        merges = tokenizer_data[\"model\"][\"merges\"]\n\n        # split merges on white space \"re ad\" -> tuple(\"re\", \"ad\")\n        bpe_merges = [tuple(merge.split()) for merge in merges]\n        self.bpe_ranks = dict(zip(bpe_merges, range(len(bpe_merges))))\n\n        self.byte_encoder = to_utf_bytes()\n\n        self.vocab_len = len(self.vocab)",
+        "language": "python",
+        "startLine": 48,
+        "endLine": 70
+      },
+      "narration": "Every diffusion trail starts at the Tokenizer Trading Post. Raw text prompts must become numbers the model can understand. CLIP uses a byte-level BPE tokenizer that splits text into forty-nine thousand subword pieces. T5 uses a Unigram tokenizer with SentencePiece for a different vocabulary. Both cap at seventy-seven tokens because that is CLIP's context length."
+    },
+    {
+      "name": "CLIP Encoding Camp",
+      "subtitle": "Dual CLIP Text Embeddings",
+      "concept": "Text Encoding",
+      "landmarkType": "camp",
+      "code": {
+        "file": "src/model/dit_components.py",
+        "content": "class HandlePrompt(nn.Module):\n    def __init__(self):\n        super().__init__()\n        self.clip_tokenizer = TorchTokenizer()\n        self.t5_tokenizer = UnigramTokenizer()\n    \n    def forward(self, x: str, clip: CLIP, clip_2: OpenCLIP, t5_encoder):\n        clip_tokens = self.clip_tokenizer.tokenize(x)\n        t5_tokens = self.t5_tokenizer.encode(x)\n\n        pooled, clip_embeds = clip.encode_text(clip_tokens)\n        pooled2, clip_2_embeds = clip_2.encode_text(clip_tokens)\n\n        t5_embeds = t5_encoder(t5_tokens)\n\n        clip_embeddings = torch.cat([clip_embeds, clip_2_embeds], dim = -1)\n\n        # get the difference between t5 and clip embeddings and pad it for it to become a matrix\n        clip_embeddings = F.pad(\n            clip_embeddings, (0, t5_embeds.size(-1) - clip_embeddings.size(-1))\n        )\n\n        embeddings = torch.cat([clip_embeddings, t5_embeds], dim = -2)\n        pooled_embeddings = torch.cat([pooled, pooled2], dim = -1)",
+        "language": "python",
+        "startLine": 8,
+        "endLine": 32
+      },
+      "narration": "At CLIP Encoding Camp, the text prompt gets encoded three different ways. Two CLIP models produce pooled embeddings that capture the overall meaning. A T5 encoder creates richer token-level embeddings with four thousand ninety-six dimensions. The CLIP outputs are concatenated and padded to match T5's width. Then everything stacks together so the DiT sees both global and fine-grained text features."
+    },
+    {
+      "name": "VAE Encoder Gorge",
+      "subtitle": "Compressing Images to Latent Space",
+      "concept": "Variational Autoencoder",
+      "landmarkType": "mountain",
+      "code": {
+        "file": "src/model/vae.py",
+        "content": "class Encoder(nn.Module):\n    def __init__(self, in_channels = 3, base_channels = 128, quant_channels = 32):\n        super().__init__()\n\n        self.down_configs = [(base_channels, base_channels, True),              # block0: 128 -> 128\n                            (base_channels, base_channels * 2, True),           # block1: 128 -> 256\n                            (base_channels * 2, base_channels * 4, True),       # block2: 256 -> 512\n                            (base_channels * 4, base_channels * 4, False)]      # block3: 512 -> 512\n\n        # intial layer\n        self.conv_in = nn.Conv2d(in_channels, base_channels, kernel_size = 3, padding = 1)\n        self.conv_act = nn.SiLU()\n\n        self.down_blocks = nn.ModuleList()\n        channels = base_channels\n\n        # downsampling layers for encoder_model.down_blocks\n        for (in_ch, out_ch, use_conv) in self.down_configs:\n            self.down_blocks.append(DownBlock(in_ch, out_ch, use_conv))\n            channels = out_ch\n\n        # expected key \"encoder.mid_block\"\n        self.mid_block = MidBlock(channels)",
+        "language": "python",
+        "startLine": 152,
+        "endLine": 174
+      },
+      "narration": "VAE Encoder Gorge compresses full images into a tiny latent space. Four downsampling blocks shrink the spatial dimensions by eight times each direction. Channels grow from one twenty-eight to five twelve as resolution drops. A mid-block with self-attention captures global structure at the bottleneck. The output is thirty-two channels that get split into mean and log-variance for the reparameterization trick."
+    },
+    {
+      "name": "Noise Schedule River",
+      "subtitle": "Logit-Normal Timestep Sampling and Forward Diffusion",
+      "concept": "Noise Scheduling",
+      "landmarkType": "river",
+      "code": {
+        "file": "src/model/noise.py",
+        "content": "    def add_noise(self, image: torch.FloatTensor,  timestep: float = None):\n\n        \"\"\"\n        Forward Process of Diffusion\n        Adds noise to the image according to the timestep.\n        t = Timestep at which to evaluate the noise schedule.\n        \"\"\"\n\n        if timestep is None:\n            timestep = self.sample_logit_timestep(image.size(0), device = image.device)\n\n        self.check_timestep(timestep) \n\n        # randn_like will create the guassian noise\n        # that will fit the image's dimensions\n        noise = torch.randn_like(image)\n\n        timestep = self.timesteps[timestep]\n        sigma = self.get_sigmas([timestep])\n\n        # noise the images\n        noised_image = (1.0 - sigma) * image + noise * sigma\n\n        # returning noise is helpful for training\n        return noised_image, noise, timestep",
+        "language": "python",
+        "startLine": 82,
+        "endLine": 106
+      },
+      "narration": "At Noise Schedule River, the forward diffusion process adds Gaussian noise to latent images. The amount of noise is controlled by sigma, which comes from the timestep. The formula is a simple linear interpolation: one minus sigma times the clean image plus sigma times pure noise. Logit-normal sampling biases training toward middle noise levels where the model learns the most. This is the heart of flow matching."
+    },
+    {
+      "name": "Patch Embed Crossing",
+      "subtitle": "Patchifying Latents with Sinusoidal Positions",
+      "concept": "Patch Embedding",
+      "landmarkType": "forest",
+      "code": {
+        "file": "src/model/dit_components.py",
+        "content": "class PatchEmbed(nn.Module):\n    def __init__(self, in_channels: int = 16, embedding_dim: int = 2432, image_size: int = 384, patch_size: int = 16,\n                 pos_embed_max_size: int = 384):\n        super().__init__()\n\n        self.proj = nn.Conv2d(in_channels, embedding_dim, kernel_size = 2, stride = 2)\n        self.pos_embed_max_size = pos_embed_max_size\n\n        self.height = self.width = image_size // patch_size\n        self.base_size = self.height // patch_size\n\n        # precompute positional embeddings patches of images\n        pos_embed = self.get_2d_sincos_pos_embed(\n            embed_dim = embedding_dim,\n            grid_size = self.pos_embed_max_size,\n            base_size = self.base_size\n        )\n\n        self.patch_size = patch_size\n        self.size = image_size\n\n        self.register_buffer(\"pos_embed\", pos_embed.unsqueeze(0).float(), persistent = True)",
+        "language": "python",
+        "startLine": 118,
+        "endLine": 139
+      },
+      "narration": "At Patch Embed Crossing, noisy latents get chopped into two-by-two patches and projected into the transformer's embedding space. Each patch becomes a single token in a sequence. Two-dimensional sinusoidal positional embeddings tell the model where each patch lives in the grid. The positions are precomputed once and cropped from the center at runtime. This is how a spatial image becomes a sequence for the transformer."
+    },
+    {
+      "name": "Joint Attention Summit",
+      "subtitle": "Paged KV Cache Multi-Head Attention",
+      "concept": "Joint Attention",
+      "landmarkType": "mountain",
+      "code": {
+        "file": "src/model/attention.py",
+        "content": "        # the Joint Attention part\n        if encoder_hidden_state is not None:\n            \n            # forward pass with reshaping \n            encoder_query = self.add_q_proj(encoder_hidden_state)\\\n                .view(batch_size, -1, self.heads, self.head_dim).transpose(1, 2)\n            \n            encoder_key = self.add_k_proj(encoder_hidden_state)\\\n                .view(batch_size, -1, self.heads, self.head_dim).transpose(1, 2)\n            \n            encoder_value = self.add_v_proj(encoder_hidden_state)\\\n                .view(batch_size, -1, self.heads, self.head_dim).transpose(1, 2)\n            \n            # normalize\n            if self.add_kv_proj:\n                encoder_query = self.norm_added_q(encoder_query)\n                encoder_key = self.norm_added_k(encoder_key)\n\n            # concat the attentions\n            Q = torch.concat([Q, encoder_query], dim = 2)\n            K = torch.concat([K, encoder_key], dim = 2)\n            V = torch.concat([V, encoder_value], dim = 2)\n\n        hidden_states = F.scaled_dot_product_attention(Q, K, V, dropout_p = 0.0, is_causal = False)",
+        "language": "python",
+        "startLine": 75,
+        "endLine": 98
+      },
+      "narration": "Joint Attention Summit is the highest point on the trail. Image patch tokens and text tokens attend to each other simultaneously. The text encoder's hidden states get their own query, key, and value projections. RMSNorm stabilizes the projections before they concatenate with the image tokens. Then PyTorch's scaled dot product attention computes the full cross-modal attention in one efficient call. This is what makes text control image generation."
+    },
+    {
+      "name": "DiT Block Pass",
+      "subtitle": "MMDiT with Adaptive Layer Norm and Dual Attention",
+      "concept": "Diffusion Transformer",
+      "landmarkType": "forest",
+      "code": {
+        "file": "src/model/dit.py",
+        "content": "    def forward(self, latent: torch.Tensor, encoder_hidden_states: torch.Tensor, timestep: torch.LongTensor,\n                pooled_projections: torch.Tensor) -> torch.Tensor:\n\n        \"\"\" Goal: Given Space, Time, and Conditioned Prompt, Return Velocity Vector \n            Input: Noised Latent, Specific Timestep, Pooled Text Projections, Encoded Text Embeddings\n            Output: Velocity vector\n        \"\"\"\n\n        height, width = latent.shape[-2:]\n        hidden_states = self.pos_embed(latent)\n\n        encoder_hidden_states = self.context_embedder(encoder_hidden_states)\n        time_embeddings = self.time_text_embed(timestep, pooled_projections)\n\n        # pass attention mask for every layer\n        for layer in self.transformer_blocks:\n\n            hidden_states, encoder_hidden_states = layer(\n                hidden_states = hidden_states,\n                encoder_hidden_states = encoder_hidden_states,\n                time_emb = time_embeddings,\n                use_chunking = False\n            )",
+        "language": "python",
+        "startLine": 102,
+        "endLine": 124
+      },
+      "narration": "Through DiT Block Pass, the Multi-Modal Diffusion Transformer processes everything together. The noised latent gets patchified, text gets linearly projected, and timestep plus pooled text create a conditioning embedding. Twenty-four transformer blocks alternate between joint attention and dual attention layers. The first thirteen layers use dual attention for extra image self-attention. The model outputs a velocity vector that points from noise toward the clean image."
+    },
+    {
+      "name": "Generation Frontier",
+      "subtitle": "Euler ODE Solver and VAE Decoding",
+      "concept": "Reverse Diffusion",
+      "landmarkType": "town",
+      "code": {
+        "file": "src/inference.py",
+        "content": "    latent = torch.randn(1, 16, 48, 48, device = model.device)  # initial latent space\n\n    timesteps = noiser.timesteps\n\n    # inference loop\n    with torch.no_grad():\n        for t in timesteps:\n\n            timestep = t.expand(latent.size(0)) # scale to batch size\n\n            outputs = model(latent, encoder_hidden_states = embeddings, pooled_projections = pooled_projections, timestep = timestep)\n\n            latent = noiser.reverse_flow(current_sample = latent, model_output = outputs, stochasticity = False)\n\n    \n    latent = (latent / vae.scaling_factor) + vae.shift_factor\n    generated_image = vae.decode(latent)\n    generated_image = denormalize(generated_image)",
+        "language": "python",
+        "startLine": 38,
+        "endLine": 55
+      },
+      "narration": "You made it to the Generation Frontier! Starting from pure Gaussian noise, the Euler solver takes fifty steps backward through the diffusion process. At each step the DiT predicts a velocity vector and the solver integrates it. The sigma decreases from full noise to zero. After denoising, the latent gets rescaled by the VAE's shift and scale factors. Finally the VAE decoder expands the sixteen-channel latent back into a full RGB image."
+    }
+  ],
+  "events": [
+    {
+      "type": "weather",
+      "trigger": "after_stop",
+      "triggerStop": 1,
+      "title": "Unicode Byte Storm!",
+      "text": "A blinding storm of exotic Unicode characters sweeps across the trail! Your tokenizer must handle bytes it has never seen before. How does the byte-level BPE tokenizer handle unknown byte sequences?",
+      "choices": [
+        {
+          "text": "Map all 256 possible bytes to Unicode characters using to_utf_bytes, so every byte has a valid token representation",
+          "correct": true,
+          "explanation": "The to_utf_bytes function maps all 256 byte values to Unicode characters. ASCII printable characters map directly, while unused bytes get mapped to high codepoints starting at 256. This means any input text encoded to UTF-8 bytes can always be tokenized, no matter how unusual the characters are."
+        },
+        {
+          "text": "Skip unknown bytes and only tokenize ASCII characters",
+          "correct": false,
+          "explanation": "The tokenizer does not skip anything. The byte encoder maps all 256 possible byte values to characters, covering every possible UTF-8 encoded input. The text is first encoded to UTF-8 bytes, then each byte is mapped through the byte encoder before BPE merging."
+        },
+        {
+          "text": "Replace unknown bytes with the end-of-text token as a fallback",
+          "correct": false,
+          "explanation": "The tokenizer uses the end-of-text token ID as unk_token, but byte-level encoding means no byte is ever truly unknown. The to_utf_bytes function ensures complete coverage of all 256 byte values, so the UNK fallback is rarely needed."
+        }
+      ],
+      "concept": "Tokenization",
+      "difficulty": "easy"
+    },
+    {
+      "type": "encounter",
+      "trigger": "after_stop",
+      "triggerStop": 2,
+      "title": "A Prompt Engineer Approaches!",
+      "text": "A fellow traveler asks: 'Why does miniDiffusion use three separate text encoders instead of just one? Seems like overkill for a text-to-image model.'",
+      "choices": [
+        {
+          "text": "CLIP gives aligned image-text pooled embeddings, OpenCLIP adds capacity at 1280 dims, and T5 provides rich 4096-dim token-level features that together give the DiT both global and fine-grained text understanding",
+          "correct": true,
+          "explanation": "Each encoder serves a different purpose. CLIP (768d) and OpenCLIP (1280d) produce pooled embeddings that get combined with the timestep to condition every layer globally. T5 (4096d) produces per-token embeddings that give spatial text information through joint attention. The combination follows Stable Diffusion 3's design."
+        },
+        {
+          "text": "Three encoders are needed because each one handles a different language",
+          "correct": false,
+          "explanation": "All three encoders process the same English text prompt. They differ in architecture and what they capture: CLIP focuses on image-text alignment, OpenCLIP adds larger capacity, and T5 provides rich language understanding from its encoder-only transformer."
+        },
+        {
+          "text": "Only the T5 encoder matters, the CLIP models are legacy code that could be removed",
+          "correct": false,
+          "explanation": "The CLIP pooled embeddings are critical. They get concatenated and fed into CombinedTimestepTextProjEmbeddings, which creates the conditioning signal that modulates every AdaLayerNorm in the DiT. Without CLIP, the model loses its global text conditioning."
+        }
+      ],
+      "concept": "Text Encoding",
+      "difficulty": "medium"
+    },
+    {
+      "type": "river",
+      "trigger": "after_stop",
+      "triggerStop": 3,
+      "title": "Latent Space Rapids!",
+      "text": "The river of latent vectors is turbulent! Your VAE encoder outputs thirty-two channels but the DiT only expects sixteen. How does the reparameterization trick bridge this gap?",
+      "choices": [
+        {
+          "text": "The 32 channels are split into mean and log-variance, then a random sample z = mean + eps * std produces 16 latent channels",
+          "correct": true,
+          "explanation": "DiagonalGaussianDistribution takes the 32-channel output and splits it with torch.chunk into mean and logvar, each with 16 channels. The log-variance is clamped between -30 and 20 for stability. Then sampling uses z = mean + eps * std where eps is random Gaussian noise. This reparameterization trick makes the sampling differentiable."
+        },
+        {
+          "text": "The extra 16 channels are discarded and only the first half is used",
+          "correct": false,
+          "explanation": "Both halves are essential. The first 16 channels represent the mean and the second 16 represent the log-variance. Together they define a Gaussian distribution in latent space. Discarding the variance would make the encoder deterministic and break the VAE objective."
+        },
+        {
+          "text": "A linear layer projects 32 channels down to 16 channels",
+          "correct": false,
+          "explanation": "There is no learned projection. The split is a simple torch.chunk operation. The VAE follows the standard variational approach where the encoder outputs distribution parameters, not features. The stochastic sampling is what makes it a variational autoencoder."
+        }
+      ],
+      "concept": "Variational Autoencoder",
+      "difficulty": "medium"
+    },
+    {
+      "type": "misfortune",
+      "trigger": "after_stop",
+      "triggerStop": 4,
+      "title": "Sigma Schedule Collapse!",
+      "text": "Disaster! Your noise schedule is generating timesteps that cluster at the extremes, wasting training on fully noisy and fully clean images. How does miniDiffusion fix this?",
+      "choices": [
+        {
+          "text": "Sample timesteps from a logit-normal distribution that biases toward intermediate noise levels where the model learns the most",
+          "correct": true,
+          "explanation": "The sample_logit_timestep method draws uniform samples, applies torch.logit to transform them into a normal distribution, scales by the shift parameter, then applies torch.sigmoid to map back to zero-one range. This logit-normal distribution concentrates samples around the middle noise levels, following the SD3 paper's Equation 19."
+        },
+        {
+          "text": "Use uniform random sampling across all timesteps equally",
+          "correct": false,
+          "explanation": "Uniform sampling wastes training on extreme timesteps. At very low noise the target is nearly zero, and at very high noise the signal is almost completely destroyed. The logit-normal distribution from the SD3 paper concentrates training on intermediate levels where the denoising signal is strongest."
+        },
+        {
+          "text": "Only train on even-numbered timesteps to reduce the schedule size",
+          "correct": false,
+          "explanation": "Skipping timesteps would create gaps in the model's ability to denoise. The logit-normal sampling is about weighting which timesteps appear more often during training, not removing timesteps. The shift parameter controls the distribution shape."
+        }
+      ],
+      "concept": "Noise Scheduling",
+      "difficulty": "hard"
+    },
+    {
+      "type": "weather",
+      "trigger": "after_stop",
+      "triggerStop": 5,
+      "title": "Position Embedding Fog!",
+      "text": "A dense fog of misaligned position embeddings rolls in! Your patches cannot tell where they are in the image grid. How does miniDiffusion create 2D positional awareness?",
+      "choices": [
+        {
+          "text": "Precompute 2D sincos embeddings by generating separate 1D sin-cos embeddings for height and width grids, then concatenating them",
+          "correct": true,
+          "explanation": "PatchEmbed.get_2d_sincos_pos_embed creates a meshgrid of height and width positions, then calls get_1d_sincos_pos_embed_grid for each dimension separately. Each 1D embedding uses frequencies from 1/10000^(2i/d) just like the original transformer. The two halves concatenate to form the full 2D embedding. These are precomputed once and cropped at runtime."
+        },
+        {
+          "text": "Use learned position embeddings like BERT that are trained from scratch",
+          "correct": false,
+          "explanation": "MiniDiffusion uses fixed sinusoidal embeddings, not learned ones. The pos_embed buffer is registered with persistent=True and computed analytically from sine and cosine functions. This follows the SD3 approach of using fixed 2D sincos embeddings for images."
+        },
+        {
+          "text": "Apply rotary position embeddings to queries and keys in every attention layer",
+          "correct": false,
+          "explanation": "MiniDiffusion does not use rotary embeddings. It uses absolute 2D sinusoidal position embeddings that are added once after patch projection. The positions are center-cropped from a large precomputed grid using cropped_pos_embed to handle variable image sizes."
+        }
+      ],
+      "concept": "Patch Embedding",
+      "difficulty": "easy"
+    },
+    {
+      "type": "encounter",
+      "trigger": "after_stop",
+      "triggerStop": 6,
+      "title": "A Diffusion Researcher Appears!",
+      "text": "A researcher challenges you: 'What makes the final DiT block different from all the others? And why does it matter?'",
+      "choices": [
+        {
+          "text": "The final block uses AdaLayerNormContinuous for context instead of AdaLayerNormZero, and sets encoder_hidden_states to None so text processing stops",
+          "correct": true,
+          "explanation": "When add_context_final is True on the last block, it uses AdaLayerNormContinuous which only produces scale and shift (not gates). After this block, encoder_hidden_states is set to None. The final block also does not have ff_context or norm2_context. This design means text conditioning fully integrates into image features by the end."
+        },
+        {
+          "text": "The final block has twice as many attention heads for higher resolution",
+          "correct": false,
+          "explanation": "All blocks use the same number of attention heads (24). The difference is in normalization and context handling. The final block uses AdaLayerNormContinuous instead of AdaLayerNormZero for the context stream, and it drops the context feed-forward entirely."
+        },
+        {
+          "text": "The final block skips attention and only applies the feed-forward network",
+          "correct": false,
+          "explanation": "The final block still performs attention. In fact, it uses add_q_context=True which adds a separate query projection for the context in the attention layer. The key difference is that after this block, the encoder hidden states are discarded, having been fully absorbed into the image representation."
+        }
+      ],
+      "concept": "Diffusion Transformer",
+      "difficulty": "hard"
+    },
+    {
+      "type": "fortune",
+      "trigger": "after_stop",
+      "triggerStop": 7,
+      "title": "Euler Solver Tailwind!",
+      "text": "Fortune smiles! Your Euler solver catches a tailwind of clean gradients. The reverse flow integrates smoothly from pure noise toward a crystal-clear image. Your party gains one health point each!",
+      "choices": [
+        {
+          "text": "Ride the tailwind and let the deterministic Euler step dt = next_sigma - current_sigma guide the latent smoothly",
+          "correct": true,
+          "explanation": "The reverse_flow method computes dt as the difference between adjacent sigmas and updates the sample with prev_sample = current_sample + dt * model_output. This is the deterministic Euler method for solving the probability flow ODE. The sigmas descend from maximum noise to zero in fifty steps."
+        },
+        {
+          "text": "Add extra noise at each step to increase diversity",
+          "correct": false,
+          "explanation": "While the stochasticity option exists in reverse_flow, the default inference uses stochasticity=False for deterministic sampling. Adding noise helps diversity but reduces quality. The deterministic path produces cleaner images when you want faithful prompt following."
+        },
+        {
+          "text": "Skip every other step to generate images twice as fast",
+          "correct": false,
+          "explanation": "Skipping steps would break the ODE integration. The Euler method needs small, consistent steps. The step_index advances sequentially through the sigma schedule. If you want fewer steps, you should use fewer inference timesteps from the start, not skip during solving."
+        }
+      ],
+      "concept": "Reverse Diffusion",
+      "difficulty": "easy"
+    }
+  ],
+  "partyMembers": [
+    {
+      "name": "VAE Encoder",
+      "icon": "vae",
+      "maxHealth": 3
+    },
+    {
+      "name": "DiT Backbone",
+      "icon": "transformer",
+      "maxHealth": 3
+    },
+    {
+      "name": "Noise Scheduler",
+      "icon": "noise",
+      "maxHealth": 3
+    },
+    {
+      "name": "CLIP Embeddings",
+      "icon": "encoder",
+      "maxHealth": 3
+    }
+  ],
+  "deathMessages": [
+    "You have died of gradient explosion in the DiT backbone.",
+    "You have died of mode collapse. All your images look the same.",
+    "You have drowned in the Latent Space Rapids. Sigma went to infinity.",
+    "You have died of NaN propagation through the attention layers.",
+    "You have died of VAE decoder hallucination. The pixels make no sense.",
+    "You have starved waiting for the T5 encoder to finish tokenizing.",
+    "You have died of catastrophic noise schedule misalignment.",
+    "You have died of CLIP embedding dimension mismatch.",
+    "You have frozen solid at timestep zero. The denoising never converged.",
+    "You have died of KV cache page overflow in joint attention."
+  ],
+  "sourceInfo": {
+    "repo": "yousef-rafat/miniDiffusion",
+    "language": "Python",
+    "description": "A reimplementation of Stable Diffusion 3.5 in pure PyTorch with minimal dependencies",
+    "url": "https://github.com/yousef-rafat/miniDiffusion",
+    "snapshotDate": "2026-04-08"
+  }
+};
+
+// FLAVORS
+window.TRAIL_FLAVORS = [
+  "The VAE encoder compresses your image down to a sixteen-channel latent...",
+  "CLIP and T5 embeddings fuse together to guide the diffusion transformer...",
+  "Twenty-four DiT blocks process your noisy latents with joint attention...",
+  "The logit-normal sampler picks a timestep right in the sweet spot of sigma...",
+  "Your Euler solver takes another step along the probability flow ODE...",
+  "Sinusoidal position embeddings orient each patch in the two-D grid...",
+  "AdaLayerNormZero modulates hidden states with six learned parameters...",
+  "The byte-level BPE tokenizer splits your prompt into subword pieces...",
+  "RMSNorm stabilizes the query and key projections before attention...",
+  "A fellow traveler shares their FID score — inception features look clean...",
+  "The paged KV cache stores key-value pairs across attention layers...",
+  "Dual attention layers give image tokens extra self-attention passes...",
+  "The VAE decoder upsamples your sixteen-channel latent back to RGB...",
+  "Pooled CLIP embeddings combine with the timestep to condition every layer...",
+  "The noise schedule shifts sigmas leftward — training on medium noise pays off...",
+];
+// END FLAVORS
+
+window.drawCustomEventOverlay = function(time) {
+  if (!currentEventType && !currentEventTitle) return;
+  var t = (time || 0) * 0.001;
+
+// OVERLAYS
+  // --- UNICODE_BYTE_STORM: falling byte characters in a storm ---
+  if (currentEventTitle.indexOf('Unicode Byte Storm') !== -1) {
+    ctx.fillStyle = '#0a0a1e';
+    ctx.fillRect(0, 0, W, H);
+    // Falling byte characters
+    ctx.font = '9px monospace';
+    var byteChars = ['\\xf0', '\\xa1', '\\xac', '\\xae', '\\xff', 'UTF-8', '<eos>', 'BPE', '\\x00', '\\x80'];
+    for (var si = 0; si < 18; si++) {
+      var sx = (si * 19 + t * 25 + Math.sin(t + si * 0.9) * 15) % W;
+      var sy = (si * 13 + t * 40) % (H + 20) - 10;
+      ctx.fillStyle = si % 4 === 0 ? '#FF6666' : si % 4 === 1 ? '#66FFAA' : si % 4 === 2 ? '#6688FF' : '#FFCC44';
+      ctx.fillText(byteChars[si % byteChars.length], sx, sy);
+    }
+    // Lightning bolts
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 2;
+    for (var li = 0; li < 3; li++) {
+      if (Math.floor(t * 2 + li) % 5 === 0) {
+        var lx = 50 + li * 100;
+        ctx.beginPath();
+        ctx.moveTo(lx, 0);
+        ctx.lineTo(lx + 10, 30);
+        ctx.lineTo(lx - 5, 30);
+        ctx.lineTo(lx + 15, 65);
+        ctx.stroke();
+      }
+    }
+    ctx.lineWidth = 1;
+    // Byte map table
+    ctx.fillStyle = '#111111';
+    ctx.fillRect(80, H - 45, 160, 35);
+    ctx.strokeStyle = '#44FF44';
+    ctx.strokeRect(80, H - 45, 160, 35);
+    ctx.fillStyle = '#44FF44';
+    ctx.font = '7px monospace';
+    ctx.fillText('to_utf_bytes(): 256 -> chars', 88, H - 30);
+    ctx.fillText('byte_encoder[b] for b in UTF-8', 88, H - 18);
+    return;
+  }
+
+  // --- PROMPT_ENGINEER: NPC with triple encoder diagram ---
+  if (currentEventTitle.indexOf('Prompt Engineer') !== -1) {
+    ctx.fillStyle = '#0e0a1a';
+    ctx.fillRect(0, 0, W, H);
+    // NPC figure
+    ctx.fillStyle = '#DEB887';
+    ctx.beginPath();
+    ctx.arc(40, 80, 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#6633AA';
+    ctx.fillRect(34, 92, 12, 28);
+    // Glasses
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.beginPath();
+    ctx.arc(36, 78, 4, 0, Math.PI * 2);
+    ctx.arc(44, 78, 4, 0, Math.PI * 2);
+    ctx.stroke();
+    // Triple encoder diagram
+    ctx.fillStyle = '#111111';
+    ctx.fillRect(75, 15, 235, 165);
+    ctx.strokeStyle = '#8866FF';
+    ctx.strokeRect(75, 15, 235, 165);
+    ctx.font = '8px monospace';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillText('Triple Text Encoding:', 85, 30);
+    // Three encoder boxes
+    var encoders = [
+      { name: 'CLIP', dim: '768d', color: '#335588', y: 42 },
+      { name: 'OpenCLIP', dim: '1280d', color: '#553388', y: 82 },
+      { name: 'T5', dim: '4096d', color: '#885533', y: 122 }
+    ];
+    var numVisible = Math.min(3, Math.floor(t * 0.8) + 1);
+    for (var ei = 0; ei < numVisible; ei++) {
+      var enc = encoders[ei];
+      ctx.fillStyle = enc.color;
+      ctx.fillRect(85, enc.y, 90, 30);
+      ctx.strokeStyle = '#AAAAAA';
+      ctx.strokeRect(85, enc.y, 90, 30);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '7px monospace';
+      ctx.fillText(enc.name, 90, enc.y + 13);
+      ctx.fillStyle = '#AAAAAA';
+      ctx.fillText(enc.dim, 90, enc.y + 24);
+      // Arrow to concat
+      ctx.strokeStyle = '#FFAA44';
+      ctx.beginPath();
+      ctx.moveTo(175, enc.y + 15);
+      ctx.lineTo(210, enc.y + 15);
+      ctx.stroke();
+    }
+    // Concat box
+    if (numVisible >= 3) {
+      ctx.fillStyle = '#446644';
+      ctx.fillRect(215, 62, 85, 50);
+      ctx.strokeStyle = '#66FF66';
+      ctx.strokeRect(215, 62, 85, 50);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '7px monospace';
+      ctx.fillText('cat + pad', 222, 78);
+      ctx.fillText('-> 4096d', 222, 92);
+      ctx.fillText('embeddings', 222, 106);
+    }
+    return;
+  }
+
+  // --- LATENT_SPACE_RAPIDS: river with floating latent vectors ---
+  if (currentEventTitle.indexOf('Latent Space Rapids') !== -1) {
+    // Sky
+    ctx.fillStyle = '#0a1133';
+    ctx.fillRect(0, 0, W, 60);
+    // River
+    ctx.fillStyle = '#0a1855';
+    ctx.fillRect(0, 60, W, 100);
+    // Waves
+    ctx.fillStyle = '#1a3388';
+    for (var wi = 0; wi < 14; wi++) {
+      var wx = (wi * 25 + t * 35) % (W + 20) - 10;
+      ctx.beginPath();
+      ctx.arc(wx, 105 + Math.sin(t * 2 + wi) * 6, 14, 0, Math.PI);
+      ctx.fill();
+    }
+    // Floating latent channel numbers
+    ctx.font = '8px monospace';
+    for (var vi = 0; vi < 8; vi++) {
+      var vx = (vi * 42 + t * 25) % (W + 30) - 15;
+      var vy = 75 + Math.sin(t * 1.5 + vi * 1.4) * 15;
+      ctx.fillStyle = vi < 4 ? '#88FFAA' : '#FF8888';
+      var label = vi < 4 ? 'mu[' + vi + ']' : 'lv[' + (vi - 4) + ']';
+      ctx.fillText(label, vx, vy);
+    }
+    // Reparameterization formula
+    ctx.fillStyle = '#FFFF66';
+    ctx.font = '9px monospace';
+    var fAlpha = 0.5 + Math.sin(t * 2) * 0.3;
+    ctx.globalAlpha = fAlpha;
+    ctx.fillText('z = mean + eps * std', 100, 45);
+    ctx.globalAlpha = 1.0;
+    // Banks
+    ctx.fillStyle = '#223322';
+    ctx.fillRect(0, 155, W, 45);
+    return;
+  }
+
+  // --- SIGMA_SCHEDULE_COLLAPSE: histogram of timestep distribution ---
+  if (currentEventTitle.indexOf('Sigma Schedule') !== -1) {
+    ctx.fillStyle = '#0a0a12';
+    ctx.fillRect(0, 0, W, H);
+    // Title
+    ctx.font = '9px monospace';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillText('Timestep Sampling Distribution', 70, 18);
+    // Draw logit-normal curve
+    ctx.strokeStyle = '#33FF33';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    var started = false;
+    for (var xi = 0; xi < 280; xi++) {
+      var xt = xi / 280;
+      if (xt < 0.01 || xt > 0.99) continue;
+      var logit = Math.log(xt / (1 - xt));
+      var pdf = Math.exp(-logit * logit / 2) / (xt * (1 - xt) * 2.507);
+      var py = 160 - pdf * 70;
+      var px = 20 + xi;
+      if (!started) { ctx.moveTo(px, py); started = true; }
+      else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+    ctx.lineWidth = 1;
+    // Uniform comparison (flat line)
+    ctx.strokeStyle = '#FF3333';
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(20, 140);
+    ctx.lineTo(300, 140);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Labels
+    ctx.font = '7px monospace';
+    ctx.fillStyle = '#33FF33';
+    ctx.fillText('logit-normal', 230, 85);
+    ctx.fillStyle = '#FF3333';
+    ctx.fillText('uniform', 250, 135);
+    // Axis labels
+    ctx.fillStyle = '#AAAAAA';
+    ctx.fillText('t=0 (clean)', 20, H - 5);
+    ctx.fillText('t=1 (noise)', 250, H - 5);
+    // Animated sampling dot
+    var dotX = 20 + (140 + Math.sin(t * 1.5) * 60);
+    ctx.fillStyle = '#FFFF00';
+    ctx.beginPath();
+    ctx.arc(dotX, 160 - 35, 4, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+
+  // --- POSITION_EMBEDDING_FOG: patches in fog with sinusoidal waves ---
+  if (currentEventTitle.indexOf('Position Embedding Fog') !== -1) {
+    // Foggy sky
+    ctx.fillStyle = '#1a1a2a';
+    ctx.fillRect(0, 0, W, H);
+    // Fog layers
+    for (var fi = 0; fi < 6; fi++) {
+      ctx.fillStyle = 'rgba(100,100,140,' + (0.08 + fi * 0.02) + ')';
+      var fy = 20 + fi * 28 + Math.sin(t * 0.5 + fi) * 8;
+      ctx.fillRect(0, fy, W, 20);
+    }
+    // Patch grid
+    var gridSize = 6;
+    var cellW = 30;
+    var cellH = 22;
+    var startX = (W - gridSize * cellW) / 2;
+    var startY = 30;
+    ctx.font = '6px monospace';
+    var numRevealed = Math.min(gridSize * gridSize, Math.floor(t * 4));
+    for (var py = 0; py < gridSize; py++) {
+      for (var px = 0; px < gridSize; px++) {
+        var idx = py * gridSize + px;
+        if (idx >= numRevealed) continue;
+        var cx = startX + px * cellW;
+        var cy = startY + py * cellH;
+        // Patch box
+        var bright = 30 + Math.floor(Math.sin(t + px * 0.5 + py * 0.7) * 20 + 20);
+        ctx.fillStyle = 'rgb(' + bright + ',' + (bright + 20) + ',' + (bright + 50) + ')';
+        ctx.fillRect(cx + 1, cy + 1, cellW - 2, cellH - 2);
+        ctx.strokeStyle = '#5566AA';
+        ctx.strokeRect(cx + 1, cy + 1, cellW - 2, cellH - 2);
+        // Patch coordinates
+        ctx.fillStyle = '#AADDFF';
+        ctx.fillText(px + ',' + py, cx + 8, cy + 14);
+      }
+    }
+    // Sincos label
+    ctx.fillStyle = '#FFCC44';
+    ctx.font = '8px monospace';
+    ctx.fillText('2D sincos pos_embed', 100, H - 12);
+    return;
+  }
+
+  // --- DIFFUSION_RESEARCHER: final block architecture diagram ---
+  if (currentEventTitle.indexOf('Diffusion Researcher') !== -1) {
+    ctx.fillStyle = '#0a0e1a';
+    ctx.fillRect(0, 0, W, H);
+    // NPC researcher
+    ctx.fillStyle = '#DEB887';
+    ctx.beginPath();
+    ctx.arc(30, 100, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(25, 110, 10, 22);
+    // Lab coat
+    ctx.strokeStyle = '#AAAAAA';
+    ctx.strokeRect(23, 110, 14, 22);
+    // Block comparison diagram
+    ctx.fillStyle = '#111111';
+    ctx.fillRect(60, 10, 250, 180);
+    ctx.strokeStyle = '#6688CC';
+    ctx.strokeRect(60, 10, 250, 180);
+    ctx.font = '8px monospace';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillText('Block 0-22 vs Block 23 (final)', 75, 25);
+    // Regular block
+    ctx.fillStyle = '#334455';
+    ctx.fillRect(70, 35, 100, 65);
+    ctx.strokeStyle = '#5588BB';
+    ctx.strokeRect(70, 35, 100, 65);
+    ctx.fillStyle = '#88BBFF';
+    ctx.font = '7px monospace';
+    ctx.fillText('AdaLNZero', 78, 48);
+    ctx.fillText('JointAttn', 78, 60);
+    ctx.fillText('FF + FF_ctx', 78, 72);
+    ctx.fillText('ctx -> next', 78, 84);
+    // Arrow
+    ctx.fillStyle = '#FFAA44';
+    ctx.font = '14px monospace';
+    ctx.fillText('>', 180, 70);
+    // Final block
+    var finalVis = t > 1.5;
+    if (finalVis) {
+      ctx.fillStyle = '#553322';
+      ctx.fillRect(200, 35, 100, 65);
+      ctx.strokeStyle = '#FF8844';
+      ctx.strokeRect(200, 35, 100, 65);
+      ctx.fillStyle = '#FFBB88';
+      ctx.font = '7px monospace';
+      ctx.fillText('AdaLNCont', 208, 48);
+      ctx.fillText('JointAttn', 208, 60);
+      ctx.fillText('FF only', 208, 72);
+      ctx.fillText('ctx -> None', 208, 84);
+    }
+    // Labels
+    ctx.fillStyle = '#AAAAAA';
+    ctx.font = '7px monospace';
+    ctx.fillText('Blocks 0-22:', 70, 112);
+    ctx.fillText('- AdaLayerNormZero (6 params)', 70, 124);
+    ctx.fillText('- Context FF + residual', 70, 136);
+    if (finalVis) {
+      ctx.fillStyle = '#FFAA66';
+      ctx.fillText('Block 23 (final):', 70, 152);
+      ctx.fillText('- AdaLayerNormContinuous', 70, 164);
+      ctx.fillText('- No context FF, ctx=None', 70, 176);
+    }
+    return;
+  }
+// END OVERLAYS
+};
+</script>
+<script src="../engine.js"></script>
+</body>
+</html>

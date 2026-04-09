@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Coderegon Trail - Korb Edition</title>
+</head>
+<body>
+<div id="game-container">
+  <div id="canvas-area">
+    <canvas id="game-canvas" width="320" height="200"></canvas>
+    <div id="music-indicator">M: Music</div>
+  </div>
+  <div id="text-panel"></div>
+  <div id="status-bar"></div>
+</div>
+
+<script>
+window.TRAIL_DATA = {
+  "framework": "korb",
+  "trailName": "The Checkout Trail",
+  "stops": [
+    {
+      "name": "Terminal Outpost",
+      "subtitle": "CLI Argument Parsing",
+      "concept": "CLI Architecture",
+      "landmarkType": "town",
+      "code": {
+        "file": "src/Cli.hs",
+        "content": "-- src/Cli.hs (simplified)\ndata Command\n  = Store StoreCommand\n  | Search Text [SearchAttribute] [Slug]\n  | Login\n  | Slots\n  | Favorites FavoritesCommand\n  | Basket BasketCommand\n  | Checkout CheckoutCommand\n  | Order OrderCommand\n  | Suggestion SuggestionCommand\n  | Categories\n  deriving stock (Show, Eq)\n\ncommandParser :: Parser Command\ncommandParser =\n  hsubparser $\n    command \"store\" (info storeParser (progDesc \"Show or set store\"))\n    <> command \"search\" (info searchParser (progDesc \"Search products\"))\n    <> command \"login\" (info loginParser (progDesc \"Authenticate\"))\n    <> command \"basket\" (info basketParser (progDesc \"Manage basket\"))\n    <> command \"checkout\" (info checkoutParser (progDesc \"Checkout\"))\n    <> command \"orders\" (info orderParser (progDesc \"Manage orders\"))",
+        "language": "haskell"
+      },
+      "narration": "Every grocery run starts at the terminal. Korb uses optparse-applicative to define a sum type of all possible commands. Each variant carries its own data. The hsubparser combinator turns subcommands into a clean algebraic data type. No stringly-typed arguments here."
+    },
+    {
+      "name": "Store Selection Pass",
+      "subtitle": "Finding Your Market",
+      "concept": "Store Configuration",
+      "landmarkType": "camp",
+      "code": {
+        "file": "src/StoreApi.hs + src/Storage.hs",
+        "content": "-- src/StoreApi.hs\nsearchForStores :: HttpClient -> ZipCode -> IOE ApiError [PickupMarket]\nsearchForStores HttpClient{get} (ZipCode plz) = do\n  res :: ReweResponse ServiceArea <-\n    get (ApiUrl (\"https://mobile-clients-api.rewe.de/api/service-portfolio/\" <> plz)) [] []\n  pure $ maybe [] (.pickupMarkets) res.data_.servicePortfolio\n\n-- src/Storage.hs\ndata CurrentStore = CurrentStore\n  { wwIdent :: WwIdent, zipCode :: ZipCode }\n\nwriteSettings :: WwIdent -> ZipCode -> IOE FileError CurrentStore\nwriteSettings (WwIdent wwIdent) (ZipCode zipCode) =\n  liftIOE FileError $ do\n    dir <- configDir\n    createDirectoryIfMissing True dir\n    TIO.writeFile (dir </> \"selected_store\") wwIdent\n    TIO.writeFile (dir </> \"selected_zip\") zipCode\n    pure $ CurrentStore (WwIdent wwIdent) (ZipCode zipCode)",
+        "language": "haskell"
+      },
+      "narration": "Before shopping, you pick your local REWE market. The store API takes a zip code and returns pickup locations. Your selection gets persisted as plain text files in the XDG config directory. Simple, no database needed. This config is loaded on every subsequent command."
+    },
+    {
+      "name": "Authentication Ridge",
+      "subtitle": "PKCE OAuth Flow",
+      "concept": "Authentication",
+      "landmarkType": "mountain",
+      "code": {
+        "file": "src/Auth.hs",
+        "content": "-- src/Auth.hs\ngeneratePKCE :: IO (ByteString, ByteString)\ngeneratePKCE = do\n  bytes <- getEntropy 32\n  let verifier = encodeUnpadded bytes\n      challenge = encodeUnpadded (convert (hash verifier :: Digest SHA256))\n  pure (verifier, challenge)\n\nloginFlow :: TokenStore -> HttpClient -> IOE AppError Text\nloginFlow store HttpClient{urlFromEncodedPost} = do\n  (url, verifier) <- liftE generateAuthUrl\n  redirect <- liftIO $ do\n    putStrLn \"1. Open this URL in Chrome:\"\n    TIO.putStr url\n    putStrLn \"2. Log in normally (email, password, 2FA)\"\n    putStrLn \"3. Copy the redirect URL and paste it here:\"\n    TIO.getLine\n  code <- liftE $ except (extractCodeFromRedirect redirect)\n  tknRes :: TokenResponse <-\n    liftE $ urlFromEncodedPost (reweFormEncodedBody code verifier) tokenEndpoint\n  liftE $ store.storeAccess tknRes.access_token\n  liftE $ store.storeRefresh tknRes.refresh_token\n  pure \"Login succeeded, tokens stored\"",
+        "language": "haskell"
+      },
+      "narration": "The steepest climb on the trail. Korb reverse-engineers REWE's mobile app OAuth flow using PKCE. It generates a cryptographic verifier, hashes it with SHA-256 to create a challenge, and builds the authorization URL. The user logs in via browser, copies the redirect, and korb exchanges the auth code for tokens. Real crypto in a grocery CLI."
+    },
+    {
+      "name": "Token Refresh Falls",
+      "subtitle": "JWT Validation and Refresh",
+      "concept": "Authentication",
+      "landmarkType": "river",
+      "code": {
+        "file": "src/Auth.hs",
+        "content": "-- src/Auth.hs\ndecodeJWT :: AccessToken -> Either AuthError Int64\ndecodeJWT (AccessToken tkn) = do\n  jwtPayload <- case splitOn \".\" tkn of\n    (_ : token : _) -> first (AuthError . pack) $\n      decodeUnpadded $ encodeUtf8 token\n    _ -> Left $ AuthError \"Access token in wrong format\"\n  case eitherDecodeStrict jwtPayload of\n    Right (Exp expiry) -> pure expiry\n    Left err -> Left (AuthError $ pack err)\n\ngetValidToken :: TokenStore -> HttpClient -> IOE AppError AccessToken\ngetValidToken store client = do\n  token <- liftE store.readAccess\n  expiry <- liftE $ except $ decodeJWT token\n  now :: Int64 <- round <$> liftIO getPOSIXTime\n  if now < expiry - 30 then pure token else refreshFlow store client",
+        "language": "haskell"
+      },
+      "narration": "Crossing the Token Refresh Falls. Every authenticated request first checks if the JWT is still valid. Korb splits the JWT on dots, base64-decodes the payload, and extracts the expiry timestamp. If the token expires within 30 seconds, it silently refreshes using the stored refresh token. Users never see re-authentication."
+    },
+    {
+      "name": "HTTP Client Gorge",
+      "subtitle": "mTLS and curl Wrapper",
+      "concept": "HTTP Transport",
+      "landmarkType": "forest",
+      "code": {
+        "file": "src/HttpClient.hs",
+        "content": "-- src/HttpClient.hs\ndata HttpClient = HttpClient\n  { get :: forall res. (FromJSON res) =>\n      ApiUrl -> Headers -> QueryParams -> IOE ApiError res\n  , post :: forall res req. (FromJSON res, ToJSON req) =>\n      req -> ApiUrl -> Headers -> QueryParams -> IOE ApiError res\n  , patch :: forall res req. (FromJSON res, ToJSON req) =>\n      req -> ApiUrl -> Headers -> QueryParams -> IOE ApiError res\n  , delete :: forall res. (FromJSON res) =>\n      ApiUrl -> Headers -> QueryParams -> IOE ApiError res\n  }\n\ncertPem :: ByteString\ncertPem = $(embedFile \"certs/mobile-clients-api.rewe.de/private.pem\")\n\nmkHttpClient :: IOE AppError HttpClient\nmkHttpClient = do\n  (certPath, keyPath) <- liftE writeCertsToTemp\n  curlBin <- liftE $ liftIOE FileError $\n    pack . fromMaybe \"curl\" <$> lookupEnv \"KORB_CURL\"\n  pure HttpClient { get = \\url hdrs qps ->\n    curlJson curlBin certPath keyPath GET url hdrs qps Nothing, ... }",
+        "language": "haskell"
+      },
+      "narration": "Deep in HTTP Client Gorge, korb uses a record of polymorphic functions as its HTTP abstraction. The real trick is mTLS. Client certificates are extracted from the REWE mobile app and embedded into the binary at compile time with Template Haskell. They are written to temp files at runtime and passed to curl. No Haskell HTTP library needed."
+    },
+    {
+      "name": "Product Search Prairie",
+      "subtitle": "Searching and Browsing",
+      "concept": "Product Search",
+      "landmarkType": "camp",
+      "code": {
+        "file": "src/ReweApi.hs",
+        "content": "-- src/ReweApi.hs\nsearchRewe :: RewePublicApi -> Text -> [SearchAttribute] -> [Slug]\n  -> IOE ApiError [Product]\nsearchRewe RewePublicApi{search} query attributes categories = do\n  let attributeFilters =\n        (\\a -> \"attribute=\" <> attributeToText a) <$> attributes\n  let categoryFilters =\n        (\\(Slug slug) -> \"categorySlug=\" <> slug) <$> categories\n  let filters = intercalate \"&\" (attributeFilters ++ categoryFilters)\n  searchRes <- search [(\"query\", query), (\"filters\", filters)]\n  pure searchRes.data_.products.products\n\n-- src/ReweApi/Types.hs\ndata Product = Product\n  { articleId :: Text\n  , productId :: ProductId\n  , title :: Text\n  , imageURL :: Text\n  , orderLimit :: Maybe Int\n  , listing :: Listing\n  , attributes :: Maybe ProductAttributes\n  }",
+        "language": "haskell"
+      },
+      "narration": "Out on the Product Search Prairie, you find what you need. Filters for organic, vegan, regional, and vegetarian get converted to query parameters. Category slugs narrow the search further. The Product type captures everything REWE returns. Search is the only public endpoint that does not require authentication."
+    },
+    {
+      "name": "Basket Management Camp",
+      "subtitle": "Cart Operations",
+      "concept": "Cart Management",
+      "landmarkType": "camp",
+      "code": {
+        "file": "src/ReweApi.hs",
+        "content": "-- src/ReweApi.hs\nbasket :: ReweAuthedApi -> IOE ApiError Basket\nbasket ReweAuthedApi{getBaseket} = do\n  reweRes <- getBaseket\n  pure reweRes.data_.basket\n\nbasketsAdd :: ReweAuthedApi -> Item -> IOE ApiError (Maybe LineItem)\nbasketsAdd ReweAuthedApi{getBaseket, addItemToBasket}\n  Item{listingId, quantity} = do\n  reweResponse <- getBaseket\n  let currentBasket = reweResponse.data_.basket\n  reweRes <-\n    addItemToBasket\n      currentBasket.id\n      listingId\n      (fromMaybe (Qty 1) quantity)\n      currentBasket.version\n  let wasDelete = any (\\(Qty q) -> q <= 0) quantity\n  let addedLineItem =\n        find (\\li -> li.product.listing.listingId == listingId)\n          reweRes.data_.basket.lineItems\n  maybe\n    (if wasDelete then pure Nothing\n     else throwE $ ApiError \"Item was not added to basket\")\n    pure $ Just addedLineItem",
+        "language": "haskell"
+      },
+      "narration": "Setting up camp at Basket Management. Adding to the basket requires first fetching the current basket to get its ID and version, a form of optimistic concurrency control. Quantity zero means delete. The function checks if the item actually appeared in the response. Notice how Haskell's Maybe type makes the success and delete paths explicit."
+    },
+    {
+      "name": "Checkout Frontier",
+      "subtitle": "Timeslot, Payment, and Order",
+      "concept": "Checkout Pipeline",
+      "landmarkType": "town",
+      "code": {
+        "file": "src/ReweApi.hs",
+        "content": "-- src/ReweApi.hs\ncheckoutTimeslot :: ReweAuthedApi -> TimeslotId\n  -> IOE ApiError CheckoutResponse\ncheckoutTimeslot api@ReweAuthedApi{\n  patchCheckoutTimeslot, reserveTimeslot = reserve, addPayment\n  } timeslot = do\n  co <- checkout api\n  reservedTimeslot <- (.data_.createTimeslotReservation)\n    <$> reserve timeslot\n  _ <- (.data_) <$> patchCheckoutTimeslot\n    co.basket.id co.checkout.id reservedTimeslot.slotId\n  (.data_) <$> addPayment co.basket.id co.checkout.id\n\norderCheckout :: ReweAuthedApi -> IOE ApiError OrderResponse\norderCheckout api@ReweAuthedApi{postOrder, confirmOrder} = do\n  co <- checkout api\n  when (null co.checkout.timeslot) $\n    throwE (ApiError \"No timeslot for pickup set.\")\n  _ <- confirmOrder co.checkout.id co.basket.id\n  (.data_) <$> postOrder co.checkout.id",
+        "language": "haskell"
+      },
+      "narration": "You made it to Checkout Frontier! The final pipeline is a careful multi-step dance: create checkout from basket, reserve a timeslot, patch the timeslot onto the checkout, set payment to in-market, confirm the order, then place it. Each step is a separate API call. Miss any step and the order fails. Your wagon has arrived at the REWE pickup counter."
+    }
+  ],
+  "events": [
+    {
+      "type": "weather",
+      "trigger": "after_stop",
+      "triggerStop": 1,
+      "title": "Cloudflare Storm!",
+      "text": "A storm of TLS fingerprinting hits your requests! REWE's Cloudflare protection is blocking automated clients. How do you weather this storm?",
+      "choices": [
+        {
+          "text": "Use mTLS client certificates extracted from the mobile app",
+          "correct": true,
+          "explanation": "Korb embeds the REWE mobile app's client certificates and presents them via curl's --cert and --key flags. This makes requests look like they come from the official app."
+        },
+        {
+          "text": "Set a User-Agent header to pretend to be a browser",
+          "correct": false,
+          "explanation": "User-Agent spoofing alone won't fool mTLS verification. The server requires a valid client certificate signed by the expected CA."
+        },
+        {
+          "text": "Use a headless browser to make all API calls",
+          "correct": false,
+          "explanation": "Running a full browser for JSON API calls is massive overkill. The mTLS certificates are the key that unlocks the mobile API."
+        }
+      ],
+      "concept": "HTTP Transport",
+      "difficulty": "easy"
+    },
+    {
+      "type": "encounter",
+      "trigger": "after_stop",
+      "triggerStop": 2,
+      "title": "A Haskell Developer Appears",
+      "text": "A fellow traveler asks: 'Korb uses ExceptT e IO a everywhere, aliased as IOE. Why not just use IO with exceptions?'",
+      "choices": [
+        {
+          "text": "ExceptT makes errors visible in the type signature so the compiler enforces handling",
+          "correct": true,
+          "explanation": "IOE ApiError forces callers to handle or propagate the specific error type. The LiftError typeclass then lets you compose different error domains into AppError. The compiler catches unhandled cases."
+        },
+        {
+          "text": "ExceptT is faster than IO exceptions at runtime",
+          "correct": false,
+          "explanation": "ExceptT is actually slightly slower due to the Either wrapper. The benefit is type safety, not performance."
+        },
+        {
+          "text": "IO exceptions don't work with async code",
+          "correct": false,
+          "explanation": "IO exceptions work fine with async code. The choice of ExceptT is about making error handling explicit in types, not about async compatibility."
+        }
+      ],
+      "concept": "CLI Architecture",
+      "difficulty": "medium"
+    },
+    {
+      "type": "river",
+      "trigger": "after_stop",
+      "triggerStop": 3,
+      "title": "The PKCE River",
+      "text": "You've reached the deepest river on the trail. The OAuth flow requires proving you're the same client who started the authorization request. How do you cross?",
+      "choices": [
+        {
+          "text": "Generate a random verifier, hash it as a challenge, send the challenge first, then prove the verifier later",
+          "correct": true,
+          "explanation": "PKCE generates a random verifier, SHA-256 hashes it into a code_challenge sent with the auth request, then sends the original verifier when exchanging the code. The server hashes the verifier to verify it matches. No client secret needed."
+        },
+        {
+          "text": "Store a client secret in the binary and send it with every request",
+          "correct": false,
+          "explanation": "Client secrets in distributed binaries are easily extracted. PKCE was invented specifically because native apps can't keep secrets. The challenge-verifier pattern proves identity without shared secrets."
+        },
+        {
+          "text": "Use basic HTTP authentication with username and password",
+          "correct": false,
+          "explanation": "Sending raw credentials with every request is insecure and doesn't support the redirect-based OAuth flow. PKCE provides cryptographic proof of the authorization initiator."
+        }
+      ],
+      "concept": "Authentication",
+      "difficulty": "hard"
+    },
+    {
+      "type": "misfortune",
+      "trigger": "after_stop",
+      "triggerStop": 4,
+      "title": "Expired Token Breakdown!",
+      "text": "Disaster! Your access token expired mid-request. The basket API returns 401 Unauthorized. Your shopping list is still full!",
+      "choices": [
+        {
+          "text": "Check the JWT expiry before each request and silently refresh using the refresh token",
+          "correct": true,
+          "explanation": "getValidToken decodes the JWT payload, checks if now < expiry - 30, and triggers refreshFlow if needed. The 30-second buffer prevents edge-case expiry during the request. Users never see auth errors."
+        },
+        {
+          "text": "Catch the 401 error and ask the user to run korb login again",
+          "correct": false,
+          "explanation": "Forcing re-login on every token expiry is terrible UX. The whole point of refresh tokens is transparent re-authentication without user interaction."
+        },
+        {
+          "text": "Request a token with a very long expiry so it never expires",
+          "correct": false,
+          "explanation": "Token lifetime is controlled by the server, not the client. Short-lived access tokens with refresh tokens is the secure pattern. Korb can't change REWE's token policy."
+        }
+      ],
+      "concept": "Authentication",
+      "difficulty": "medium"
+    },
+    {
+      "type": "weather",
+      "trigger": "after_stop",
+      "triggerStop": 5,
+      "title": "Type Storm!",
+      "text": "A blizzard of API responses is hitting your code. REWE wraps every response in {\"data\": ...} and each endpoint returns different nested structures. How do you stay type-safe?",
+      "choices": [
+        {
+          "text": "Define a generic ReweResponse wrapper with GHC Generics-derived JSON parsing",
+          "correct": true,
+          "explanation": "ReweResponse maps the 'data' field to 'data_' via fieldLabelModifier in genericParseJSON. Each endpoint gets its own response type inside. The compiler ensures you access only fields that exist."
+        },
+        {
+          "text": "Parse everything as a raw JSON Value and use dynamic lookups",
+          "correct": false,
+          "explanation": "Dynamic JSON access throws away all type safety. You'd discover missing fields at runtime instead of compile time. Aeson's FromJSON instances catch these errors early."
+        },
+        {
+          "text": "Write manual JSON parsing for each response type",
+          "correct": false,
+          "explanation": "Manual parsing is error-prone and verbose. GHC Generics derives correct FromJSON instances automatically from the Haskell record structure. Less code, fewer bugs."
+        }
+      ],
+      "concept": "HTTP Transport",
+      "difficulty": "medium"
+    },
+    {
+      "type": "encounter",
+      "trigger": "after_stop",
+      "triggerStop": 6,
+      "title": "A Smart Shopper Appears",
+      "text": "A clever traveler shows you their workflow: 'I use korb suggestion threshold 5 to find items that push my cart past the free pickup minimum. It checks my last 10 orders and ranks by purchase frequency.' What's the key insight?",
+      "choices": [
+        {
+          "text": "Sort by purchase frequency descending, exclude items already in basket, take N",
+          "correct": true,
+          "explanation": "The suggestion engine counts how often each product appears across recent orders, filters out items already in the basket, sorts by frequency descending, and takes the requested number. Formally verified with Lean 4 proofs."
+        },
+        {
+          "text": "Recommend the cheapest items to minimize spending while hitting the threshold",
+          "correct": false,
+          "explanation": "Price optimization misses the point. The suggestions should be items you actually want to buy. Frequency ranking ensures you get items you regularly purchase."
+        },
+        {
+          "text": "Randomly select from past purchases to add variety",
+          "correct": false,
+          "explanation": "Random selection would suggest items you rarely buy. Frequency ranking surfaces your staples, the items most likely to be useful additions."
+        }
+      ],
+      "concept": "Product Search",
+      "difficulty": "easy"
+    },
+    {
+      "type": "misfortune",
+      "trigger": "after_stop",
+      "triggerStop": 7,
+      "title": "Empty Basket Crash!",
+      "text": "You try to checkout but the basket is empty! The API will reject an empty checkout and your order flow crashes.",
+      "choices": [
+        {
+          "text": "Check if lineItems is empty before calling the checkout API and throw a descriptive error",
+          "correct": true,
+          "explanation": "Korb checks 'when (null currentBasket.lineItems)' and throws a clear ApiError before hitting the network. Fail fast with a good message beats a cryptic API error."
+        },
+        {
+          "text": "Let the API return an error and display whatever it says",
+          "correct": false,
+          "explanation": "API error messages are often cryptic and unhelpful. Client-side validation gives users actionable feedback before wasting a network round trip."
+        },
+        {
+          "text": "Automatically add a suggested item to the basket so it's never empty",
+          "correct": false,
+          "explanation": "Silently adding items the user didn't request would be surprising and potentially costly. The correct approach is to inform the user and let them decide."
+        }
+      ],
+      "concept": "Cart Management",
+      "difficulty": "easy"
+    }
+  ],
+  "partyMembers": [
+    {
+      "name": "CLI Architecture",
+      "icon": "cli",
+      "maxHealth": 3
+    },
+    {
+      "name": "Authentication",
+      "icon": "auth",
+      "maxHealth": 3
+    },
+    {
+      "name": "HTTP Transport",
+      "icon": "http",
+      "maxHealth": 3
+    },
+    {
+      "name": "Checkout Pipeline",
+      "icon": "checkout",
+      "maxHealth": 3
+    }
+  ],
+  "deathMessages": [
+    "You have died of expired access tokens.",
+    "You have died of mTLS certificate mismatch.",
+    "You have died of empty basket syndrome.",
+    "You have drowned in the PKCE River.",
+    "You have died of unhandled ExceptT errors.",
+    "You have died of Cloudflare TLS fingerprinting.",
+    "You have died of missing store configuration.",
+    "You have died of optimistic concurrency conflicts.",
+    "You have died of checkout without a timeslot.",
+    "You have starved waiting for the REWE API response."
+  ],
+  "sourceInfo": {
+    "repo": "yannick-cw/korb",
+    "language": "Haskell",
+    "description": "REWE delivery CLI - a Haskell CLI for ordering groceries via reverse-engineered REWE API",
+    "url": "https://github.com/yannick-cw/korb"
+  }
+};
+
+// FLAVORS
+window.TRAIL_FLAVORS = [
+  "The terminal cursor blinks. Your grocery list is ready...",
+  "Haskell compiles your order. No runtime exceptions today...",
+  "The ExceptT monad carries your errors safely upstream...",
+  "curl writes mTLS certificates to temp. The API awaits...",
+  "Your REWE store is set. Zip code locked in...",
+  "optparse-applicative parses your subcommands cleanly...",
+  "The JWT payload decodes. Thirty seconds until expiry...",
+  "Product search returns organic avocados. Filters applied...",
+  "The basket version increments. Optimistic concurrency holds...",
+  "A Siri shortcut appends oat milk to the shopping list...",
+  "Template Haskell embeds the certificates at compile time...",
+  "The suggestion engine ranks by purchase frequency...",
+  "Lean 4 proofs verify the sorting invariants formally...",
+  "Timeslot reserved. Pickup window confirmed...",
+  "The agentic workflow orders groceries on your behalf..."
+];
+// END FLAVORS
+
+window.drawCustomEventOverlay = function(time) {
+  if (!currentEventType && !currentEventTitle) return;
+  var t = (time || 0) * 0.001;
+
+// OVERLAYS
+  // --- CLOUDFLARE STORM: dark sky, lightning, digital rain ---
+  if (currentEventTitle.indexOf('Cloudflare Storm') !== -1) {
+    ctx.fillStyle = 'rgba(0,0,50,0.45)';
+    ctx.fillRect(0, 0, W, 110);
+    var flashPhase = Math.sin(t * 1.7) + Math.sin(t * 3.1);
+    if (flashPhase > 1.6) {
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = '#FFFF55';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      var lx = 80 + Math.sin(t * 2.3) * 60;
+      ctx.moveTo(lx, 10);
+      ctx.lineTo(lx - 5, 35);
+      ctx.lineTo(lx + 8, 35);
+      ctx.lineTo(lx - 3, 65);
+      ctx.lineTo(lx + 10, 65);
+      ctx.lineTo(lx + 2, 95);
+      ctx.stroke();
+    }
+    // Digital rain (matrix-style green chars)
+    ctx.fillStyle = '#33FF33';
+    ctx.font = '8px monospace';
+    for (var i = 0; i < 20; i++) {
+      var rx = (i * 16.1) % W;
+      var ry = (i * 23.7 + t * 60) % 110;
+      ctx.globalAlpha = 0.4 + Math.sin(t + i) * 0.2;
+      ctx.fillText(String.fromCharCode(48 + (i * 7 + Math.floor(t * 3)) % 10), Math.floor(rx), Math.floor(ry));
+    }
+    ctx.globalAlpha = 1.0;
+    return;
+  }
+
+  // --- PKCE RIVER: rough rapids with crypto symbols ---
+  if (currentEventTitle.indexOf('PKCE River') !== -1) {
+    ctx.fillStyle = '#55FFFF';
+    for (var i = 0; i < 20; i++) {
+      var sx = (i * 17 + t * 40) % W;
+      var sy = 157 + Math.sin((i * 3 + t * 5)) * 3;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), 4, 2);
+    }
+    // Floating hash symbols
+    ctx.fillStyle = '#FFFF55';
+    ctx.font = '10px monospace';
+    for (var i = 0; i < 5; i++) {
+      var hx = (i * 65 + t * 20) % W;
+      var hy = 155 + Math.sin(t * 2 + i) * 4;
+      ctx.fillText('#', Math.floor(hx), Math.floor(hy));
+    }
+    return;
+  }
+
+  // --- HASKELL DEVELOPER ENCOUNTER: person with lambda hat ---
+  if (currentEventTitle.indexOf('Haskell Developer') !== -1) {
+    var px = 200, py = 142;
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(px, py - 12, 4, 8);
+    ctx.fillStyle = '#FFAA00';
+    ctx.fillRect(px, py - 15, 4, 3);
+    ctx.fillRect(px - 1, py - 4, 2, 5);
+    ctx.fillRect(px + 3, py - 4, 2, 5);
+    // Lambda hat
+    ctx.fillStyle = '#AA55FF';
+    ctx.fillRect(px - 1, py - 17, 6, 2);
+    ctx.fillRect(px, py - 19, 4, 2);
+    // Campfire
+    var fx = 212, fy = 148;
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(fx - 3, fy, 2, 3);
+    ctx.fillRect(fx + 3, fy, 2, 3);
+    ctx.fillStyle = '#FF5555';
+    var flicker = Math.sin(t * 8) * 2;
+    ctx.fillRect(fx - 1, fy - 3 + Math.floor(flicker * 0.3), 4, 3);
+    ctx.fillStyle = '#FFFF55';
+    ctx.fillRect(fx, fy - 5 + Math.floor(flicker * 0.5), 2, 2);
+    ctx.fillStyle = 'rgba(255,170,0,0.08)';
+    ctx.beginPath();
+    ctx.arc(fx + 1, fy - 2, 15, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+
+  // --- EXPIRED TOKEN: red danger, clock symbol ---
+  if (currentEventTitle.indexOf('Expired Token') !== -1) {
+    ctx.fillStyle = 'rgba(170,0,0,0.25)';
+    ctx.fillRect(0, 0, W, H);
+    // Smoke/steam rising
+    ctx.fillStyle = '#555555';
+    for (var i = 0; i < 15; i++) {
+      var sx = 140 + Math.sin(i * 2.7 + t) * 30;
+      var sy = 130 - ((t * 20 + i * 15) % 90);
+      var size = 2 + (i % 3);
+      ctx.globalAlpha = 0.3 + Math.sin(t + i) * 0.15;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), size, size);
+    }
+    ctx.globalAlpha = 1.0;
+    // Pulsing clock outline
+    var pulse = (Math.sin(t * 3) + 1) * 0.3;
+    ctx.strokeStyle = 'rgba(255,85,85,' + pulse.toFixed(2) + ')';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(160, 100, 12, 0, Math.PI * 2);
+    ctx.stroke();
+    // Clock hands
+    ctx.beginPath();
+    ctx.moveTo(160, 100);
+    ctx.lineTo(160, 92);
+    ctx.moveTo(160, 100);
+    ctx.lineTo(166, 100);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+    return;
+  }
+
+  // --- TYPE STORM: blizzard with type annotations ---
+  if (currentEventTitle.indexOf('Type Storm') !== -1) {
+    ctx.fillStyle = 'rgba(0,0,50,0.55)';
+    ctx.fillRect(0, 0, W, 110);
+    for (var bolt = 0; bolt < 3; bolt++) {
+      var flashPhase = Math.sin(t * (1.7 + bolt * 0.9)) + Math.sin(t * (3.1 + bolt * 1.3));
+      if (flashPhase > 1.5) {
+        ctx.strokeStyle = '#FFFF55';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        var lx = 50 + bolt * 90 + Math.sin(t * 2.3 + bolt) * 30;
+        ctx.moveTo(lx, 5);
+        ctx.lineTo(lx - 4, 25);
+        ctx.lineTo(lx + 6, 30);
+        ctx.lineTo(lx - 2, 55);
+        ctx.stroke();
+      }
+    }
+    // Snow/type annotations falling
+    ctx.fillStyle = '#FFFFFF';
+    for (var i = 0; i < 30; i++) {
+      var sx = (i * 11 + t * 30) % W;
+      var sy = (i * 17 + t * 40) % 110;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), 2, 2);
+    }
+    return;
+  }
+
+  // --- SMART SHOPPER: person with shopping cart ---
+  if (currentEventTitle.indexOf('Smart Shopper') !== -1) {
+    var px = 195, py = 142;
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(px, py - 12, 4, 8);
+    ctx.fillStyle = '#FFAA00';
+    ctx.fillRect(px, py - 15, 4, 3);
+    ctx.fillRect(px - 1, py - 4, 2, 5);
+    ctx.fillRect(px + 3, py - 4, 2, 5);
+    // Shopping cart
+    ctx.strokeStyle = '#AAAAAA';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(208, py - 10);
+    ctx.lineTo(210, py - 2);
+    ctx.lineTo(225, py - 2);
+    ctx.lineTo(223, py - 10);
+    ctx.closePath();
+    ctx.stroke();
+    // Wheels
+    ctx.fillStyle = '#AAAAAA';
+    ctx.beginPath();
+    ctx.arc(213, py, 2, 0, Math.PI * 2);
+    ctx.arc(222, py, 2, 0, Math.PI * 2);
+    ctx.fill();
+    // Items in cart
+    ctx.fillStyle = '#55FF55';
+    ctx.fillRect(212, py - 8, 4, 4);
+    ctx.fillStyle = '#FFAA00';
+    ctx.fillRect(218, py - 9, 3, 5);
+    return;
+  }
+
+  // --- EMPTY BASKET CRASH: red sky, broken wheel ---
+  if (currentEventTitle.indexOf('Empty Basket') !== -1) {
+    ctx.fillStyle = 'rgba(170,0,0,0.2)';
+    ctx.fillRect(0, 0, W, H);
+    // Broken wheel
+    ctx.strokeStyle = '#AA5500';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(160, 145, 10, 0, Math.PI * 1.5);
+    ctx.stroke();
+    // Spokes
+    for (var i = 0; i < 4; i++) {
+      var angle = i * Math.PI / 2 + t * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(160, 145);
+      ctx.lineTo(160 + Math.cos(angle) * 8, 145 + Math.sin(angle) * 8);
+      ctx.stroke();
+    }
+    ctx.lineWidth = 1;
+    // Warning flashes
+    var pulse = (Math.sin(t * 4) + 1) * 0.12;
+    ctx.strokeStyle = 'rgba(255,0,0,' + pulse.toFixed(2) + ')';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(1, 1, W - 2, H - 2);
+    ctx.lineWidth = 1;
+    return;
+  }
+// END OVERLAYS
+};
+</script>
+<script src="../engine.js"></script>
+</body>
+</html>

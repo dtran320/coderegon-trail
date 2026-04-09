@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Coderegon Trail - Ferrite Edition</title>
+</head>
+<body>
+<div id="game-container">
+  <div id="canvas-area">
+    <canvas id="game-canvas" width="320" height="200"></canvas>
+    <div id="music-indicator">M: Music</div>
+  </div>
+  <div id="text-panel"></div>
+  <div id="status-bar"></div>
+</div>
+
+<script>
+window.TRAIL_DATA = {
+  "framework": "ferrite",
+  "trailName": "The Rendering Trail",
+  "confidence": "high",
+  "stops": [
+    {
+      "name": "Independence, MO",
+      "subtitle": "The Entry Point",
+      "concept": "Application bootstrap",
+      "landmarkType": "town",
+      "code": {
+        "file": "src/main.rs",
+        "startLine": 118,
+        "endLine": 140,
+        "content": "fn main() -> eframe::Result<()> {\n    #[cfg(target_os = \"macos\")]\n    platform::macos::init_app_delegate();\n\n    let cli = Cli::parse();\n    let mut initial_paths = cli.paths;\n    let apple_event_paths = platform::get_open_file_paths();\n    if !apple_event_paths.is_empty() {\n        initial_paths.extend(apple_event_paths);\n    }\n\n    let instance_listener = match single_instance::try_acquire_instance(&initial_paths) {\n        Some(listener) => listener,\n        None => return Ok(()),\n    };\n\n    let settings = load_config();\n    set_locale(settings.language.locale_code());\n    let effective_log_level = cli.log_level.unwrap_or(settings.log_level);\n    env_logger::Builder::new().filter_level(effective_log_level.to_level_filter()).init();\n\n    info!(\"Starting {}\", APP_NAME);\n}",
+        "language": "rust"
+      },
+      "narration": "Every Ferrite journey begins at main.rs. The app parses CLI arguments, checks for open-with paths from macOS Apple Events, and acquires a single-instance lock. If another Ferrite is already running, it forwards the file paths and exits in under 100 milliseconds. Then it loads config, sets the locale for internationalization, and fires up logging. Simple and fast."
+    },
+    {
+      "name": "Chimney Rock",
+      "subtitle": "The Text Buffer",
+      "concept": "Rope-based text storage",
+      "landmarkType": "mountain",
+      "code": {
+        "file": "src/editor/ferrite/buffer.rs",
+        "startLine": 1,
+        "endLine": 24,
+        "content": "use ropey::Rope;\nuse std::borrow::Cow;\n\n/// A text buffer backed by a rope data structure.\n///\n/// `TextBuffer` wraps `ropey::Rope` to provide:\n/// - O(log n) insert and delete operations\n/// - O(log n) line/character index conversions\n/// - Memory-efficient storage (target: <50MB for 4MB file)\n/// - Unicode-correct text handling\n#[derive(Debug, Clone)]\npub struct TextBuffer {\n    rope: Rope,\n}\n\nimpl TextBuffer {\n    pub fn new() -> Self {\n        Self { rope: Rope::new() }\n    }\n\n    pub fn from_string(content: &str) -> Self {\n        Self { rope: Rope::from_str(content) }\n    }\n\n    pub fn insert(&mut self, pos: usize, text: &str) {\n        self.rope.insert(pos, text);\n    }\n}",
+        "language": "rust"
+      },
+      "narration": "Chimney Rock is where Ferrite stores your text. Instead of a plain string, it uses a rope data structure from the ropey crate. Ropes give you O of log n inserts and deletes, even in massive files. A 4 megabyte file uses less than 50 megabytes of memory. Every keystroke flows through this buffer. Without it, editing a 500 thousand line file would freeze the app."
+    },
+    {
+      "name": "Fort Laramie",
+      "subtitle": "Markdown Parsing",
+      "concept": "AST construction with comrak",
+      "landmarkType": "camp",
+      "code": {
+        "file": "src/markdown/parser.rs",
+        "startLine": 188,
+        "endLine": 214,
+        "content": "pub enum MarkdownNodeType {\n    Document,\n    BlockQuote,\n    Callout { callout_type: CalloutType, title: Option<String>, collapsed: bool },\n    List { list_type: ListType, tight: bool },\n    Item,\n    CodeBlock { language: String, info: String, literal: String },\n    Paragraph,\n    Heading { level: HeadingLevel, setext: bool },\n    ThematicBreak,\n    Table { alignments: Vec<TableAlignment>, num_columns: usize },\n    TableRow { header: bool },\n    TableCell,\n    Text(String),\n    Emphasis,\n    Strong,\n    Strikethrough,\n    Link { url: String, title: String },\n    Image { url: String, title: String },\n    FrontMatter(String),\n    Wikilink { target: String, display: Option<String> },\n}\n\npub struct MarkdownNode {\n    pub node_type: MarkdownNodeType,\n    pub children: Vec<MarkdownNode>,\n    pub start_line: usize,\n    pub end_line: usize,\n}",
+        "language": "rust"
+      },
+      "narration": "At Fort Laramie, raw markdown text becomes a structured abstract syntax tree. Ferrite uses the comrak library, a CommonMark plus GitHub Flavored Markdown parser. Every element becomes a MarkdownNode with a type, children, and line positions. Headings, code blocks, tables, wikilinks, even GitHub-style callouts. The AST is the foundation for both the WYSIWYG editor and the rendered preview."
+    },
+    {
+      "name": "Independence Rock",
+      "subtitle": "AST Caching",
+      "concept": "Blake3 content-hash caching",
+      "landmarkType": "mountain",
+      "code": {
+        "file": "src/markdown/cache.rs",
+        "startLine": 1,
+        "endLine": 22,
+        "content": "use std::collections::HashMap;\nuse std::sync::Mutex;\nuse super::parser::MarkdownDocument;\n\n#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]\nstruct ContentHash([u8; 32]);\n\nimpl ContentHash {\n    fn of(content: &str) -> Self {\n        Self(*blake3::hash(content.as_bytes()).as_bytes())\n    }\n}\n\nstruct CachedAst {\n    doc: MarkdownDocument,\n    last_access: std::time::Instant,\n}\n\nconst MAX_ENTRIES: usize = 32;\n\nstruct MarkdownAstCache {\n    entries: HashMap<ContentHash, CachedAst>,\n}",
+        "language": "rust"
+      },
+      "narration": "Independence Rock is the AST cache. Parsing markdown on every frame would murder performance. So Ferrite hashes each document with blake3, a cryptographic hash function. Same content, same hash, cache hit. The cache holds up to 32 entries with LRU eviction. Changed a character? New hash, new parse. Didn't touch anything? Cached AST reused instantly. This is what makes the rendered view feel snappy."
+    },
+    {
+      "name": "South Pass",
+      "subtitle": "Syntax Highlighting",
+      "concept": "Syntect-powered code coloring",
+      "landmarkType": "river",
+      "code": {
+        "file": "src/markdown/syntax.rs",
+        "startLine": 1,
+        "endLine": 22,
+        "content": "use eframe::egui::{Color32, FontId, RichText};\nuse syntect::easy::HighlightLines;\nuse syntect::highlighting::{Style, Theme, ThemeSet};\nuse syntect::parsing::SyntaxSet;\nuse syntect::util::LinesWithEndings;\n\npub const DEFAULT_DARK_THEME: &str = \"base16-ocean.dark\";\npub const DEFAULT_LIGHT_THEME: &str = \"InspiredGitHub\";\n\npub struct HighlightedSegment {\n    pub text: String,\n    pub foreground: Color32,\n    pub bold: bool,\n    pub italic: bool,\n    pub underline: bool,\n}\n\nimpl HighlightedSegment {\n    pub fn to_rich_text(&self, font_size: f32) -> RichText {\n        let mut rich_text = RichText::new(&self.text)\n            .color(self.foreground)\n            .font(FontId::monospace(font_size));\n        if self.bold { rich_text = rich_text.strong(); }\n        if self.italic { rich_text = rich_text.italics(); }\n        rich_text\n    }\n}",
+        "language": "rust"
+      },
+      "narration": "South Pass is where plain code gets its colors. Ferrite uses syntect, the same syntax highlighting engine behind Sublime Text. Each code block is split into highlighted segments with foreground color, bold, and italic flags. The segments convert to egui RichText for rendering. Dark mode gets base16-ocean, light mode gets InspiredGitHub. Extended language support comes from the two-face crate for TypeScript, PowerShell, and more."
+    },
+    {
+      "name": "Fort Bridger",
+      "subtitle": "Mermaid Diagram Detection",
+      "concept": "Native diagram rendering without JavaScript",
+      "landmarkType": "camp",
+      "code": {
+        "file": "src/markdown/mermaid/mod.rs",
+        "startLine": 161,
+        "endLine": 185,
+        "content": "pub fn render_mermaid_diagram(\n    ui: &mut Ui,\n    source: &str,\n    dark_mode: bool,\n    font_size: f32,\n) -> RenderResult {\n    let source = source.trim();\n    if source.is_empty() {\n        return RenderResult::ParseError(\"Empty diagram source\".to_string());\n    }\n\n    let (frontmatter, diagram_source) = parse_frontmatter(source);\n\n    let first_line = diagram_source\n        .lines()\n        .map(|l| l.trim())\n        .find(|l| !l.is_empty() && !l.starts_with(\"%%\"))\n        .unwrap_or(\"\")\n        .to_lowercase();\n\n    if first_line.starts_with(\"flowchart\") || first_line.starts_with(\"graph\") {\n        let cache_key = CacheKey::new(diagram_source, font_size, available_width);\n        let cached = with_cache(|cache| cache.get_flowchart(&cache_key));\n        // ...\n    }\n}",
+        "language": "rust"
+      },
+      "narration": "Fort Bridger is where Ferrite does something most editors cannot. It renders Mermaid diagrams natively, no JavaScript, no WebView, no external process. The render function detects the diagram type from the first line: flowchart, sequence, pie, state, mindmap, class, ER, gantt, git graph, timeline, or journey. Eleven diagram types, all parsed and drawn with egui primitives. A global cache keyed by blake3 hash, font size, and width prevents re-layout on every frame."
+    },
+    {
+      "name": "The Dalles",
+      "subtitle": "Galley Caching and Virtual Scroll",
+      "concept": "Line cache with LRU eviction",
+      "landmarkType": "forest",
+      "code": {
+        "file": "src/editor/ferrite/line_cache.rs",
+        "startLine": 1,
+        "endLine": 24,
+        "content": "use egui::{text::LayoutJob, text::TextFormat, Color32, FontId, Galley, Painter};\nuse std::collections::HashMap;\nuse std::hash::{DefaultHasher, Hash, Hasher};\nuse std::sync::Arc;\n\nconst MIN_CACHE_ENTRIES: usize = 200;\nconst MIN_SHAPED_ENTRIES: usize = 100;\nconst VISIBLE_LINES_MULTIPLIER: usize = 3;\n\nfn preshape_complex_script_line(line_content: &str, font_id: &FontId) {\n    if !crate::fonts::needs_complex_script_fonts(line_content) {\n        return;\n    }\n    let bytes = crate::fonts::ttf_bytes_for_font_id_shaping(font_id);\n    match super::shaping::shape_text(line_content, bytes, font_id.size) {\n        Ok(glyphs) => {\n            log::trace!(\"harfrust pre-shape chars={} glyphs={}\",\n                line_content.chars().count(), glyphs.len());\n        }\n        Err(e) => log::debug!(\"shape_text failed: {e}\"),\n    }\n}",
+        "language": "rust"
+      },
+      "narration": "The Dalles is where performance lives or dies. Ferrite caches egui galleys, the laid-out text objects, keyed by content hash. Same line content, same font, cache hit. The cache dynamically sizes itself to three times the visible line count, with a floor of 200 entries. For complex scripts like CJK, Arabic, and Devanagari, the harfrust text shaper pre-shapes each line. Virtual scrolling means only visible lines plus an overscan buffer of 5 lines above and below ever get rendered."
+    },
+    {
+      "name": "Oregon City",
+      "subtitle": "Display Rendering",
+      "concept": "Canvas painting and text layout",
+      "landmarkType": "town",
+      "code": {
+        "file": "src/editor/ferrite/rendering/text.rs",
+        "startLine": 1,
+        "endLine": 24,
+        "content": "use egui::{Color32, FontId, Pos2};\nuse std::sync::Arc;\nuse super::super::line_cache::LineCache;\n\n/// Renders a line of text using the cache.\npub fn render_line(\n    painter: &egui::Painter,\n    line_cache: &mut LineCache,\n    line_content: &str,\n    x: f32,\n    y: f32,\n    font_id: FontId,\n    text_color: Color32,\n) -> Arc<egui::Galley> {\n    let display_content = line_content.trim_end_matches(['\\r', '\\n']);\n    let galley = line_cache.get_galley(display_content, painter, font_id, text_color);\n    painter.galley(Pos2::new(x, y), Arc::clone(&galley), text_color);\n    galley\n}",
+        "language": "rust"
+      },
+      "narration": "You made it to Oregon City! This is where pixels meet the screen. The render function takes a line of text, strips trailing newlines, fetches or creates a galley from the line cache, and paints it at the right x-y position. The galley is an Arc, a reference-counted pointer, so multiple references share the same layout without copying. This function runs for every visible line, every frame, at 60 frames per second. Thanks to caching, it stays fast even with 500 thousand lines."
+    }
+  ],
+  "events": [
+    {
+      "type": "weather",
+      "trigger": "after_stop",
+      "triggerStop": 1,
+      "title": "Buffer Overflow Storm!",
+      "text": "A storm of rapid keystrokes hits! The user is pasting a 2 megabyte file into the editor. Why does Ferrite use a rope data structure instead of a plain String for its text buffer?",
+      "choices": [
+        {
+          "text": "Ropes give O(log n) insert and delete operations, so even large files stay responsive during editing",
+          "correct": true,
+          "explanation": "A plain String requires O(n) to insert in the middle because every character after the insertion point must shift. A rope splits text into balanced tree nodes, so inserting at any position is O(log n). This is why pasting into a 500,000-line file feels instant."
+        },
+        {
+          "text": "Ropes use less total memory than strings because they compress the text",
+          "correct": false,
+          "explanation": "Ropes do not compress text. They actually use slightly more memory due to tree node overhead. The advantage is operation speed, not memory savings. Ferrite targets under 50 megabytes for a 4 megabyte file, which is reasonable but not compressed."
+        },
+        {
+          "text": "Ropes are needed because Rust strings cannot handle Unicode characters",
+          "correct": false,
+          "explanation": "Rust's String type handles Unicode perfectly. It stores UTF-8 encoded text. The rope is chosen for performance on large files, not Unicode support. Both Rope and String handle multi-byte characters correctly."
+        }
+      ],
+      "concept": "Text Buffer",
+      "difficulty": "easy"
+    },
+    {
+      "type": "encounter",
+      "trigger": "after_stop",
+      "triggerStop": 2,
+      "title": "A Parser Appears!",
+      "text": "A fellow traveler asks: 'I see Ferrite uses comrak for markdown parsing. Why does the AST store start_line and end_line on every MarkdownNode?'",
+      "choices": [
+        {
+          "text": "Line positions let the WYSIWYG editor map clicks and edits back to the exact source lines, enabling round-trip editing",
+          "correct": true,
+          "explanation": "When you click on a heading in the rendered view, Ferrite needs to know which source lines to modify. Without position information, every edit in rendered mode would require re-parsing the entire document to find the right location. Position tracking makes WYSIWYG editing possible."
+        },
+        {
+          "text": "Line numbers are stored for error reporting when the markdown is malformed",
+          "correct": false,
+          "explanation": "Error reporting is a minor benefit. The real reason is the WYSIWYG editor. When a user edits a paragraph in rendered mode, the editor must modify the correct lines in the source. Position tracking is essential for bidirectional editing between raw and rendered modes."
+        },
+        {
+          "text": "comrak requires line positions to be stored; it is part of the library's API contract",
+          "correct": false,
+          "explanation": "Comrak provides position information but does not require consumers to store it. Ferrite chooses to preserve positions in its own MarkdownNode type specifically so the rendered editor can map changes back to source lines."
+        }
+      ],
+      "concept": "Markdown Parser",
+      "difficulty": "medium"
+    },
+    {
+      "type": "river",
+      "trigger": "after_stop",
+      "triggerStop": 3,
+      "title": "The Cache Invalidation Crossing!",
+      "text": "You reach a treacherous river. The AST cache uses blake3 content hashes with a maximum of 32 entries. A user is rapidly typing in a document. What happens on every keystroke?",
+      "choices": [
+        {
+          "text": "Each keystroke changes the content, producing a new blake3 hash, triggering a cache miss and a full re-parse of the document",
+          "correct": true,
+          "explanation": "Every character change produces a different blake3 hash, so rapid typing means continuous cache misses. This is by design. The cache helps when switching between tabs or when the document is not being edited. During active typing, comrak re-parses on each frame. The parse is fast enough for real-time editing."
+        },
+        {
+          "text": "The cache detects small changes and incrementally updates the AST without a full re-parse",
+          "correct": false,
+          "explanation": "Ferrite does not do incremental parsing. The cache is all-or-nothing: hash matches means full cache hit, hash differs means full re-parse. Incremental markdown parsing is complex because a single character can change the meaning of an entire block. The full re-parse is fast enough thanks to comrak's performance."
+        },
+        {
+          "text": "The cache debounces typing and only re-parses after the user stops for 500 milliseconds",
+          "correct": false,
+          "explanation": "There is no debounce in the AST cache. Ferrite re-parses every frame if the content changed. The rendered view needs to stay in sync immediately. Debouncing would create a visible lag between typing and seeing the rendered output update."
+        }
+      ],
+      "concept": "AST Cache",
+      "difficulty": "hard"
+    },
+    {
+      "type": "weather",
+      "trigger": "after_stop",
+      "triggerStop": 4,
+      "title": "Theme Blizzard!",
+      "text": "A blizzard strikes! The user switches from dark mode to light mode. Ferrite's syntax highlighter uses different themes for each mode. How does it handle the transition?",
+      "choices": [
+        {
+          "text": "The highlighter selects base16-ocean.dark for dark mode and InspiredGitHub for light mode, and the line cache is invalidated because colors change",
+          "correct": true,
+          "explanation": "Theme switching changes the syntect Theme used for highlighting. Since every HighlightedSegment stores its foreground Color32, all cached galleys with syntax highlighting become stale. The line cache must be invalidated so lines are re-highlighted with the new theme's color palette."
+        },
+        {
+          "text": "Syntax colors are computed at parse time and stored in the AST, so theme switching only changes the background color",
+          "correct": false,
+          "explanation": "Syntax colors are not stored in the AST. They are computed during rendering by the SyntaxHighlighter, which takes theme as a parameter. Switching themes requires re-highlighting all visible code blocks with the new color palette."
+        },
+        {
+          "text": "Ferrite uses CSS variables for syntax colors, so switching themes is instant with no re-rendering",
+          "correct": false,
+          "explanation": "Ferrite is a native app using egui, not a web app. There are no CSS variables. Colors are egui Color32 values baked into each text segment. Theme switching requires re-computing all highlight colors and invalidating the galley cache."
+        }
+      ],
+      "concept": "Syntax Highlighter",
+      "difficulty": "medium"
+    },
+    {
+      "type": "encounter",
+      "trigger": "after_stop",
+      "triggerStop": 5,
+      "title": "Diagram Cartographer!",
+      "text": "A cartographer studying your Mermaid diagrams asks: 'Most editors use a JavaScript WebView to render Mermaid. Ferrite renders natively. What layout algorithm does it use for flowcharts?'",
+      "choices": [
+        {
+          "text": "Sugiyama-style layered graph layout: detect cycles, assign layers via longest-path, minimize edge crossings with the barycenter heuristic, then assign coordinates",
+          "correct": true,
+          "explanation": "The SugiyamaLayout struct in flowchart/layout/sugiyama.rs implements the classic layered graph drawing algorithm. It detects cycles and marks back-edges, assigns layers using longest-path, builds layer structure, reduces crossings with barycenter ordering, and assigns final coordinates. This produces clean top-to-bottom or left-to-right flowcharts."
+        },
+        {
+          "text": "Force-directed layout that simulates physics: nodes repel each other and edges act as springs",
+          "correct": false,
+          "explanation": "Force-directed layout works well for general graphs but produces messy results for flowcharts. Ferrite uses Sugiyama layout, which specifically handles directed graphs by assigning nodes to layers and minimizing edge crossings. This creates the clean hierarchical look users expect from flowcharts."
+        },
+        {
+          "text": "A grid-based layout that places each node in the next available cell",
+          "correct": false,
+          "explanation": "Grid layout would ignore edge relationships entirely. Ferrite's Sugiyama layout considers the directed graph structure: edges determine layer assignment, and crossing minimization ensures the diagram is readable. Subgraphs get their own internal layout computed inside-out."
+        }
+      ],
+      "concept": "Mermaid Renderer",
+      "difficulty": "hard"
+    },
+    {
+      "type": "misfortune",
+      "trigger": "after_stop",
+      "triggerStop": 6,
+      "title": "Memory Leak on the Trail!",
+      "text": "Disaster! After opening and closing 50 tabs, memory usage keeps climbing. Ferrite stores each tab's FerriteEditor in egui's memory. What must happen when a tab closes?",
+      "choices": [
+        {
+          "text": "The cleanup_ferrite_editor function must remove the editor from egui's data storage, freeing the TextBuffer, LineCache, and EditHistory",
+          "correct": true,
+          "explanation": "Each FerriteEditor contains a rope-based TextBuffer that can be over 100 megabytes for large files, a LineCache with up to 200 cached galleys, and an EditHistory with undo/redo stacks. Without explicit cleanup when a tab closes, these persist in egui's memory indefinitely. The cleanup function removes the editor by tab ID."
+        },
+        {
+          "text": "Rust's ownership system automatically drops the editor when the tab struct goes out of scope",
+          "correct": false,
+          "explanation": "The editors are stored in egui's internal data map, not in the tab struct. egui's data storage uses type-erased Any values that persist across frames. Rust's drop semantics do not help here because egui owns the data. Explicit removal via cleanup_ferrite_editor is required."
+        },
+        {
+          "text": "The garbage collector reclaims unused editor memory periodically",
+          "correct": false,
+          "explanation": "Rust does not have a garbage collector. Memory management is deterministic. Editors stored in egui's data map persist until explicitly removed. The cleanup_ferrite_editor function handles this removal when a tab is closed."
+        }
+      ],
+      "concept": "Text Buffer",
+      "difficulty": "medium"
+    },
+    {
+      "type": "fortune",
+      "trigger": "after_stop",
+      "triggerStop": 7,
+      "title": "Virtual Scroll Breakthrough!",
+      "text": "The ViewState's virtual scrolling kicks in! A 500,000-line file renders smoothly because only visible lines plus a 5-line overscan buffer are painted each frame. The trail ahead is clear!",
+      "choices": [],
+      "concept": "Line Cache",
+      "difficulty": "easy"
+    }
+  ],
+  "partyMembers": [
+    { "name": "Text Buffer", "icon": "server", "maxHealth": 3 },
+    { "name": "Markdown Parser", "icon": "router", "maxHealth": 3 },
+    { "name": "Syntax Highlighter", "icon": "data", "maxHealth": 3 },
+    { "name": "Mermaid Renderer", "icon": "layout", "maxHealth": 3 }
+  ],
+  "deathMessages": [
+    "Died of unwrap() on a None. The option was not as optional as you thought.",
+    "Drowned in the cache invalidation river. Two hard problems in computer science.",
+    "Lost to a stack overflow parsing deeply nested markdown lists.",
+    "Killed by a panic in catch_unwind. The Mermaid diagram was too complex.",
+    "Starved waiting for the galley cache to warm up on a cold start.",
+    "Buried under 50 unclosed tabs. The memory leak claimed another victim.",
+    "Died of borrow checker violations. The RefCell was already borrowed.",
+    "Frozen at the theme blizzard. Dark mode and light mode rendered simultaneously.",
+    "Trampled by a stampede of concurrent egui frame requests.",
+    "Lost on the trail when the rope index exceeded the buffer length. Panicked."
+  ],
+  "sourceInfo": {
+    "repo": "OlaProeis/Ferrite",
+    "commit": "master",
+    "tag": "v0.5.0",
+    "snapshotDate": "2026-04-08"
+  }
+};
+
+// FLAVORS
+window.TRAIL_FLAVORS = [
+  "The markdown renders cleanly today...",
+  "Comrak parses the AST in microseconds...",
+  "The rope rebalances after a large paste...",
+  "Syntax highlighting paints the code blocks...",
+  "A Mermaid flowchart appears in the preview...",
+  "The line cache warms up. Galleys are ready...",
+  "Virtual scrolling skips 400,000 invisible lines...",
+  "Blake3 hashes the document. Cache hit...",
+  "The Sugiyama layout assigns layers to nodes...",
+  "HarfRust shapes the complex script glyphs...",
+  "The WYSIWYG editor maps clicks to source lines...",
+  "Dark mode activates. Base16-ocean colors load...",
+  "The tab bar wraps to a second row. Many files open...",
+  "Ropey splits the text at a balanced tree node...",
+  "The overscan buffer pre-renders five extra lines...",
+  "A wikilink resolves to another markdown file..."
+];
+// END FLAVORS
+
+window.drawCustomEventOverlay = function(time) {
+  if (!currentEventType && !currentEventTitle) return;
+  var t = (time || 0) * 0.001;
+
+// OVERLAYS
+  // --- BUFFER OVERFLOW STORM: cascading characters raining down ---
+  if (currentEventTitle.indexOf('Buffer Overflow Storm') !== -1) {
+    ctx.fillStyle = 'rgba(0,0,40,0.4)';
+    ctx.fillRect(0, 0, W, 110);
+    // Raining characters
+    ctx.fillStyle = '#55FF55';
+    ctx.font = '8px monospace';
+    var chars = 'fn let mut pub struct impl use mod';
+    for (var i = 0; i < 30; i++) {
+      var cx = (i * 11.3 + t * 60) % W;
+      var cy = (i * 17.1 + t * 90) % 130;
+      var ch = chars[Math.floor((i * 7 + t * 3) % chars.length)];
+      ctx.fillText(ch, Math.floor(cx), Math.floor(cy));
+    }
+    // Lightning bolt (periodic)
+    var flashPhase = Math.sin(t * 1.7) + Math.sin(t * 3.1);
+    if (flashPhase > 1.6) {
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = '#FFFF55';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      var lx = 100 + Math.sin(t * 2.3) * 50;
+      ctx.moveTo(lx, 8);
+      ctx.lineTo(lx - 4, 30);
+      ctx.lineTo(lx + 6, 30);
+      ctx.lineTo(lx - 2, 55);
+      ctx.stroke();
+    }
+    return;
+  }
+
+  // --- PARSER ENCOUNTER: person with scroll by campfire ---
+  if (currentEventTitle.indexOf('Parser Appears') !== -1) {
+    var px = 195, py = 142;
+    // Person body
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(px, py - 12, 4, 8);
+    ctx.fillStyle = '#FFAA00';
+    ctx.fillRect(px, py - 15, 4, 3);
+    ctx.fillRect(px - 1, py - 4, 2, 5);
+    ctx.fillRect(px + 3, py - 4, 2, 5);
+    // Scroll/document in hand
+    ctx.fillStyle = '#FFFFAA';
+    ctx.fillRect(px + 6, py - 11, 6, 8);
+    ctx.fillStyle = '#AAAAAA';
+    ctx.fillRect(px + 7, py - 10, 4, 1);
+    ctx.fillRect(px + 7, py - 8, 3, 1);
+    ctx.fillRect(px + 7, py - 6, 4, 1);
+    // Campfire
+    var fx = 210, fy = 148;
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(fx - 3, fy, 2, 3);
+    ctx.fillRect(fx + 3, fy, 2, 3);
+    ctx.fillStyle = '#FF5555';
+    var flicker = Math.sin(t * 8) * 2;
+    ctx.fillRect(fx - 1, fy - 3 + Math.floor(flicker * 0.3), 4, 3);
+    ctx.fillStyle = '#FFFF55';
+    ctx.fillRect(fx, fy - 5 + Math.floor(flicker * 0.5), 2, 2);
+    ctx.fillStyle = 'rgba(255,170,0,0.08)';
+    ctx.beginPath();
+    ctx.arc(fx + 1, fy - 2, 15, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+
+  // --- CACHE INVALIDATION CROSSING: turbulent river with hash symbols ---
+  if (currentEventTitle.indexOf('Cache Invalidation Crossing') !== -1) {
+    // Turbulent water
+    ctx.fillStyle = '#55AAFF';
+    for (var i = 0; i < 25; i++) {
+      var sx = (i * 13 + t * 50) % W;
+      var sy = 155 + Math.sin((i * 2.7 + t * 4)) * 4;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), 5, 2);
+    }
+    // Floating hash symbols
+    ctx.fillStyle = '#FFFF55';
+    ctx.font = '7px monospace';
+    for (var i = 0; i < 5; i++) {
+      var hx = (i * 65 + t * 20) % W;
+      var hy = 158 + Math.sin(t * 2.5 + i * 1.3) * 3;
+      ctx.fillText('#', Math.floor(hx), Math.floor(hy));
+    }
+    // Floating log
+    ctx.fillStyle = '#AA5500';
+    for (var i = 0; i < 3; i++) {
+      var logX = (i * 110 + t * 30) % W;
+      var logY = 160 + Math.sin(t * 1.8 + i) * 2;
+      ctx.fillRect(Math.floor(logX), Math.floor(logY), 8, 2);
+    }
+    return;
+  }
+
+  // --- THEME BLIZZARD: snow and dark/light flashing ---
+  if (currentEventTitle.indexOf('Theme Blizzard') !== -1) {
+    // Darken sky
+    ctx.fillStyle = 'rgba(20,20,40,0.5)';
+    ctx.fillRect(0, 0, W, 110);
+    // Snowflakes
+    ctx.fillStyle = '#FFFFFF';
+    for (var i = 0; i < 50; i++) {
+      var sx = (i * 6.7 + t * 30 + Math.sin(t + i) * 10) % W;
+      var sy = (i * 11.3 + t * 40) % 140;
+      var size = (i % 3 === 0) ? 2 : 1;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), size, size);
+    }
+    // Periodic dark/light flash (theme switching effect)
+    var themeFlash = Math.sin(t * 0.8);
+    if (themeFlash > 0.7) {
+      ctx.fillStyle = 'rgba(255,255,240,0.15)';
+      ctx.fillRect(0, 0, W, H);
+    }
+    return;
+  }
+
+  // --- DIAGRAM CARTOGRAPHER: person with map and protractor ---
+  if (currentEventTitle.indexOf('Diagram Cartographer') !== -1) {
+    var mx = 180, my = 140;
+    // Person
+    ctx.fillStyle = '#886633';
+    ctx.fillRect(mx, my - 12, 4, 8);
+    ctx.fillStyle = '#DDAA55';
+    ctx.fillRect(mx, my - 15, 4, 3);
+    ctx.fillRect(mx - 1, my - 4, 2, 5);
+    ctx.fillRect(mx + 3, my - 4, 2, 5);
+    // Hat (cartographer)
+    ctx.fillStyle = '#553311';
+    ctx.fillRect(mx - 2, my - 17, 8, 2);
+    ctx.fillRect(mx - 1, my - 19, 6, 2);
+    // Map/diagram on ground
+    ctx.fillStyle = '#FFFFCC';
+    ctx.fillRect(mx + 10, my - 6, 14, 10);
+    // Flowchart boxes on map
+    ctx.strokeStyle = '#555555';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(mx + 12, my - 4, 4, 3);
+    ctx.strokeRect(mx + 18, my - 4, 4, 3);
+    ctx.beginPath();
+    ctx.moveTo(mx + 16, my - 2);
+    ctx.lineTo(mx + 18, my - 2);
+    ctx.stroke();
+    ctx.strokeRect(mx + 14, my + 1, 4, 3);
+    ctx.beginPath();
+    ctx.moveTo(mx + 16, my - 1);
+    ctx.lineTo(mx + 16, my + 1);
+    ctx.stroke();
+    return;
+  }
+
+  // --- MEMORY LEAK: dripping green liquid, warning signs ---
+  if (currentEventTitle.indexOf('Memory Leak') !== -1) {
+    // Green drips from sky
+    ctx.fillStyle = '#33FF33';
+    for (var i = 0; i < 15; i++) {
+      var dx = 30 + (i * 19) % (W - 60);
+      var dy = (i * 23 + t * 50) % 100;
+      var dh = 3 + Math.sin(t * 2 + i) * 2;
+      ctx.fillRect(Math.floor(dx), Math.floor(dy), 2, Math.floor(Math.abs(dh)));
+    }
+    // Warning sign
+    var wx = 240, wy = 130;
+    ctx.fillStyle = '#FFFF00';
+    ctx.beginPath();
+    ctx.moveTo(wx, wy - 12);
+    ctx.lineTo(wx - 8, wy);
+    ctx.lineTo(wx + 8, wy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#000000';
+    ctx.font = '8px monospace';
+    ctx.fillText('!', wx - 2, wy - 2);
+    // Pile of tab icons
+    ctx.fillStyle = '#666666';
+    for (var i = 0; i < 6; i++) {
+      ctx.fillRect(wx - 15 + i * 5, wy + 2, 4, 3);
+    }
+    return;
+  }
+
+  // --- VIRTUAL SCROLL BREAKTHROUGH: clear skies, rainbow ---
+  if (currentEventTitle.indexOf('Virtual Scroll Breakthrough') !== -1) {
+    // Rainbow arc
+    var colors = ['#FF0000', '#FF8800', '#FFFF00', '#00FF00', '#0088FF', '#8800FF'];
+    for (var c = 0; c < colors.length; c++) {
+      ctx.strokeStyle = colors[c];
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(W / 2, 120, 80 - c * 4, Math.PI, 0);
+      ctx.stroke();
+    }
+    // Sparkles
+    ctx.fillStyle = '#FFFF55';
+    for (var i = 0; i < 8; i++) {
+      var sx = 60 + (i * 30) + Math.sin(t * 3 + i) * 5;
+      var sy = 40 + Math.sin(t * 2 + i * 0.7) * 15;
+      var sparkSize = Math.abs(Math.sin(t * 4 + i * 1.5)) > 0.6 ? 2 : 1;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), sparkSize, sparkSize);
+    }
+    return;
+  }
+// END OVERLAYS
+};
+</script>
+<script src="../engine.js"></script>
+</body>
+</html>

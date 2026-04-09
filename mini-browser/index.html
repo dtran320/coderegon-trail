@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Coderegon Trail - Mini Browser Edition</title>
+</head>
+<body>
+<div id="game-container">
+  <div id="canvas-area">
+    <canvas id="game-canvas" width="320" height="200"></canvas>
+    <div id="music-indicator">M: Music</div>
+  </div>
+  <div id="text-panel"></div>
+  <div id="status-bar"></div>
+</div>
+
+<script>
+window.TRAIL_DATA = {
+  "framework": "mini-browser",
+  "trailName": "The Layout Trail",
+  "stops": [
+    {
+      "name": "QApplication Outpost",
+      "subtitle": "The Entry Point",
+      "concept": "Application Bootstrap",
+      "landmarkType": "town",
+      "code": {
+        "file": "src/main.cpp",
+        "content": "// src/main.cpp\n#include <stdio.h>\n#include \"gui/main_window.h\"\n#include <QApplication>\n\nint main(int argc, char *argv[]){\n    QApplication app(argc, argv);\n    MainWindow browser;\n    browser.show();\n    return app.exec();\n}",
+        "language": "cpp"
+      },
+      "narration": "Every browser journey starts here -- just ten lines of C++. QApplication initializes the Qt event loop, MainWindow creates the entire browser shell, and app.exec hands control to Qt's event loop forever. From this point on, every keystroke, every mouse click, every network response flows through that event loop. Three lines to launch a browser."
+    },
+    {
+      "name": "Tokenizer Crossing",
+      "subtitle": "Breaking HTML Into Tokens",
+      "concept": "HTML Tokenization",
+      "landmarkType": "camp",
+      "code": {
+        "file": "src/html/html_tokenizer.cpp",
+        "content": "// src/html/html_tokenizer.cpp\nstd::vector<TOKEN> tokenize(const std::string &html)\n{\n    std::vector<TOKEN> tokens;\n    size_t pos = 0;\n    while (pos < html.size())\n    {\n        if (html[pos] == '<' && pos + 1 < html.size()\n            && html[pos + 1] == '!')\n        {\n            size_t end_pos = html.find('>', pos);\n            if (end_pos != std::string::npos) {\n                pos = end_pos + 1;\n                continue;\n            }\n        }\n        if (html[pos] == '<')\n        {\n            size_t end_pos = html.find('>', pos);\n            if (end_pos != std::string::npos)\n            {\n                if (html[pos + 1] == '/') {\n                    tokens.push_back({TOKEN_TYPE::END_TAG,\n                        html.substr(pos + 2, end_pos - pos - 2), {}});\n                } else {\n                    std::string full_tag =\n                        html.substr(pos + 1, end_pos - pos - 1);\n                    size_t space_pos = full_tag.find(' ');\n                    std::string tag_name;\n                    std::map<std::string, std::string> attrs;\n                    if (space_pos != std::string::npos) {\n                        tag_name = full_tag.substr(0, space_pos);\n                        attrs = parse_attribute(\n                            full_tag.substr(space_pos + 1));\n                    } else {\n                        tag_name = full_tag;\n                    }\n                    tokens.push_back(\n                        {TOKEN_TYPE::START_TAG, tag_name, attrs});\n                }\n                pos = end_pos + 1;\n            } else {\n                throw std::runtime_error(\n                    \"INVALIDE HTML: NO CLOSING TAG\");\n            }\n        } else {\n            size_t end_pos = html.find('<', pos);\n            std::string text =\n                html.substr(pos, end_pos - pos);\n            normalize_whitespace(text);\n            if (!text.empty()) {\n                tokens.push_back({TOKEN_TYPE::TEXT, text});\n            }\n            pos = end_pos;\n        }\n    }\n    return tokens;\n}",
+        "language": "cpp"
+      },
+      "narration": "Raw HTML is just a string of characters. The tokenizer walks through it character by character, looking for angle brackets. Every less-than sign means a tag is starting. A slash after it means the tag is closing. Anything between tags is text content. Attributes get split off by the first space inside a tag. Comments starting with exclamation mark are skipped entirely. The output is a flat list of TOKEN structs -- no hierarchy yet, just labeled chunks."
+    },
+    {
+      "name": "DOM Construction Ridge",
+      "subtitle": "Building the Tree",
+      "concept": "DOM Tree",
+      "landmarkType": "mountain",
+      "code": {
+        "file": "src/html/html_parser.cpp",
+        "content": "// src/html/html_parser.cpp\nstd::shared_ptr<NODE> parse(const std::vector<TOKEN> &tokens)\n{\n    std::set<std::string> void_elements =\n        {\"meta\", \"link\", \"img\", \"br\", \"hr\", \"input\"};\n    std::vector<std::shared_ptr<NODE>> stack;\n    std::shared_ptr<NODE> root = nullptr;\n\n    for (auto &token : tokens)\n    {\n        if (token.type == TOKEN_TYPE::START_TAG)\n        {\n            bool is_void = void_elements.find(token.value)\n                != void_elements.end();\n            std::shared_ptr<NODE> new_node = create_node(token);\n            if (!stack.empty()) {\n                stack.back()->add_child(new_node);\n            } else {\n                root = new_node;\n            }\n            if (!is_void) {\n                stack.push_back(new_node);\n            }\n            continue;\n        }\n        else if (token.type == TOKEN_TYPE::TEXT)\n        {\n            if (!stack.empty()) {\n                stack.back()->add_child(create_node(token));\n            }\n            continue;\n        }\n        else  // END_TAG\n        {\n            if (!stack.empty()) {\n                stack.pop_back();\n            }\n        }\n    }\n    return root;\n}",
+        "language": "cpp"
+      },
+      "narration": "The parser turns that flat token list into a tree. It uses a stack to track nesting. Every start tag pushes a new node onto the stack. Every end tag pops one off. Text nodes get attached as children of whatever is on top of the stack. Void elements like img and br never get pushed because they cannot have children. The result is a shared-pointer tree where every node knows its parent and children -- a real DOM."
+    },
+    {
+      "name": "CSS Parsing Pass",
+      "subtitle": "Reading the Stylesheet",
+      "concept": "CSS Parsing",
+      "landmarkType": "camp",
+      "code": {
+        "file": "src/css/css_parser.cpp",
+        "content": "// src/css/css_parser.cpp\nstd::string extract_stylesheets(std::shared_ptr<NODE> dom)\n{\n    std::string css;\n    std::queue<std::shared_ptr<NODE>> q;\n    q.push(dom);\n    while (!q.empty())\n    {\n        auto node = q.front();\n        q.pop();\n        if (node->get_tag_name() == \"style\")\n        {\n            for (const auto &child : node->get_children()) {\n                if (child->get_type() == NODE_TYPE::TEXT)\n                    css += child->get_text_content();\n            }\n            css += '\\n';\n        }\n        for (const auto &child : node->get_children())\n            q.push(child);\n    }\n    return css;\n}\n\nstd::vector<CSS_RULE> parse_css(const std::string &css)\n{\n    size_t pos = 0;\n    std::vector<CSS_RULE> result;\n    while (pos < css.size())\n    {\n        skip_space(pos, css);\n        // Skip /* */ comments\n        if (pos + 1 < css.size() && css[pos] == '/'\n            && css[pos + 1] == '*') {\n            pos += 2;\n            while (pos + 1 < css.size()) {\n                if (css[pos] == '*' && css[pos + 1] == '/') {\n                    pos += 2; break;\n                }\n                ++pos;\n            }\n            continue;\n        }\n        size_t block_start = css.find('{', pos);\n        size_t block_end = css.find('}', pos);\n        if (block_start != std::string::npos) {\n            std::string selector =\n                css.substr(pos, block_start - pos);\n            trim(selector);\n            auto style = parse_inline_style(\n                css.substr(block_start + 1,\n                    block_end - block_start - 1));\n            CSS_RULE rule(selector);\n            for (const auto &[prop, val] : style)\n                rule.declarations.push_back({prop, val});\n            result.push_back(rule);\n            pos = block_end + 1;\n        } else { break; }\n    }\n    return result;\n}",
+        "language": "cpp"
+      },
+      "narration": "Before any styling can happen, the browser needs to find and parse the CSS. First it does a breadth-first search of the DOM for style tags and concatenates their text content. Then parse_css walks through that string looking for curly braces. Everything before the opening brace is a selector. Everything between braces gets split into property-value pairs by parse_inline_style. Comments are stripped. The output is a vector of CSS_RULE objects -- selector plus declarations."
+    },
+    {
+      "name": "CSSOM Selector Matching",
+      "subtitle": "Which Rules Apply?",
+      "concept": "CSSOM",
+      "landmarkType": "river",
+      "code": {
+        "file": "src/css/cssom.cpp",
+        "content": "// src/css/cssom.cpp\nstd::vector<CSS_RULE> CSSOM::matching_rules(\n    std::shared_ptr<NODE> node)\n{\n    std::vector<CSS_RULE> matched;\n    for (auto &rule : m_rules)\n    {\n        rule.selector.erase(\n            std::remove_if(rule.selector.begin(),\n                rule.selector.end(),\n                [](unsigned char c){ return std::isspace(c); }),\n            rule.selector.end());\n        auto multiple_selectors =\n            split(rule.selector, ',');\n        for (auto selector : multiple_selectors) {\n            if (matches(selector, node))\n                matched.push_back(rule);\n        }\n    }\n    return matched;\n}\n\nbool CSSOM::matches(const std::string &selector,\n    std::shared_ptr<NODE> node)\n{\n    if (selector[0] == '.') {\n        std::string class_value =\n            node->get_attribute(\"class\");\n        std::vector<std::string> classes =\n            split(class_value, ' ');\n        for (const auto &cls : classes) {\n            if (cls == selector.substr(1))\n                return true;\n        }\n        return false;\n    }\n    else if (selector[0] == '#') {\n        return node->get_attribute(\"id\")\n            == selector.substr(1);\n    }\n    else {\n        return node->get_tag_name() == selector;\n    }\n}",
+        "language": "cpp"
+      },
+      "narration": "This is the first major boundary -- matching CSS rules to DOM nodes. For every node in the tree, the CSSOM checks every rule to see if its selector matches. Three selector types are supported: element selectors match by tag name, class selectors check the class attribute, and ID selectors check the id attribute. Comma-separated selectors are split and tested individually. No descendant or pseudo-class selectors yet -- this is a mini browser after all."
+    },
+    {
+      "name": "Style Application Camp",
+      "subtitle": "Cascading and Inheriting",
+      "concept": "Style Computation",
+      "landmarkType": "forest",
+      "code": {
+        "file": "src/css/apply_style.cpp",
+        "content": "// src/css/apply_style.cpp\nvoid apply_style(std::shared_ptr<NODE> node,\n    CSSOM &cssom)\n{\n    static bool setters_initialized = false;\n    if (!setters_initialized) {\n        COMPUTED_STYLE::init_setters();\n        setters_initialized = true;\n    }\n    std::queue<std::pair<std::shared_ptr<NODE>,\n        COMPUTED_STYLE>> q;\n    COMPUTED_STYLE root_style;\n    q.push({node, root_style});\n\n    while (!q.empty()) {\n        auto [current_node, parent_style] = q.front();\n        q.pop();\n        if (current_node != node) {\n            current_node->set_style(\"color\",\n                parent_style.inherit_color());\n            current_node->set_style(\"font-size\",\n                parent_style.inherit_font_size());\n            current_node->set_style(\"font-weight\",\n                parent_style.inherit_font_weight());\n            current_node->set_style(\"font-family\",\n                parent_style.inherit_font_family());\n            current_node->set_style(\"text-align\",\n                parent_style.inherit_text_align());\n        }\n        auto matched = cssom.matching_rules(current_node);\n        for (const auto &rule : matched) {\n            for (const auto &decl : rule.declarations)\n                current_node->set_style(\n                    decl.property, decl.value);\n        }\n        std::string inline_style =\n            current_node->get_attribute(\"style\");\n        for (const auto& [prop, val] :\n             parse_inline_style(inline_style))\n            current_node->set_style(prop, val);\n\n        COMPUTED_STYLE current_style =\n            current_node->get_all_styles();\n        for (auto child : current_node->get_children())\n            q.push({child, current_style});\n    }\n}",
+        "language": "cpp"
+      },
+      "narration": "Style application is where the cascade happens. A breadth-first traversal visits every node in tree order. First, inheritable properties like color, font-size, and text-align flow down from parent to child. Then CSSOM-matched rules override those inherited values. Finally, inline styles from the style attribute win over everything. This is the CSS cascade in action -- inheritance, then author stylesheet, then inline. Each node ends up with a COMPUTED_STYLE containing every resolved property."
+    },
+    {
+      "name": "Layout Box Canyon",
+      "subtitle": "Computing Positions and Sizes",
+      "concept": "Layout Engine",
+      "landmarkType": "mountain",
+      "code": {
+        "file": "src/css/layout_tree.cpp",
+        "content": "// src/css/layout_tree.cpp\nLAYOUT_BOX create_layout_tree(\n    std::shared_ptr<NODE> root,\n    float parent_width,\n    LINE_STATE &line,\n    const QString &base_url,\n    IMAGE_CACHE_MANAGER *image_cache_manager)\n{\n    LAYOUT_BOX box;\n    box.node = root;\n    box.style = root->get_all_styles();\n\n    // Skip display:none elements\n    if (box.style.display == DISPLAY_TYPE::NONE)\n        return box;\n\n    // Dispatch to specialized layout handlers\n    if (root->get_tag_name() == \"img\"\n        && image_cache_manager != nullptr)\n        return layout_image_element(\n            root, base_url, image_cache_manager, line);\n\n    if (root->get_type() == NODE_TYPE::TEXT) {\n        std::string text = root->get_text_content();\n        text.erase(0,\n            text.find_first_not_of(\" \\t\\n\\r\"));\n        text.erase(\n            text.find_last_not_of(\" \\t\\n\\r\") + 1);\n        if (!text.empty())\n            return layout_text_element(\n                root, box.style, line);\n        return box;\n    }\n\n    if (box.style.display == DISPLAY_TYPE::BLOCK)\n        return layout_block_element(root,\n            parent_width, line, base_url,\n            image_cache_manager);\n\n    if (box.style.display == DISPLAY_TYPE::INLINE)\n        return layout_inline_element(root,\n            parent_width, line, base_url,\n            image_cache_manager);\n\n    return box;\n}",
+        "language": "cpp"
+      },
+      "narration": "Now the styled DOM becomes geometry. The layout engine walks the tree and creates a parallel LAYOUT_BOX tree where every node has an x, y, width, and height. The dispatch function checks what kind of element it is -- images, text, block elements, and inline elements each have their own layout algorithm. Block elements stack vertically and fill their parent's width. Inline elements flow horizontally and wrap at line boundaries. Display none elements are skipped entirely. This is the box model in action."
+    },
+    {
+      "name": "Pixel Frontier",
+      "subtitle": "Painting to Screen",
+      "concept": "Rendering Pipeline",
+      "landmarkType": "town",
+      "code": {
+        "file": "src/gui/renderer.cpp",
+        "content": "// src/gui/renderer.cpp\nvoid Renderer::render(std::shared_ptr<NODE> root,\n    const QString &base_url)\n{\n    m_root = root;\n    m_base_url = base_url;\n    if (m_root) {\n        std::string user_agent_css = R\"(\n    head, style, script, meta, link, title {\n        display: none; }\n    html, body, div, p, h1, h2, h3, h4, h5, h6,\n    ul, ol, li { display: block; }\n    body { padding: 8px; margin: 0;\n        line-height: 1.2; }\n    h1 { font-size: 32px; font-weight: bold; }\n    a { color: blue; text-decoration: underline; }\n        )\";\n        std::string author_css =\n            extract_stylesheets(m_root);\n        std::string combined_css =\n            user_agent_css + \"\\n\" + author_css;\n        m_cssom = create_cssom(combined_css);\n        apply_style(m_root, m_cssom);\n        recalculate_layout();\n    }\n    update();\n}\n\nvoid Renderer::paintEvent(QPaintEvent *event)\n{\n    if (!m_root) return;\n    QPainter painter(this);\n    painter.setRenderHint(QPainter::Antialiasing);\n    painter.fillRect(rect(), Qt::white);\n    paint_layout(painter, m_layout_tree, 0, 0);\n}",
+        "language": "cpp"
+      },
+      "narration": "You made it to the Pixel Frontier! The render method ties the entire pipeline together. First it defines the user agent stylesheet -- the browser's own defaults like making h1 bold and links blue. Then it extracts the author CSS from style tags, combines them, builds the CSSOM, applies styles to every node, and recalculates layout. The paintEvent is where pixels actually hit the screen -- QPainter fills a white background, then paint_layout recursively draws every box, text span, image, and border. From HTML string to pixels on screen -- that is a browser engine."
+    }
+  ],
+  "events": [
+    {
+      "type": "weather",
+      "trigger": "after_stop",
+      "triggerStop": 1,
+      "title": "Malformed Tag Storm!",
+      "text": "A storm of malformed HTML hits your tokenizer -- tags without closing angle brackets, nested comments, and rogue ampersands. How does the tokenizer handle a missing closing bracket?",
+      "choices": [
+        {
+          "text": "It throws a runtime error because the HTML is invalid",
+          "correct": true,
+          "explanation": "The tokenizer throws std::runtime_error with 'INVALIDE HTML: NO CLOSING TAG' when it finds a less-than sign but no matching greater-than. Strict parsing, no error recovery."
+        },
+        {
+          "text": "It silently ignores the broken tag and moves on",
+          "correct": false,
+          "explanation": "This tokenizer is strict. Unlike real browsers that try to recover from errors, mini_browser halts on invalid syntax."
+        },
+        {
+          "text": "It inserts a closing bracket automatically",
+          "correct": false,
+          "explanation": "There is no error correction logic. The tokenizer expects well-formed HTML or it crashes."
+        }
+      ],
+      "concept": "HTML Tokenization",
+      "difficulty": "easy"
+    },
+    {
+      "type": "encounter",
+      "trigger": "after_stop",
+      "triggerStop": 2,
+      "title": "A Fellow Parser Appears",
+      "text": "A seasoned C++ developer says: 'I notice the parser uses a stack of shared pointers. When we encounter a void element like img or br, what happens differently?'",
+      "choices": [
+        {
+          "text": "Void elements are added as children but never pushed onto the stack, since they cannot have children",
+          "correct": true,
+          "explanation": "The parser checks a set of void elements -- meta, link, img, br, hr, input. These get added to the current parent but skip the stack.push_back, so the next token attaches to the same parent."
+        },
+        {
+          "text": "Void elements are pushed onto the stack and immediately popped",
+          "correct": false,
+          "explanation": "They are never pushed at all. The is_void check gates the push_back entirely."
+        },
+        {
+          "text": "Void elements are ignored by the parser and excluded from the DOM tree",
+          "correct": false,
+          "explanation": "Void elements are still added as children of the current parent. They just do not accept children of their own."
+        }
+      ],
+      "concept": "DOM Tree",
+      "difficulty": "medium"
+    },
+    {
+      "type": "river",
+      "trigger": "after_stop",
+      "triggerStop": 4,
+      "title": "The Cascade River",
+      "text": "You have reached the deepest crossing on the trail -- the boundary between parsed rules and computed styles. An element has color: red in the stylesheet, color: blue in an inline style attribute, and inherits color: green from its parent. What color does it end up with?",
+      "choices": [
+        {
+          "text": "Blue -- inline styles are applied last and override everything",
+          "correct": true,
+          "explanation": "The apply_style function processes in order: inherited styles first, then CSSOM-matched rules, then inline styles. Inline styles from the style attribute always win because they are applied last."
+        },
+        {
+          "text": "Red -- stylesheet rules have higher specificity than inline styles",
+          "correct": false,
+          "explanation": "In mini_browser's cascade, application order determines the winner. Inline styles are applied after stylesheet rules, so they override."
+        },
+        {
+          "text": "Green -- inherited values take priority because they come from a parent",
+          "correct": false,
+          "explanation": "Inherited values are applied first and serve as defaults. Both stylesheet rules and inline styles override inherited values."
+        }
+      ],
+      "concept": "Style Computation",
+      "difficulty": "medium"
+    },
+    {
+      "type": "misfortune",
+      "trigger": "after_stop",
+      "triggerStop": 5,
+      "title": "Selector Mismatch!",
+      "text": "Disaster! A developer wrote a CSS rule using a descendant selector like 'div p' but nothing is being styled. What went wrong?",
+      "choices": [
+        {
+          "text": "The CSSOM only supports element, class, and ID selectors -- no descendant or combinator selectors",
+          "correct": true,
+          "explanation": "The matches function only checks three cases: dot prefix for class, hash prefix for ID, and plain text for element name. Complex selectors like 'div p' or 'ul > li' are not implemented."
+        },
+        {
+          "text": "The CSS parser failed to extract the rule from the style tag",
+          "correct": false,
+          "explanation": "The parser handles selectors just fine as strings. The problem is that the matching engine cannot interpret complex selectors."
+        },
+        {
+          "text": "The inline style parser is overriding the stylesheet rule",
+          "correct": false,
+          "explanation": "Inline styles only override if present. The real issue is the selector never matches any node in the first place."
+        }
+      ],
+      "concept": "CSSOM",
+      "difficulty": "hard"
+    },
+    {
+      "type": "weather",
+      "trigger": "after_stop",
+      "triggerStop": 6,
+      "title": "Overflow Blizzard!",
+      "text": "A blizzard of text content overflows the viewport. A long word does not fit on the current line. How does the text layout engine handle word wrapping?",
+      "choices": [
+        {
+          "text": "It checks if current_x plus word_width exceeds max_width, and if so, resets current_x to padding_left and advances current_y by line_height",
+          "correct": true,
+          "explanation": "The layout_text_element function splits text into words, measures each with QFontMetrics, and wraps to a new line when the word would exceed max_width. Line height tracks the tallest element on each line."
+        },
+        {
+          "text": "It truncates the text and adds an ellipsis",
+          "correct": false,
+          "explanation": "There is no text truncation or overflow hidden. Content wraps to new lines until all words are placed."
+        },
+        {
+          "text": "It makes the parent element wider to fit the content",
+          "correct": false,
+          "explanation": "Parent width is fixed by its own layout calculation. Children must wrap within the available space."
+        }
+      ],
+      "concept": "Layout Engine",
+      "difficulty": "medium"
+    },
+    {
+      "type": "encounter",
+      "trigger": "after_stop",
+      "triggerStop": 6,
+      "title": "The Block vs Inline Traveler",
+      "text": "A layout engineer asks: 'Block elements stack vertically. Inline elements flow horizontally. But how does mini_browser decide which layout algorithm to use for a given element?'",
+      "choices": [
+        {
+          "text": "The display property from computed styles determines the dispatch -- BLOCK, INLINE, or NONE each route to different layout functions",
+          "correct": true,
+          "explanation": "create_layout_tree checks box.style.display and dispatches to layout_block_element, layout_inline_element, or skips the node entirely for NONE. Images and text nodes have special-case handling before the display check."
+        },
+        {
+          "text": "The HTML tag name directly determines the layout mode with a hardcoded list",
+          "correct": false,
+          "explanation": "The tag name sets the default display type in get_display_type, but CSS can override it. The layout engine reads the computed display property, not the tag name."
+        },
+        {
+          "text": "All elements use the same layout algorithm and just vary their spacing",
+          "correct": false,
+          "explanation": "Block and inline layouts are fundamentally different algorithms. Block elements reset the x position and advance y. Inline elements advance x and wrap at line boundaries."
+        }
+      ],
+      "concept": "Layout Engine",
+      "difficulty": "easy"
+    },
+    {
+      "type": "river",
+      "trigger": "after_stop",
+      "triggerStop": 7,
+      "title": "The Paint River",
+      "text": "The final boundary -- from abstract layout boxes to real pixels. The render method calls apply_style, then recalculate_layout, then update. But the user agent stylesheet defines 'head, style, script, meta, link, title' with display:none. Why is this critical?",
+      "choices": [
+        {
+          "text": "Without display:none, the browser would try to render the raw CSS text from style tags and metadata as visible content on the page",
+          "correct": true,
+          "explanation": "The text inside style and script tags would be treated as visible TEXT nodes and rendered on screen. The user agent stylesheet hides these structural elements so only body content is painted."
+        },
+        {
+          "text": "It prevents those elements from being parsed into the DOM tree",
+          "correct": false,
+          "explanation": "Those elements are still in the DOM. Display:none only affects layout and painting -- the layout engine skips elements with display NONE."
+        },
+        {
+          "text": "It improves performance by reducing the number of DOM nodes",
+          "correct": false,
+          "explanation": "The DOM tree still contains these nodes. Display:none means they are skipped during layout tree creation, but they exist in the DOM."
+        }
+      ],
+      "concept": "Rendering Pipeline",
+      "difficulty": "hard"
+    }
+  ],
+  "partyMembers": [
+    {
+      "name": "DOM Tree",
+      "icon": "tree",
+      "maxHealth": 3
+    },
+    {
+      "name": "CSSOM",
+      "icon": "palette",
+      "maxHealth": 3
+    },
+    {
+      "name": "Layout Engine",
+      "icon": "grid",
+      "maxHealth": 3
+    },
+    {
+      "name": "Rendering Pipeline",
+      "icon": "monitor",
+      "maxHealth": 3
+    }
+  ],
+  "deathMessages": [
+    "You have died of unclosed HTML tags.",
+    "You have died of infinite layout reflow.",
+    "You have drowned in the Cascade River.",
+    "You have died of unresolved CSS selectors.",
+    "You have died of stack overflow in recursive painting.",
+    "You have died of null pointer dereference in the DOM tree.",
+    "You have died of font metrics miscalculation.",
+    "You have died of runaway word wrapping.",
+    "You have died of missing user agent stylesheet.",
+    "You have died of shared_ptr circular references."
+  ],
+  "sourceInfo": {
+    "repo": "beginner-jhj/mini_browser",
+    "commit": "main",
+    "tag": "",
+    "snapshotDate": "2026-04-08"
+  }
+};
+
+// FLAVORS
+window.TRAIL_FLAVORS = [
+  "The HTML stream arrives cleanly over the wire...",
+  "Your tokenizer hums along, splitting tags from text...",
+  "Angle brackets pass by like mile markers on the trail...",
+  "The DOM tree grows taller with each parsed element...",
+  "Shared pointers keep your nodes alive and connected...",
+  "CSS rules cascade like waterfalls along the trail...",
+  "The style computation engine resolves property conflicts...",
+  "QFontMetrics measures each word with pixel precision...",
+  "Layout boxes stack and flow across the viewport...",
+  "The paint queue is clear and the QPainter is ready...",
+  "A gentle breeze carries well-formed HTML your way...",
+  "Your party's computed styles look sharp and resolved...",
+  "Block elements march in orderly vertical columns...",
+  "Inline elements flow like a river of text across the page...",
+  "The user agent stylesheet provides sensible defaults..."
+];
+// END FLAVORS
+
+window.drawCustomEventOverlay = function(time) {
+  if (!currentEventType && !currentEventTitle) return;
+  var t = (time || 0) * 0.001;
+
+// OVERLAYS
+  // --- RENDERING STORM: dark sky, falling angle brackets ---
+  if (currentEventTitle.indexOf('Rendering Storm') !== -1) {
+    ctx.fillStyle = 'rgba(0,0,50,0.45)';
+    ctx.fillRect(0, 0, W, 110);
+    var flashPhase = Math.sin(t * 1.7) + Math.sin(t * 3.1);
+    if (flashPhase > 1.6) {
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.fillRect(0, 0, W, H);
+    }
+    ctx.fillStyle = '#7B68EE';
+    ctx.font = '10px monospace';
+    for (var i = 0; i < 20; i++) {
+      var bx = (i * 17 + t * 30) % W;
+      var by = (i * 23 + t * 60) % 110;
+      ctx.fillText(i % 2 === 0 ? '<' : '>', Math.floor(bx), Math.floor(by));
+    }
+    return;
+  }
+
+  // --- PIPELINE CROSSING: turbulent data stream ---
+  if (currentEventTitle.indexOf('Pipeline') !== -1 || currentEventTitle.indexOf('Cascade') !== -1) {
+    ctx.fillStyle = '#55FFFF';
+    for (var i = 0; i < 20; i++) {
+      var sx = (i * 17 + t * 40) % W;
+      var sy = 157 + Math.sin((i * 3 + t * 5)) * 3;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), 4, 2);
+    }
+    ctx.fillStyle = '#4682B4';
+    ctx.font = '6px monospace';
+    for (var i = 0; i < 8; i++) {
+      var hx = (i * 42 + t * 25) % W;
+      var hy = 159 + Math.sin(t * 2 + i) * 2;
+      ctx.fillText('0x' + ((i * 37 + Math.floor(t)) % 256).toString(16), Math.floor(hx), Math.floor(hy));
+    }
+    return;
+  }
+
+  // --- DEVELOPER ENCOUNTER: pixel art developer ---
+  if (currentEventTitle.indexOf('Developer') !== -1 || currentEventTitle.indexOf('Mentor') !== -1) {
+    var px = 200, py = 142;
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(px, py - 12, 4, 8);
+    ctx.fillStyle = '#FFAA00';
+    ctx.fillRect(px, py - 15, 4, 3);
+    ctx.fillRect(px - 1, py - 4, 2, 5);
+    ctx.fillRect(px + 3, py - 4, 2, 5);
+    ctx.fillStyle = '#555555';
+    ctx.fillRect(px - 1, py - 17, 6, 2);
+    ctx.fillRect(px, py - 19, 4, 2);
+    // Laptop
+    ctx.fillStyle = '#AAAAAA';
+    ctx.fillRect(px + 8, py - 8, 8, 6);
+    ctx.fillStyle = '#55AAFF';
+    ctx.fillRect(px + 9, py - 7, 6, 4);
+    return;
+  }
+
+  // --- BUG REPORT: red danger tint ---
+  if (currentEventTitle.indexOf('Bug') !== -1 || currentEventTitle.indexOf('Segfault') !== -1 || currentEventTitle.indexOf('Overflow') !== -1) {
+    ctx.fillStyle = 'rgba(170,0,0,0.25)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#FF5555';
+    ctx.font = '8px monospace';
+    for (var i = 0; i < 6; i++) {
+      var ex = 40 + Math.sin(t * 2 + i * 1.5) * 100;
+      var ey = 30 + (i * 20 + t * 15) % 120;
+      ctx.fillText('SEGFAULT', Math.floor(ex), Math.floor(ey));
+    }
+    var pulse = (Math.sin(t * 4) + 1) * 0.15;
+    ctx.strokeStyle = 'rgba(255,0,0,' + pulse.toFixed(2) + ')';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(1, 1, W - 2, H - 2);
+    ctx.lineWidth = 1;
+    return;
+  }
+// END OVERLAYS
+};
+</script>
+<script src="../engine.js"></script>
+</body>
+</html>

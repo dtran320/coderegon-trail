@@ -1,0 +1,336 @@
+{
+  "framework": "pg-textsearch",
+  "trailName": "The Relevance Trail",
+  "stops": [
+    {
+      "name": "Query Outpost",
+      "subtitle": "The SQL Entry Point",
+      "concept": "Query Parsing",
+      "landmarkType": "town",
+      "code": {
+        "file": "src/types/query.c",
+        "content": "// src/types/query.c — bm25query data type\ntypedef struct QueryScoreCache\n{\n    char   term[NAMEDATALEN];\n    uint32 doc_freq;\n    float4 idf;\n} TermIdfEntry;\n\n// SQL: ORDER BY content <@> 'database system'\n// The <@> operator triggers BM25 scoring.\n// bm25query can be plain text or explicit:\n//   SELECT * FROM documents\n//   ORDER BY content <@> 'search terms'\n//   LIMIT 5;\n//\n// Or with explicit index:\n//   SELECT * FROM documents\n//   WHERE content <@> to_bm25query(\n//     'search terms', 'docs_idx'\n//   ) < -1.0;",
+        "language": "c"
+      },
+      "narration": "Every search journey starts here at the Query Outpost. The user writes a SQL query with the special angle-at-angle operator. pg_textsearch intercepts this operator and parses the search string into a bm25query type. It can auto-detect the index from the column, or you can specify it explicitly with to_bm25query. The negative score trick is clever — Postgres only supports ascending index scans, so lower scores mean better matches."
+    },
+    {
+      "name": "Planner Hook Pass",
+      "subtitle": "Implicit Index Resolution",
+      "concept": "Planner Hooks",
+      "landmarkType": "mountain",
+      "code": {
+        "file": "src/planner/hooks.c",
+        "content": "// src/planner/hooks.c — Parse analysis and planner hooks\nstatic bool\nlookup_bm25_oids_internal(BM25OidCache *cache)\n{\n    HeapTuple tuple;\n    List     *opname;\n\n    /* Look up bm25 access method */\n    tuple = SearchSysCache1(\n        AMNAME, CStringGetDatum(\"bm25\"));\n    if (HeapTupleIsValid(tuple)) {\n        cache->bm25_am_oid =\n            ((Form_pg_am)GETSTRUCT(tuple))->oid;\n        ReleaseSysCache(tuple);\n    }\n\n    /* Look up the <@> operator for (text, text) */\n    opname = list_make1(makeString(\"<@>\"));\n    cache->text_text_operator_oid =\n        OpernameGetOprid(opname, TEXTOID, TEXTOID);\n    list_free(opname);\n\n    return true;\n}",
+        "language": "c"
+      },
+      "narration": "Before any scoring happens, the planner hooks kick in. When you write content angle-at-angle followed by a search string without naming an index, this hook finds the right BM25 index automatically. It searches the system catalogs for BM25 access method objects and caches the OIDs so it doesn't repeat expensive catalog lookups on every query. Cache invalidation callbacks keep it fresh when extensions are installed or dropped."
+    },
+    {
+      "name": "Tokenization Camp",
+      "subtitle": "Text to Lexemes",
+      "concept": "Tokenization",
+      "landmarkType": "camp",
+      "code": {
+        "file": "src/types/vector.c",
+        "content": "// src/types/vector.c — to_tpvector: text -> lexemes\nDatum\nto_tpvector(PG_FUNCTION_ARGS)\n{\n    text *input_text = PG_GETARG_TEXT_PP(0);\n    text *index_name_text = PG_GETARG_TEXT_PP(1);\n\n    /* Get text config from index metapage */\n    metap = tp_get_metapage(index_rel);\n    text_config_oid = metap->text_config_oid;\n\n    /* Use Postgres to_tsvector to tokenize */\n    tsvector_datum = DirectFunctionCall2(\n        to_tsvector_byid,\n        ObjectIdGetDatum(text_config_oid),\n        PointerGetDatum(input_text));\n    tsvector = DatumGetTSVector(tsvector_datum);\n\n    /* Extract lexemes and their frequencies */\n    we = ARRPTR(tsvector);\n    for (i = 0; i < entry_count; i++) {\n        lexemes[i] = STRPTR(tsvector) + we[i].pos;\n        frequencies[i] = POSDATALEN(tsvector, &we[i]);\n    }\n\n    result = create_tpvector_from_strings(\n        index_name, entry_count, lexemes, frequencies);\n    PG_RETURN_POINTER(result);\n}",
+        "language": "c"
+      },
+      "narration": "At Tokenization Camp, raw search text becomes structured lexemes. pg_textsearch reuses Postgres's built-in text search configurations — English, French, German, whatever you configured on the index. The to_tsvector function does the heavy lifting: splitting words, removing stop words, and applying stemming. The result is a sorted vector of lexemes with their frequencies. This is the same tokenizer used at index build time, so query tokens will match stored tokens."
+    },
+    {
+      "name": "IDF Calculation Ridge",
+      "subtitle": "Term Weighting",
+      "concept": "BM25 Scoring",
+      "landmarkType": "mountain",
+      "code": {
+        "file": "src/query/score.c",
+        "content": "// src/query/score.c — IDF and document frequency\nfloat4\ntp_calculate_idf(int32 doc_freq, int32 total_docs)\n{\n    double idf_numerator =\n        (double)(total_docs - doc_freq + 0.5);\n    double idf_denominator =\n        (double)(doc_freq + 0.5);\n    double idf_ratio =\n        idf_numerator / idf_denominator;\n    return (float4)log(1.0 + idf_ratio);\n}\n\n/* Batch lookup across memtable + all segments */\nstatic void\ntp_batch_get_unified_doc_freq(\n    TpLocalIndexState *local_state,\n    Relation           index,\n    char             **terms,\n    int                term_count,\n    BlockNumber       *level_heads,\n    uint32            *doc_freqs)\n{\n    /* Initialize with memtable counts */\n    for (i = 0; i < term_count; i++) {\n        TpPostingList *pl =\n            tp_get_posting_list(local_state, terms[i]);\n        doc_freqs[i] = pl ? pl->doc_count : 0;\n    }\n    /* Add counts from all segment levels */\n    for (level = 0; level < TP_MAX_LEVELS; level++)\n        if (level_heads[level] != InvalidBlockNumber)\n            tp_batch_get_segment_doc_freq(\n                index, level_heads[level],\n                terms, term_count, doc_freqs);\n}",
+        "language": "c"
+      },
+      "narration": "At IDF Ridge we calculate how rare each search term is. The formula is classic BM25: log of one plus the ratio of documents without the term to documents with it. Rare terms get high IDF scores — they are more discriminating. The batch lookup is critical for performance: it gathers document frequencies from both the in-memory memtable and all on-disk segment levels in a single pass, opening each segment only once instead of once per term."
+    },
+    {
+      "name": "Memtable Search Camp",
+      "subtitle": "In-Memory Posting Lists",
+      "concept": "Memtable",
+      "landmarkType": "camp",
+      "code": {
+        "file": "src/memtable/scan.c",
+        "content": "// src/memtable/scan.c — Search entry point\nbool\ntp_memtable_search(\n    IndexScanDesc      scan,\n    TpLocalIndexState *index_state,\n    TpVector          *query_vector,\n    TpIndexMetaPage    metap)\n{\n    TpScanOpaque so = (TpScanOpaque)scan->opaque;\n\n    /* Extract terms and frequencies */\n    entries_ptr = TPVECTOR_ENTRIES_PTR(query_vector);\n    for (int i = 0; i < entry_count; i++) {\n        TpVectorEntry *entry = (TpVectorEntry *)ptr;\n        term_str = palloc(entry->lexeme_len + 1);\n        memcpy(term_str, entry->lexeme,\n               entry->lexeme_len);\n        query_terms[i] = term_str;\n        query_frequencies[i] = entry->frequency;\n    }\n\n    /* BM25 parameters from index metadata */\n    k1_value = metap->k1;  // default 1.2\n    b_value  = metap->b;   // default 0.75\n\n    /* Score documents */\n    result_count = tp_score_documents(\n        index_state, scan->indexRelation,\n        query_terms, query_frequencies,\n        entry_count, k1_value, b_value,\n        max_results, so->result_ctids,\n        &so->result_scores);\n}",
+        "language": "c"
+      },
+      "narration": "At Memtable Search Camp, the query vector meets the inverted index. The memtable lives in shared memory — it holds recently inserted documents that haven't been flushed to disk yet. The scan extracts each lexeme and its frequency from the query vector, reads the BM25 parameters k1 and b from the index metadata, then hands everything to the scoring engine. k1 controls term frequency saturation, b controls length normalization."
+    },
+    {
+      "name": "Block-Max WAND Rapids",
+      "subtitle": "Top-K Early Termination",
+      "concept": "BMW Optimization",
+      "landmarkType": "river",
+      "code": {
+        "file": "src/query/bmw.c",
+        "content": "// src/query/bmw.c — Block-Max WAND heap\ntypedef struct TpTopKHeap\n{\n    ItemPointerData *ctids;\n    BlockNumber     *seg_blocks;\n    uint32          *doc_ids;\n    float4          *scores;\n    int              capacity;  // k\n    int              size;\n} TpTopKHeap;\n\nstatic inline float4\ntp_topk_threshold(TpTopKHeap *heap)\n{\n    return (heap->size >= heap->capacity)\n        ? heap->scores[0] : 0.0f;\n}\n\nstatic inline bool\ntp_topk_dominated(TpTopKHeap *heap, float4 score)\n{\n    return heap->size >= heap->capacity\n        && score < heap->scores[0];\n}\n\n// Block upper bound check:\nfloat4 tp_compute_block_max_score(\n    TpSkipEntry *skip,\n    float4 idf, float4 k1,\n    float4 b, float4 avg_doc_len)\n{\n    // If block's best possible score can't beat\n    // the current top-k threshold, skip the\n    // entire block — potentially thousands of\n    // documents avoided.\n}",
+        "language": "c"
+      },
+      "narration": "Now we cross the most dangerous rapids — Block-Max WAND. This is the optimization that makes pg_textsearch fast. Instead of scoring every document, it maintains a min-heap of the top-k results seen so far. Each disk block stores its maximum possible BM25 score. If a block's best score cannot beat the worst score in the current top-k, the entire block is skipped. On large datasets, this skips over ninety percent of blocks. The threshold starts at zero and rises as better documents are found."
+    },
+    {
+      "name": "Compression Gorge",
+      "subtitle": "Delta Encoding with SIMD",
+      "concept": "Segment Storage",
+      "landmarkType": "forest",
+      "code": {
+        "file": "src/segment/compression.c",
+        "content": "// src/segment/compression.c — Posting list compression\n// Delta encoding + bitpacking with SSE2/NEON SIMD\n\nstatic void\nbitpack_decode(\n    const uint8 *in, uint32 count,\n    uint8 bits, uint32 *out)\n{\n    uint32 mask = (bits == 32)\n        ? UINT32_MAX : ((1U << bits) - 1);\n\n#if defined(TP_SIMD_SSE2)\n    __m128i vmask = _mm_set1_epi32((int)mask);\n    uint32 simd_end = count & ~3U;\n\n    for (i = 0; i < simd_end; i += 4) {\n        uint32 bit_off = i * (uint32)bits;\n        uint64 raw;\n        memcpy(&raw, in + (bit_off >> 3), 8);\n        v0 = (uint32)(raw >> (bit_off & 7)) & mask;\n        // ... extract v1, v2, v3 similarly\n\n        _mm_storeu_si128(\n            (__m128i *)(out + i),\n            _mm_and_si128(\n                _mm_setr_epi32(v0, v1, v2, v3),\n                vmask));\n    }\n#elif defined(TP_SIMD_NEON)\n    // ARM NEON vectorized path\n#endif\n}",
+        "language": "c"
+      },
+      "narration": "Deep in Compression Gorge, posting lists are stored space-efficiently on disk. Document IDs are delta-encoded — only the difference between consecutive IDs is stored. Then those deltas are bitpacked using the minimum number of bits needed. Decoding uses branchless direct-indexed loads: compute the bit offset, load eight bytes, shift and mask. On x86 it uses SSE2 intrinsics to decode four values at once. On ARM it uses NEON. This reduces both index size and query time by minimizing disk reads."
+    },
+    {
+      "name": "Result Frontier",
+      "subtitle": "Ranked Results Returned",
+      "concept": "Index Scan",
+      "landmarkType": "town",
+      "code": {
+        "file": "src/am/scan.c",
+        "content": "// src/am/scan.c — Return ranked results to Postgres\nbool\ntp_gettuple(IndexScanDesc scan, ScanDirection dir)\n{\n    TpScanOpaque so = (TpScanOpaque)scan->opaque;\n\n    /* Execute scoring query on first call */\n    if (so->result_ctids == NULL && !so->eof_reached)\n    {\n        pgstat_count_index_scan(scan->indexRelation);\n        if (!tp_execute_scoring_query(scan)) {\n            so->eof_reached = true;\n            return false;\n        }\n    }\n\n    /* Return next result from sorted array */\n    scan->xs_heaptid =\n        so->result_ctids[so->current_pos];\n    scan->xs_recheck = false;\n\n    /* Set ORDER BY distance (negative BM25) */\n    raw_score =\n        so->result_scores[so->current_pos];\n    bm25_score = (raw_score > 0)\n        ? -raw_score : raw_score;\n    scan->xs_orderbyvals[0] =\n        Float4GetDatum(bm25_score);\n\n    /* Cache for stub function */\n    tp_cached_score = (float8)bm25_score;\n    so->current_pos++;\n    return true;\n}",
+        "language": "c"
+      },
+      "narration": "You made it to the Result Frontier! The tp_gettuple function is called by Postgres to get one result at a time. On the first call it triggers the full scoring pipeline — tokenization, IDF lookup, BMW scoring. Then it walks through the pre-sorted results array, returning each document's heap tuple ID and its negative BM25 score. The score is negated because Postgres only supports ascending ORDER BY with index scans. The score is also cached so the resjunk ORDER BY expression can retrieve it without rescoring. Your query has completed its journey from SQL to ranked results."
+    }
+  ],
+  "events": [
+    {
+      "type": "weather",
+      "trigger": "after_stop",
+      "triggerStop": 1,
+      "title": "Configuration Storm!",
+      "text": "A storm of search configurations sweeps the trail! Your index uses 'english' config, but a French document appears. What happens to the French text during indexing?",
+      "choices": [
+        {
+          "text": "The English stemmer processes it — French words get stemmed incorrectly but are still searchable",
+          "correct": true,
+          "explanation": "The text_config on CREATE INDEX determines the stemmer. French words go through English stemming rules, producing imperfect but functional tokens. For proper French support, create a separate index with text_config='french'."
+        },
+        {
+          "text": "Postgres auto-detects the language and switches configs",
+          "correct": false,
+          "explanation": "Postgres does not auto-detect languages. The text_config is fixed at index creation time. You need separate indexes for different languages."
+        },
+        {
+          "text": "The indexer throws an error on non-English text",
+          "correct": false,
+          "explanation": "No error is thrown. Any UTF-8 text goes through the configured stemmer. It just produces less-optimal tokens for the wrong language."
+        }
+      ],
+      "concept": "Tokenization",
+      "difficulty": "easy"
+    },
+    {
+      "type": "encounter",
+      "trigger": "after_stop",
+      "triggerStop": 2,
+      "title": "A Database Traveler Appears",
+      "text": "A fellow database traveler asks: 'I have a million documents, but my BM25 query does a sequential scan instead of using the index. What gives?'",
+      "choices": [
+        {
+          "text": "For small result sets, the Postgres planner may prefer a sequential scan — use SET enable_seqscan = off to force the index",
+          "correct": true,
+          "explanation": "The Postgres query planner estimates costs and may prefer a seq scan for small tables. The <@> operator still uses the index internally for corpus statistics, but the planner controls the scan path."
+        },
+        {
+          "text": "You need to REINDEX to refresh the statistics",
+          "correct": false,
+          "explanation": "REINDEX rebuilds the index but doesn't change planner behavior. The planner uses table-level statistics, not index statistics, for path selection."
+        },
+        {
+          "text": "BM25 indexes only work with WHERE clauses, not ORDER BY",
+          "correct": false,
+          "explanation": "BM25 indexes are designed for ORDER BY with the <@> operator. They support amcanorderbyop, which means they return results in score order."
+        }
+      ],
+      "concept": "Planner Hooks",
+      "difficulty": "easy"
+    },
+    {
+      "type": "river",
+      "trigger": "after_stop",
+      "triggerStop": 3,
+      "title": "The Memory Boundary River",
+      "text": "You've reached the boundary between in-memory memtable and on-disk segments. Your server has been inserting documents for hours without a VACUUM. Memory usage is climbing. How do you cross safely?",
+      "choices": [
+        {
+          "text": "The memtable auto-spills to disk segments when it hits the per-index soft limit — memory_limit divided by eight",
+          "correct": true,
+          "explanation": "pg_textsearch has three spill thresholds: per-index soft limit at one-eighth of memory_limit, global soft limit at half, and a hard cap. The memtable is flushed to a new disk segment, then compaction merges segments at each level."
+        },
+        {
+          "text": "You need to manually run VACUUM to flush the memtable",
+          "correct": false,
+          "explanation": "While VACUUM can trigger compaction, auto-spill handles the memory pressure automatically. You don't need to manually intervene."
+        },
+        {
+          "text": "Increase shared_buffers so the memtable never needs to spill",
+          "correct": false,
+          "explanation": "The memtable uses DSA (dynamic shared area), not shared_buffers. And spilling is healthy — it keeps memory bounded and creates the segment structure needed for efficient querying."
+        }
+      ],
+      "concept": "Memtable",
+      "difficulty": "medium"
+    },
+    {
+      "type": "misfortune",
+      "trigger": "after_stop",
+      "triggerStop": 4,
+      "title": "N-plus-One Query Plague!",
+      "text": "Disaster strikes! Your search query calls tp_get_unified_doc_freq in a loop — once per term, opening every segment each time. With 50 segments and 10 query terms, that is 500 segment opens!",
+      "choices": [
+        {
+          "text": "Use the batch function tp_batch_get_unified_doc_freq which opens each segment only once for all terms",
+          "correct": true,
+          "explanation": "The batch function iterates through segments in the outer loop and terms in the inner loop. Each segment is opened once, and all term frequencies are collected in a single pass. This turns O(terms times segments) into O(segments)."
+        },
+        {
+          "text": "Cache all segment data in memory so opens are free",
+          "correct": false,
+          "explanation": "Segments can be large. Caching everything would consume too much memory. The batch approach solves the problem without extra memory."
+        },
+        {
+          "text": "Limit queries to single terms only",
+          "correct": false,
+          "explanation": "Multi-term queries are essential for relevance. The solution is batching the lookups, not limiting the query language."
+        }
+      ],
+      "concept": "BM25 Scoring",
+      "difficulty": "medium"
+    },
+    {
+      "type": "weather",
+      "trigger": "after_stop",
+      "triggerStop": 5,
+      "title": "Threshold Blizzard!",
+      "text": "A blizzard of documents! Your top-k heap is full with k equals 10. The current minimum score in the heap is 4.2. A new block claims its maximum possible BM25 score is 3.8. What does BMW do?",
+      "choices": [
+        {
+          "text": "Skip the entire block — its best document cannot beat the worst result in the top-k",
+          "correct": true,
+          "explanation": "This is the core BMW optimization. The block's upper bound score of 3.8 is below the heap threshold of 4.2. No document in that block can possibly enter the top-k, so all documents in the block are skipped without being scored."
+        },
+        {
+          "text": "Score every document in the block to be safe",
+          "correct": false,
+          "explanation": "That would defeat the purpose of BMW. The block maximum score is a proven upper bound. If it cannot beat the threshold, no individual document score can either."
+        },
+        {
+          "text": "Score the block but reduce the scores by the difference",
+          "correct": false,
+          "explanation": "BM25 scores are not adjusted. The block-max is an upper bound computed from the highest term frequency and shortest field norm in the block. Individual documents can only score equal or lower."
+        }
+      ],
+      "concept": "BMW Optimization",
+      "difficulty": "easy"
+    },
+    {
+      "type": "river",
+      "trigger": "after_stop",
+      "triggerStop": 5,
+      "title": "The Compression Crossing",
+      "text": "The deepest river — your posting list stores document IDs 100, 103, 105, 112, 180. Raw storage needs 20 bytes for five 32-bit integers. How does compression cross this gap?",
+      "choices": [
+        {
+          "text": "Delta-encode to get gaps of 3, 2, 7, 68 — then bitpack using only the bits needed for the largest gap",
+          "correct": true,
+          "explanation": "Deltas are 3, 2, 7, 68. The max delta 68 needs 7 bits. So all four gaps pack into 28 bits — about 4 bytes instead of 16 for the gaps. Add the first ID and you've cut storage dramatically. SIMD decoding then unpacks four values at once."
+        },
+        {
+          "text": "Use general-purpose compression like zlib on the raw integers",
+          "correct": false,
+          "explanation": "General compression is too slow for the inner loop of query processing. Bitpacking with SIMD is specifically designed for fast sequential decompression of integer sequences."
+        },
+        {
+          "text": "Store only the first and last document ID and interpolate",
+          "correct": false,
+          "explanation": "Document IDs in posting lists are not evenly distributed. Interpolation would lose information. Delta encoding preserves exact positions."
+        }
+      ],
+      "concept": "Segment Storage",
+      "difficulty": "hard"
+    },
+    {
+      "type": "fortune",
+      "trigger": "after_stop",
+      "triggerStop": 6,
+      "title": "Cache of Fresh Statistics",
+      "text": "Your understanding of scoring is paying off! You discover a cache of pre-computed IDF values that speeds up repeated queries.",
+      "choices": [],
+      "concept": "BM25 Scoring",
+      "difficulty": "easy"
+    },
+    {
+      "type": "misfortune",
+      "trigger": "after_stop",
+      "triggerStop": 6,
+      "title": "Score Negation Bug!",
+      "text": "A wagon wheel breaks! Your application sorts by BM25 score ascending, expecting the best results first. But higher BM25 scores mean better matches. The top results are the worst documents!",
+      "choices": [
+        {
+          "text": "pg_textsearch negates the score — the <@> operator returns negative BM25 so ascending ORDER BY gives best results first",
+          "correct": true,
+          "explanation": "Postgres index scans only support ascending order. So pg_textsearch negates the score: a document with BM25 score 8.5 is returned as -8.5. ORDER BY content <@> query ASC puts -8.5 before -2.1, giving you the best match first."
+        },
+        {
+          "text": "Use ORDER BY ... DESC to reverse the sort",
+          "correct": false,
+          "explanation": "BM25 indexes set amcanorderbyop but not amcanorder with DESC. The index only supports ascending scans. The negation trick avoids needing a descending scan."
+        },
+        {
+          "text": "Wrap the score in ABS() to get positive values",
+          "correct": false,
+          "explanation": "Using ABS() would prevent the planner from using the index scan. The negative convention is by design — the planner recognizes <@> as an ORDER BY operator and uses the index directly."
+        }
+      ],
+      "concept": "Index Scan",
+      "difficulty": "medium"
+    }
+  ],
+  "partyMembers": [
+    {
+      "name": "BM25 Scoring",
+      "icon": "scoring",
+      "maxHealth": 3
+    },
+    {
+      "name": "BMW Optimization",
+      "icon": "optimization",
+      "maxHealth": 3
+    },
+    {
+      "name": "Memtable",
+      "icon": "memory",
+      "maxHealth": 3
+    },
+    {
+      "name": "Segment Storage",
+      "icon": "storage",
+      "maxHealth": 3
+    }
+  ],
+  "deathMessages": [
+    "You have died of unhandled NULL posting lists.",
+    "You have died of index corruption — segment format version mismatch.",
+    "You drowned in the memtable spill river. Memory limit exceeded.",
+    "You have died of unbounded query results. No LIMIT clause configured.",
+    "You have died of term frequency overflow.",
+    "You have died of bitpacking underflow — zero-width decode.",
+    "Killed by a rogue sequential scan on a million-row table.",
+    "You have died of IDF division by zero. Total docs was empty.",
+    "Lost in the segment merge forest. Too many levels.",
+    "You have died of shared memory exhaustion. The DSA is full."
+  ],
+  "sourceInfo": {
+    "repo": "timescale/pg_textsearch",
+    "language": "C",
+    "description": "PostgreSQL extension for BM25 relevance-ranked full-text search",
+    "defaultBranch": "main"
+  }
+}

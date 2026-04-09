@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Coderegon Trail - nanochat Edition</title>
+</head>
+<body>
+<div id="game-container">
+  <div id="canvas-area">
+    <canvas id="game-canvas" width="320" height="200"></canvas>
+    <div id="music-indicator">M: Music</div>
+  </div>
+  <div id="text-panel"></div>
+  <div id="status-bar"></div>
+</div>
+
+<script>
+window.TRAIL_DATA = {
+  "framework": "nanochat",
+  "trailName": "The Transformer Trail",
+  "stops": [
+    {
+      "name": "Tokenizer Outpost",
+      "subtitle": "Text to Token IDs with BPE",
+      "concept": "Tokenization",
+      "landmarkType": "town",
+      "code": {
+        "file": "nanochat/tokenizer.py",
+        "content": "class RustBPETokenizer:\n    \"\"\"Light wrapper around tiktoken (for efficient inference) but train with rustbpe\"\"\"\n\n    def __init__(self, enc, bos_token):\n        self.enc = enc\n        self.bos_token_id = self.encode_special(bos_token)\n\n    @classmethod\n    def train_from_iterator(cls, text_iterator, vocab_size):\n        # 1) train using rustbpe\n        tokenizer = rustbpe.Tokenizer()\n        # the special tokens are inserted later in __init__, we don't train them here\n        vocab_size_no_special = vocab_size - len(SPECIAL_TOKENS)\n        assert vocab_size_no_special >= 256, f\"vocab_size_no_special must be at least 256, got {vocab_size_no_special}\"\n        tokenizer.train_from_iterator(text_iterator, vocab_size_no_special, pattern=SPLIT_PATTERN)\n        # 2) construct the associated tiktoken encoding for inference\n        pattern = tokenizer.get_pattern()\n        mergeable_ranks_list = tokenizer.get_mergeable_ranks()\n        mergeable_ranks = {bytes(k): v for k, v in mergeable_ranks_list}",
+        "language": "python",
+        "startLine": 101,
+        "endLine": 120
+      },
+      "narration": "Every trail starts at the Tokenizer Outpost. Raw text gets chopped into subword pieces using Byte Pair Encoding. Nanochat trains its own thirty-two thousand token vocabulary with rustbpe, then wraps it in tiktoken for fast inference. Special tokens like BOS and user-start delimit conversations. Without tokenization, the transformer would have nothing to eat."
+    },
+    {
+      "name": "Data Packing Camp",
+      "subtitle": "BOS-Aligned Best-Fit Batching",
+      "concept": "Data Loading",
+      "landmarkType": "camp",
+      "code": {
+        "file": "nanochat/dataloader.py",
+        "content": "def tokenizing_distributed_data_loader_with_state_bos_bestfit(\n    tokenizer, B, T, split,\n    tokenizer_threads=4, tokenizer_batch_size=128,\n    device=\"cuda\", resume_state_dict=None,\n    buffer_size=1000\n):\n    \"\"\"\n    BOS-aligned dataloader with Best-Fit Cropping.\n\n    Reduces token waste compared to simple greedy cropping by searching a buffer\n    for documents that fit well, while maintaining 100% utilization (no padding).\n\n    Algorithm for each row:\n    1. From buffered docs, pick the LARGEST doc that fits entirely\n    2. Repeat until no doc fits\n    3. When nothing fits, crop a doc to fill remaining space exactly\n\n    Key properties:\n    - Every row starts with BOS\n    - 100% utilization (no padding, every token is trained on)\n    - Approximately 35% of all tokens are discarded due to cropping\n    \"\"\"",
+        "language": "python",
+        "startLine": 57,
+        "endLine": 79
+      },
+      "narration": "At Data Packing Camp, documents get packed into fixed-length rows like supplies into wagons. Every row starts with a BOS token so the model always sees a clean document boundary. The best-fit algorithm searches a buffer of a thousand documents to find the largest one that fits. No padding wasted, but about thirty-five percent of tokens get cropped. It is the price of clean context windows."
+    },
+    {
+      "name": "Embedding Ford",
+      "subtitle": "Token Embedding and Rotary Positions",
+      "concept": "Embeddings",
+      "landmarkType": "river",
+      "code": {
+        "file": "nanochat/gpt.py",
+        "content": "        # Embed the tokens\n        x = self.transformer.wte(idx) # embed current token\n        x = x.to(COMPUTE_DTYPE) # ensure activations are in compute dtype (no-op usually, but active for fp16 code path)\n        x = norm(x)\n\n        # Smear: mix previous token's embedding into current position (cheap bigram info)\n        if kv_cache is None:\n            # Training / naive generate: full sequence available, use fast slice\n            assert T > 1, \"Training forward pass should have T > 1\"\n            gate = self.smear_lambda.to(x.dtype) * torch.sigmoid(self.smear_gate(x[:, 1:, :24]))\n            x = torch.cat([x[:, :1], x[:, 1:] + gate * x[:, :-1]], dim=1)\n        else:\n            # KV cache inference: read prev embedding from cache, store current for next step\n            x_pre_smear = kv_cache.prev_embedding\n            kv_cache.prev_embedding = x[:, -1:, :]\n            if T > 1:\n                # Prefill: apply smear to positions 1+, same as training\n                gate = self.smear_lambda.to(x.dtype) * torch.sigmoid(self.smear_gate(x[:, 1:, :24]))\n                x = torch.cat([x[:, :1], x[:, 1:] + gate * x[:, :-1]], dim=1)",
+        "language": "python",
+        "startLine": 228,
+        "endLine": 246
+      },
+      "narration": "Crossing Embedding Ford, token IDs become dense vectors. The embedding table maps each token to a learned seven hundred sixty-eight dimensional vector. Then the smear gate mixes in the previous token's embedding for cheap bigram context. It is a gated blend, not a hard copy. This tiny trick gives the model local word-pair awareness before attention even fires."
+    },
+    {
+      "name": "Attention Gorge",
+      "subtitle": "Causal Self-Attention with Flash Attention",
+      "concept": "Self-Attention",
+      "landmarkType": "mountain",
+      "code": {
+        "file": "nanochat/gpt.py",
+        "content": "    def forward(self, x, ve, cos_sin, window_size, kv_cache):\n        B, T, C = x.size()\n\n        # Project the input to get queries, keys, and values\n        # Shape: (B, T, H, D) - FA3's native layout, no transpose needed!\n        q = self.c_q(x).view(B, T, self.n_head, self.head_dim)\n        k = self.c_k(x).view(B, T, self.n_kv_head, self.head_dim)\n        v = self.c_v(x).view(B, T, self.n_kv_head, self.head_dim)\n\n        # Value residual (ResFormer): mix in value embedding with input-dependent gate per head\n        if ve is not None:\n            ve = ve.view(B, T, self.n_kv_head, self.head_dim)\n            gate = 3 * torch.sigmoid(self.ve_gate(x[..., :self.ve_gate_channels]))  # (B, T, n_kv_head), range (0, 3)\n            v = v + gate.unsqueeze(-1) * ve\n\n        # Apply Rotary Embeddings to queries and keys to get relative positional encoding\n        cos, sin = cos_sin\n        q, k = apply_rotary_emb(q, cos, sin), apply_rotary_emb(k, cos, sin)\n        q, k = norm(q), norm(k) # QK norm\n        q = q * 1.2  # sharper attention (split scale between Q and K), TODO think through better\n        k = k * 1.2",
+        "language": "python",
+        "startLine": 66,
+        "endLine": 86
+      },
+      "narration": "Attention Gorge is the deepest point on the trail. Queries, keys, and values are projected from the residual stream. Then rotary embeddings inject relative position by rotating pairs of dimensions with sine and cosine. QK-norm stabilizes the dot products. The scaling factor of one point two sharpens attention so the model focuses harder. Value embeddings from ResFormer add a gated residual directly from the original tokens."
+    },
+    {
+      "name": "Transformer Pass",
+      "subtitle": "Residual Stream and Lambda Scaling",
+      "concept": "Transformer Blocks",
+      "landmarkType": "forest",
+      "code": {
+        "file": "nanochat/gpt.py",
+        "content": "        # Forward the trunk of the Transformer\n        x0 = x  # save initial normalized embedding for x0 residual\n        n_layer = self.config.n_layer\n        backout_layer = n_layer // 2  # cache at halfway point\n        x_backout = None\n        for i, block in enumerate(self.transformer.h):\n            x = self.resid_lambdas[i] * x + self.x0_lambdas[i] * x0\n            ve = self.value_embeds[str(i)](idx).to(x.dtype) if str(i) in self.value_embeds else None\n            x = block(x, ve, cos_sin, self.window_sizes[i], kv_cache)\n            if i == backout_layer:\n                x_backout = x\n        # Subtract mid-layer residual to remove low-level features before logit projection\n        if x_backout is not None:\n            x = x - self.backout_lambda.to(x.dtype) * x_backout\n        x = norm(x)\n\n        # Forward the lm_head (compute logits)\n        softcap = 15 # smoothly cap the logits to the range [-softcap, softcap]\n        logits = self.lm_head(x) # (B, T, padded_vocab_size) <- very big tensor, large amount of memory\n        logits = logits[..., :self.config.vocab_size] # slice to remove padding\n        logits = logits.float() # switch to fp32 for logit softcap and loss computation\n        logits = softcap * torch.tanh(logits / softcap) # squash the logits",
+        "language": "python",
+        "startLine": 249,
+        "endLine": 270
+      },
+      "narration": "Through Transformer Pass, the residual stream flows across all layers. Each layer scales the residual with a per-layer lambda that starts strong and decays with depth. The x0 lambdas blend the original embedding back in, fighting representation collapse. At the halfway point, the residual is cached. After the last layer, this cached mid-point is subtracted back out. It removes low-level surface features so the final logits focus on high-level semantics."
+    },
+    {
+      "name": "Muon Optimizer Ridge",
+      "subtitle": "Newton-Schulz Orthogonalization for Weight Updates",
+      "concept": "Optimization",
+      "landmarkType": "mountain",
+      "code": {
+        "file": "nanochat/optim.py",
+        "content": "    # Nesterov momentum\n    momentum = momentum_t.to(stacked_grads.dtype)\n    momentum_buffer.lerp_(stacked_grads, 1 - momentum)\n    g = stacked_grads.lerp_(momentum_buffer, momentum)\n\n    # Polar express\n    # Cast to bf16 for speed when available; skip cast otherwise (fp16 is unstable here due to limited exponent range)\n    X = g.bfloat16() if COMPUTE_DTYPE == torch.bfloat16 else g\n    X = X / (X.norm(dim=(-2, -1), keepdim=True) * 1.01 + 1e-6)\n    if g.size(-2) > g.size(-1): # Tall matrix\n        for a, b, c in polar_express_coeffs[:ns_steps]:\n            A = X.mT @ X\n            B = b * A + c * (A @ A)\n            X = a * X + X @ B\n    else: # Wide matrix (original math)\n        for a, b, c in polar_express_coeffs[:ns_steps]:\n            A = X @ X.mT\n            B = b * A + c * (A @ A)\n            X = a * X + B @ X\n    g = X",
+        "language": "python",
+        "startLine": 72,
+        "endLine": 91
+      },
+      "narration": "Muon Optimizer Ridge is the highest point on the trail. After computing Nesterov momentum, the gradient matrix is orthogonalized using the Polar Express algorithm. Five iterations of quintic matrix polynomials approximate the polar decomposition. The result is like finding the nearest orthogonal matrix to the gradient. This gives each weight update a uniform scale across all directions, dramatically improving training speed over plain Adam."
+    },
+    {
+      "name": "SFT Meadow",
+      "subtitle": "Supervised Fine-Tuning for Chat",
+      "concept": "Fine-Tuning",
+      "landmarkType": "camp",
+      "code": {
+        "file": "nanochat/tokenizer.py",
+        "content": "    def render_conversation(self, conversation, max_tokens=2048):\n        \"\"\"\n        Tokenize a single Chat conversation (which we call a \"doc\" or \"document\" here).\n        Returns:\n        - ids: list[int] is a list of token ids of this rendered conversation\n        - mask: list[int] of same length, mask = 1 for tokens that the Assistant is expected to train on.\n        \"\"\"\n        # ids, masks that we will return and a helper function to help build them up.\n        ids, mask = [], []\n        def add_tokens(token_ids, mask_val):\n            if isinstance(token_ids, int):\n                token_ids = [token_ids]\n            ids.extend(token_ids)\n            mask.extend([mask_val] * len(token_ids))\n\n        # sometimes the first message is a system message...\n        # => just merge it with the second (user) message\n        if conversation[\"messages\"][0][\"role\"] == \"system\":\n            # some conversation surgery is necessary here for now...\n            conversation = copy.deepcopy(conversation) # avoid mutating the original\n            messages = conversation[\"messages\"]\n            assert messages[1][\"role\"] == \"user\", \"System message must be followed by a user message\"\n            messages[1][\"content\"] = messages[0][\"content\"] + \"\\n\\n\" + messages[1][\"content\"]\n            messages = messages[1:]",
+        "language": "python",
+        "startLine": 164,
+        "endLine": 188
+      },
+      "narration": "SFT Meadow is where the pretrained model learns to be a chat assistant. Each conversation is tokenized with special delimiters: user-start, user-end, assistant-start, assistant-end. The loss mask is one only on assistant tokens. The model never trains on user prompts or system messages. It only learns to generate assistant responses. System messages get merged into the first user turn for simplicity."
+    },
+    {
+      "name": "Response Frontier",
+      "subtitle": "Inference Engine and Token Generation",
+      "concept": "Inference",
+      "landmarkType": "town",
+      "code": {
+        "file": "nanochat/engine.py",
+        "content": "class Engine:\n\n    def __init__(self, model, tokenizer):\n        self.model = model\n        self.tokenizer = tokenizer # needed for tool use\n\n    @torch.inference_mode()\n    def generate(self, tokens, num_samples=1, max_tokens=None, temperature=1.0, top_k=None, seed=42):\n        \"\"\"Same as generate, but does single prefill and then clones the KV cache.\"\"\"\n        assert isinstance(tokens, list) and isinstance(tokens[0], int), \"expecting list of ints\"\n        device = self.model.get_device()\n        dtype = torch.bfloat16 if device.type == \"cuda\" else torch.float32\n        rng = torch.Generator(device=device)\n        rng.manual_seed(seed)\n\n        # Get the special tokens we need to coordinate the tool use state machine\n        get_special = lambda s: self.tokenizer.encode_special(s)\n        python_start = get_special(\"<|python_start|>\")\n        python_end = get_special(\"<|python_end|>\")\n        output_start = get_special(\"<|output_start|>\")\n        output_end = get_special(\"<|output_end|>\")\n        assistant_end = get_special(\"<|assistant_end|>\") # if sampled, ends row\n        bos = self.tokenizer.get_bos_token_id() # if sampled, ends row",
+        "language": "python",
+        "startLine": 93,
+        "endLine": 115
+      },
+      "narration": "You made it to the Response Frontier! The Engine does a single prefill pass with the prompt, then clones the KV cache for parallel sampling. Each generated token goes through a state machine that watches for special tokens. When the model emits python-start, the engine collects the expression and evaluates it with a safe calculator. The result gets force-injected back as output tokens. Generation stops on assistant-end or BOS."
+    }
+  ],
+  "events": [
+    {
+      "type": "weather",
+      "trigger": "after_stop",
+      "triggerStop": 1,
+      "title": "Vocabulary Blizzard!",
+      "text": "A blinding blizzard of rare tokens howls across the trail! Your tokenizer is struggling with unusual Unicode sequences and out-of-vocabulary patterns. How do you keep your wagon moving?",
+      "choices": [
+        {
+          "text": "Use byte-level BPE with byte_fallback so any byte sequence can be encoded, even unknown characters",
+          "correct": true,
+          "explanation": "Nanochat's tokenizer uses byte_fallback=True in the BPE model. This means any input byte can be represented as a single-byte token, so nothing is ever truly out-of-vocabulary. The 256 byte-level tokens form the initial alphabet before any merges."
+        },
+        {
+          "text": "Replace all unknown characters with a special UNK token before encoding",
+          "correct": false,
+          "explanation": "Nanochat explicitly sets unk_token=None. Byte fallback eliminates the need for UNK tokens entirely. Every possible byte sequence has a valid encoding."
+        },
+        {
+          "text": "Increase the vocabulary size to one million to cover all possible character combinations",
+          "correct": false,
+          "explanation": "A massive vocabulary wastes embedding parameters on rarely-used tokens. Nanochat uses 32K tokens with byte fallback. The BPE algorithm learns efficient merges from training data while byte fallback handles the long tail."
+        }
+      ],
+      "concept": "Tokenization",
+      "difficulty": "easy"
+    },
+    {
+      "type": "encounter",
+      "trigger": "after_stop",
+      "triggerStop": 2,
+      "title": "A Data Wrangler Appears!",
+      "text": "A fellow traveler asks: 'Nanochat's BOS-aligned dataloader discards about 35% of tokens to cropping. Why not just pad short documents instead?'",
+      "choices": [
+        {
+          "text": "Because every token in a BOS-aligned row is trained on, giving 100% utilization with zero padding waste",
+          "correct": true,
+          "explanation": "The best-fit algorithm achieves 100% utilization: every position holds a real token. Padding would waste compute on meaningless tokens. Cropping only discards the tail of long documents, and those tokens still appear in other rows where the document starts fresh."
+        },
+        {
+          "text": "Padding is slower because the GPU has to process extra tokens",
+          "correct": false,
+          "explanation": "Padding and cropping process the same number of tokens per batch. The issue is that padded tokens contribute nothing to learning. With BOS-aligned cropping, every single token in the batch contributes to the gradient."
+        },
+        {
+          "text": "Padding changes the loss function and makes the model worse",
+          "correct": false,
+          "explanation": "Padding positions would simply be masked with ignore_index in the loss. The real benefit of the best-fit approach is that it maximizes the number of useful tokens trained on per batch, not that it changes the loss function itself."
+        }
+      ],
+      "concept": "Data Loading",
+      "difficulty": "medium"
+    },
+    {
+      "type": "river",
+      "trigger": "after_stop",
+      "triggerStop": 3,
+      "title": "Embedding Dimension Rapids!",
+      "text": "You reach a swift river of floating-point numbers! The embedding vectors are turbulent and your wagon must ford them carefully. What keeps the embeddings stable?",
+      "choices": [
+        {
+          "text": "RMS normalization after embedding lookup, which normalizes without learnable parameters",
+          "correct": true,
+          "explanation": "Nanochat applies RMS norm immediately after the embedding lookup: x = norm(x). The norm function is F.rms_norm with no learnable scale or bias. This stabilizes the embedding magnitudes before they enter the transformer blocks, preventing early-layer activations from exploding."
+        },
+        {
+          "text": "Layer normalization with learnable gamma and beta parameters",
+          "correct": false,
+          "explanation": "Nanochat uses RMS norm without any learnable parameters. The function is simply F.rms_norm(x, (x.size(-1),)). No gamma, no beta. This is simpler and has fewer parameters than standard LayerNorm."
+        },
+        {
+          "text": "Batch normalization across the embedding dimension",
+          "correct": false,
+          "explanation": "Batch normalization normalizes across the batch dimension, which would make each token's representation depend on what other tokens are in the batch. RMS norm operates independently on each token, which is correct for autoregressive language models."
+        }
+      ],
+      "concept": "Embeddings",
+      "difficulty": "medium"
+    },
+    {
+      "type": "misfortune",
+      "trigger": "after_stop",
+      "triggerStop": 4,
+      "title": "Sliding Window Ambush!",
+      "text": "Disaster! Your attention layers are using a sliding window pattern that alternates between short and long context. Some layers can only see a quarter of the sequence! How does nanochat handle this?",
+      "choices": [
+        {
+          "text": "The window_pattern string tiles across layers: S for quarter-context, L for full. The final layer always gets L for full context",
+          "correct": true,
+          "explanation": "Nanochat's default pattern is SSSL: three short-window layers followed by one long-window layer, repeated. The short window is ceil(sequence_len / 4) rounded up to Flash Attention's tile size. The final layer is always forced to L regardless of the pattern, ensuring the last layer sees full context."
+        },
+        {
+          "text": "Every layer uses full context attention but with a decaying attention weight for distant tokens",
+          "correct": false,
+          "explanation": "Nanochat uses actual sliding window masking via Flash Attention's window_size parameter, not soft decay. Short-window layers physically cannot attend beyond their window. This saves compute on most layers while the periodic full-context layers maintain long-range coherence."
+        },
+        {
+          "text": "Only the first and last layers use full context, all middle layers use short windows",
+          "correct": false,
+          "explanation": "The pattern is configurable via --window-pattern and defaults to SSSL, which tiles across all layers. It is not just first and last. The tiling gives periodic full-context layers throughout the network depth."
+        }
+      ],
+      "concept": "Self-Attention",
+      "difficulty": "hard"
+    },
+    {
+      "type": "fortune",
+      "trigger": "after_stop",
+      "triggerStop": 5,
+      "title": "Backout Lambda Bonus!",
+      "text": "Fortune smiles! Your model discovers that subtracting the mid-layer residual before the final projection removes low-level surface features and boosts performance. Your party's health is restored by one point each!",
+      "choices": [
+        {
+          "text": "Accept the backout and let the model focus on high-level semantics",
+          "correct": true,
+          "explanation": "The backout_lambda parameter (initialized to 0.2) controls how much of the halfway-point residual is subtracted. This removes shallow features like word frequency patterns, letting the lm_head focus on the higher-level representations built by the deeper layers."
+        },
+        {
+          "text": "Disable the backout to preserve all information",
+          "correct": false,
+          "explanation": "Keeping all layers' contributions actually hurts performance. The mid-layer features contain noise and surface-level patterns that confuse the final logit projection. The backout is learned during training and the model finds the right balance."
+        },
+        {
+          "text": "Apply backout at every layer instead of just the midpoint",
+          "correct": false,
+          "explanation": "Subtracting at every layer would destroy the residual stream. The single midpoint subtraction is a targeted intervention that cleanly separates low-level and high-level features without disrupting the layer-by-layer refinement."
+        }
+      ],
+      "concept": "Transformer Blocks",
+      "difficulty": "easy"
+    },
+    {
+      "type": "weather",
+      "trigger": "after_stop",
+      "triggerStop": 6,
+      "title": "Gradient Underflow Storm!",
+      "text": "A terrible storm hits! Your gradients are vanishing in the reduced-precision compute. The Muon optimizer needs stable gradients to orthogonalize. How do you weather this?",
+      "choices": [
+        {
+          "text": "Store master weights in fp32 for optimizer precision while computing forward passes in bf16 via custom Linear layers that cast on the fly",
+          "correct": true,
+          "explanation": "Nanochat's custom Linear class casts weights to the input dtype in forward via F.linear(x, self.weight.to(dtype=x.dtype)). Master weights stay fp32 so the optimizer sees full precision. This replaces autocast with explicit, predictable precision control."
+        },
+        {
+          "text": "Use torch.amp.autocast to automatically manage mixed precision",
+          "correct": false,
+          "explanation": "Nanochat explicitly does NOT use autocast. The comment in gpt.py says precision is managed through COMPUTE_DTYPE and the custom Linear layer. This gives full control over exactly which operations run in which precision."
+        },
+        {
+          "text": "Train entirely in float32 to avoid any precision issues",
+          "correct": false,
+          "explanation": "Full fp32 training would be roughly two times slower on modern GPUs. The bf16 tensor cores on A100 and H100 are specifically designed for mixed precision. Nanochat's approach gets the speed of bf16 matmuls with the safety of fp32 optimizer states."
+        }
+      ],
+      "concept": "Optimization",
+      "difficulty": "medium"
+    },
+    {
+      "type": "misfortune",
+      "trigger": "after_stop",
+      "triggerStop": 7,
+      "title": "Calculator Tool Misfire!",
+      "text": "Your model emitted a python_start token and tried to evaluate a malicious expression! The calculator tool is under attack!",
+      "choices": [
+        {
+          "text": "Restrict eval to a safe sandbox: empty builtins, character allowlist, timeout, and only permit .count() for string operations",
+          "correct": true,
+          "explanation": "Nanochat's use_calculator function strips commas, checks for allowed characters, blocks dangerous patterns like __import__ and exec, and only permits .count() for string methods. The eval runs with __builtins__ set to empty dict and a 3-second timeout via SIGALRM."
+        },
+        {
+          "text": "Disable the calculator tool entirely to prevent any code execution",
+          "correct": false,
+          "explanation": "The calculator enables arithmetic and strawberry-style letter counting. Disabling it removes a useful capability. The sandbox approach keeps the tool safe while preserving its benefits."
+        },
+        {
+          "text": "Use Python's ast.literal_eval which only evaluates literal expressions",
+          "correct": false,
+          "explanation": "ast.literal_eval cannot evaluate math expressions like 2+3 or string methods like 'strawberry'.count('r'). It only handles literal values. Nanochat needs eval for computation, but wraps it in a careful sandbox."
+        }
+      ],
+      "concept": "Inference",
+      "difficulty": "hard"
+    }
+  ],
+  "partyMembers": [
+    {
+      "name": "Attention Heads",
+      "icon": "attention",
+      "maxHealth": 3
+    },
+    {
+      "name": "Residual Stream",
+      "icon": "residual",
+      "maxHealth": 3
+    },
+    {
+      "name": "Muon Optimizer",
+      "icon": "optimizer",
+      "maxHealth": 3
+    },
+    {
+      "name": "KV Cache",
+      "icon": "cache",
+      "maxHealth": 3
+    }
+  ],
+  "deathMessages": [
+    "You have died of gradient underflow.",
+    "You have died of infinite loss divergence.",
+    "You have drowned in the Embedding Dimension Rapids.",
+    "You have died of KV cache overflow.",
+    "You have died of NaN propagation through the residual stream.",
+    "You have starved waiting for the GPU to return from a NCCL all-reduce.",
+    "You have died of hallucinated calculator expressions.",
+    "You have died of catastrophic forgetting during fine-tuning.",
+    "You have died of tokenizer vocabulary collapse.",
+    "You have died of attention entropy death."
+  ],
+  "sourceInfo": {
+    "repo": "karpathy/nanochat",
+    "language": "Python",
+    "description": "The simplest experimental harness for training LLMs: tokenization, pretraining, SFT, RL, evaluation, inference, and chat UI on a single GPU node",
+    "url": "https://github.com/karpathy/nanochat",
+    "snapshotDate": "2026-04-08"
+  }
+};
+
+// FLAVORS
+window.TRAIL_FLAVORS = [
+  "The BPE tokenizer crunches text smoothly at thirty-two thousand merges...",
+  "Rotary embeddings spin your position vectors into perfect alignment...",
+  "The residual stream flows clear and strong through all twenty-four layers...",
+  "Flash Attention 3 hums on the Hopper GPU — memory-efficient and fast...",
+  "Your Muon optimizer orthogonalizes gradients with five Polar Express steps...",
+  "The KV cache prefill completes in a single pass — decode tokens stream out...",
+  "A fellow traveler shares their wandb plots — validation BPB is dropping...",
+  "The BOS-aligned dataloader packs documents with zero padding waste...",
+  "Your softcap of fifteen smoothly squashes the logits — no infinities today...",
+  "The smear gate mixes in bigram context from the previous token...",
+  "Value embeddings from ResFormer gate open on alternating layers...",
+  "Someone trained a depth-twelve model in five minutes for a quick experiment...",
+  "The x0 lambda blends initial embeddings back, fighting representation collapse...",
+  "Your party crosses a sliding window boundary — the final layer sees full context...",
+  "The backout lambda subtracts mid-layer noise and the logits sharpen beautifully...",
+];
+// END FLAVORS
+
+window.drawCustomEventOverlay = function(time) {
+  if (!currentEventType && !currentEventTitle) return;
+  var t = (time || 0) * 0.001;
+
+// OVERLAYS
+  // --- VOCABULARY_BLIZZARD: falling BPE tokens in a snowstorm ---
+  if (currentEventTitle.indexOf('Vocabulary Blizzard') !== -1) {
+    ctx.fillStyle = '#0a0a1e';
+    ctx.fillRect(0, 0, W, H);
+    // Falling token fragments
+    ctx.font = '9px monospace';
+    var tokens = ['<|bos|>', 'Ġthe', 'Ġof', '##ing', 'ĠÃ', '\\xf0', 'Ġ\\n', '<|unk|>', 'Ġhello', '0xff'];
+    for (var si = 0; si < 18; si++) {
+      var sx = (si * 19 + t * 20 + Math.sin(t + si * 0.9) * 15) % W;
+      var sy = (si * 13 + t * 35) % (H + 20) - 10;
+      ctx.fillStyle = si % 4 === 0 ? '#FF6666' : si % 4 === 1 ? '#66FF66' : si % 4 === 2 ? '#6666FF' : '#FFFF66';
+      ctx.fillText(tokens[si % tokens.length], sx, sy);
+    }
+    // Snowflakes
+    ctx.fillStyle = '#FFFFFF';
+    for (var fi = 0; fi < 30; fi++) {
+      var fx = (fi * 11 + t * 40 + Math.cos(t * 0.7 + fi) * 30) % W;
+      var fy = (fi * 7 + t * 55) % (H + 10) - 5;
+      ctx.fillRect(fx, fy, 2, 2);
+    }
+    // Ground
+    ctx.fillStyle = '#1a1a3e';
+    ctx.fillRect(0, H - 10, W, 10);
+    return;
+  }
+
+  // --- DATA_WRANGLER: NPC with document packing visualization ---
+  if (currentEventTitle.indexOf('Data Wrangler') !== -1) {
+    ctx.fillStyle = '#1a1000';
+    ctx.fillRect(0, 0, W, H);
+    // NPC figure
+    ctx.fillStyle = '#DEB887';
+    ctx.beginPath();
+    ctx.arc(60, 80, 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#8B6914';
+    ctx.fillRect(54, 92, 12, 28);
+    // Cowboy hat
+    ctx.fillStyle = '#5C4033';
+    ctx.fillRect(46, 66, 28, 5);
+    ctx.fillRect(52, 58, 16, 10);
+    // Document packing display
+    ctx.fillStyle = '#111111';
+    ctx.fillRect(100, 25, 210, 145);
+    ctx.strokeStyle = '#44FF44';
+    ctx.strokeRect(100, 25, 210, 145);
+    ctx.font = '8px monospace';
+    ctx.fillStyle = '#44FF44';
+    ctx.fillText('BOS-aligned best-fit:', 108, 40);
+    // Draw packed rows
+    var colors = ['#335588', '#553388', '#885533', '#338855', '#883355'];
+    for (var ri = 0; ri < 5; ri++) {
+      var ry = 50 + ri * 22;
+      // BOS marker
+      ctx.fillStyle = '#FFFF00';
+      ctx.fillRect(104, ry, 8, 14);
+      ctx.fillStyle = '#000000';
+      ctx.font = '6px monospace';
+      ctx.fillText('B', 105, ry + 10);
+      // Document blocks
+      var px = 114;
+      var visRow = Math.min(3, Math.floor(t * 0.8) + 1);
+      if (ri < visRow) {
+        for (var di = 0; di < 3; di++) {
+          var dw = 30 + ((ri * 7 + di * 13) % 40);
+          if (px + dw > 306) dw = 306 - px;
+          if (dw > 0) {
+            ctx.fillStyle = colors[(ri + di) % colors.length];
+            ctx.fillRect(px, ry, dw, 14);
+            px += dw + 2;
+          }
+        }
+      }
+    }
+    ctx.font = '8px monospace';
+    ctx.fillStyle = '#AAAAAA';
+    ctx.fillText('100% utilization, ~35% cropped', 108, 165);
+    // Ground
+    ctx.fillStyle = '#2d1b00';
+    ctx.fillRect(0, H - 25, W, 25);
+    return;
+  }
+
+  // --- EMBEDDING_RAPIDS: river with floating dimension numbers ---
+  if (currentEventTitle.indexOf('Embedding Dimension') !== -1) {
+    // Sky
+    ctx.fillStyle = '#1a2244';
+    ctx.fillRect(0, 0, W, 65);
+    // River
+    ctx.fillStyle = '#0a2255';
+    ctx.fillRect(0, 65, W, 95);
+    // Waves
+    ctx.fillStyle = '#1a44AA';
+    for (var wi = 0; wi < 14; wi++) {
+      var wx = (wi * 25 + t * 40) % (W + 20) - 10;
+      ctx.beginPath();
+      ctx.arc(wx, 110 + Math.sin(t * 2.5 + wi) * 5, 14, 0, Math.PI);
+      ctx.fill();
+    }
+    // Floating embedding dimensions
+    ctx.font = '7px monospace';
+    for (var vi = 0; vi < 6; vi++) {
+      var vx = (vi * 55 + t * 30) % (W + 30) - 15;
+      var vy = 80 + Math.sin(t * 1.2 + vi * 1.8) * 12;
+      ctx.fillStyle = '#88FFCC';
+      var val = (Math.sin(t * 0.8 + vi * 1.1) * 0.7).toFixed(3);
+      ctx.fillText('d' + (vi * 128) + ':' + val, vx, vy);
+    }
+    // RMS norm label
+    ctx.fillStyle = '#FFFF66';
+    ctx.font = '10px monospace';
+    var normAlpha = 0.5 + Math.sin(t * 2) * 0.3;
+    ctx.globalAlpha = normAlpha;
+    ctx.fillText('RMS_NORM(x)', 120, 50);
+    ctx.globalAlpha = 1.0;
+    // Banks
+    ctx.fillStyle = '#224422';
+    ctx.fillRect(0, 155, W, 45);
+    return;
+  }
+
+  // --- SLIDING_WINDOW_AMBUSH: alternating window pattern visualization ---
+  if (currentEventTitle.indexOf('Sliding Window') !== -1) {
+    ctx.fillStyle = '#0a0a18';
+    ctx.fillRect(0, 0, W, H);
+    // Draw attention pattern grid
+    ctx.font = '8px monospace';
+    ctx.fillStyle = '#AAAAAA';
+    ctx.fillText('window_pattern = "SSSL"', 80, 18);
+    // Layer blocks
+    var pattern = ['S', 'S', 'S', 'L'];
+    var layerColors = { 'S': '#553300', 'L': '#003355' };
+    var layerLabels = { 'S': 'SHORT', 'L': 'FULL' };
+    var numVisible = Math.min(12, Math.floor(t * 2) + 1);
+    for (var li = 0; li < numVisible; li++) {
+      var lx = 15 + (li % 4) * 75;
+      var ly = 30 + Math.floor(li / 4) * 50;
+      var ch = pattern[li % 4];
+      // Force last layer to L
+      if (li === 11) ch = 'L';
+      ctx.fillStyle = layerColors[ch];
+      ctx.fillRect(lx, ly, 65, 35);
+      ctx.strokeStyle = ch === 'L' ? '#0088FF' : '#FF8800';
+      ctx.strokeRect(lx, ly, 65, 35);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '7px monospace';
+      ctx.fillText('L' + li + ':' + layerLabels[ch], lx + 5, ly + 15);
+      // Window size
+      ctx.fillStyle = '#AAAAAA';
+      ctx.font = '6px monospace';
+      ctx.fillText(ch === 'L' ? 'w=2048' : 'w=512', lx + 12, ly + 28);
+    }
+    // Warning flash on last layer
+    if (Math.floor(t * 3) % 2 === 0 && numVisible >= 12) {
+      ctx.strokeStyle = '#00FF00';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(240, 130, 65, 35);
+      ctx.lineWidth = 1;
+    }
+    return;
+  }
+
+  // --- GRADIENT_UNDERFLOW: precision bars draining ---
+  if (currentEventTitle.indexOf('Gradient Underflow') !== -1) {
+    ctx.fillStyle = '#0a0a12';
+    ctx.fillRect(0, 0, W, H);
+    // Precision comparison bars
+    ctx.font = '9px monospace';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillText('Precision Management:', 80, 20);
+    var dtypes = ['fp32 (master)', 'bf16 (compute)', 'fp8 (optional)'];
+    var barColors = ['#33AA33', '#3388DD', '#DD8833'];
+    var barWidths = [250, 200, 150];
+    for (var bi = 0; bi < 3; bi++) {
+      var by = 40 + bi * 45;
+      // Label
+      ctx.fillStyle = '#CCCCCC';
+      ctx.font = '8px monospace';
+      ctx.fillText(dtypes[bi], 10, by + 12);
+      // Bar background
+      ctx.fillStyle = '#222222';
+      ctx.fillRect(10, by + 18, 260, 16);
+      // Bar fill (animated)
+      var bw = Math.min(barWidths[bi], t * 40);
+      ctx.fillStyle = barColors[bi];
+      ctx.fillRect(10, by + 18, bw, 16);
+    }
+    // Gradient arrows flowing
+    ctx.strokeStyle = '#FF4444';
+    ctx.lineWidth = 2;
+    for (var gi = 0; gi < 5; gi++) {
+      var gx = (gi * 65 + t * 50) % (W + 20) - 10;
+      ctx.beginPath();
+      ctx.moveTo(gx, 170);
+      ctx.lineTo(gx + 15, 170);
+      ctx.lineTo(gx + 12, 166);
+      ctx.moveTo(gx + 15, 170);
+      ctx.lineTo(gx + 12, 174);
+      ctx.stroke();
+    }
+    // Label
+    ctx.fillStyle = '#FF6666';
+    ctx.font = '8px monospace';
+    ctx.fillText('weight.to(dtype=x.dtype)  # cast in forward', 40, H - 8);
+    return;
+  }
+
+  // --- CALCULATOR_MISFIRE: malicious eval expressions ---
+  if (currentEventTitle.indexOf('Calculator Tool') !== -1) {
+    ctx.fillStyle = '#1a0000';
+    ctx.fillRect(0, 0, W, H);
+    // Python REPL terminal
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(20, 15, 280, 130);
+    ctx.strokeStyle = '#33FF33';
+    ctx.strokeRect(20, 15, 280, 130);
+    ctx.font = '8px monospace';
+    // Malicious expressions falling
+    var evilExprs = ['__import__("os")', 'exec("rm -rf /")', 'open("/etc/passwd")', 'eval(input())', 'globals()["key"]'];
+    for (var ei = 0; ei < 5; ei++) {
+      var ey = 30 + ei * 22;
+      var vis = Math.floor(t * 1.5) > ei;
+      if (vis) {
+        ctx.fillStyle = '#FF3333';
+        ctx.fillText('>>> ' + evilExprs[ei], 28, ey);
+        // Blocked indicator
+        ctx.fillStyle = '#33FF33';
+        ctx.fillText(' => BLOCKED', 200, ey);
+      }
+    }
+    // Safe expression at bottom
+    if (t > 4) {
+      ctx.fillStyle = '#66FF66';
+      ctx.fillText(">>> 'strawberry'.count('r')", 28, 135);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillText(' => 3', 220, 135);
+    }
+    // Shield
+    ctx.strokeStyle = '#33FF33';
+    ctx.lineWidth = 2;
+    var shieldGlow = 0.4 + Math.sin(t * 3) * 0.2;
+    ctx.globalAlpha = shieldGlow;
+    ctx.strokeRect(16, 11, 288, 138);
+    ctx.globalAlpha = 1.0;
+    ctx.lineWidth = 1;
+    // Label
+    ctx.fillStyle = '#FFFF44';
+    ctx.font = '9px monospace';
+    ctx.fillText('SANDBOX: __builtins__={}  timeout=3s', 50, H - 12);
+    return;
+  }
+// END OVERLAYS
+};
+</script>
+<script src="../engine.js"></script>
+</body>
+</html>

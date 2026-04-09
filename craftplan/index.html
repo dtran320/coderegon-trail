@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Coderegon Trail - Craftplan Edition</title>
+</head>
+<body>
+<div id="game-container">
+  <div id="canvas-area">
+    <canvas id="game-canvas" width="320" height="200"></canvas>
+    <div id="music-indicator">M: Music</div>
+  </div>
+  <div id="text-panel"></div>
+  <div id="status-bar"></div>
+</div>
+
+<script>
+window.TRAIL_DATA = {
+  "framework": "craftplan",
+  "trailName": "The Production Trail",
+  "trailTheme": "framework",
+  "stops": [
+    {
+      "name": "Independence, MO",
+      "subtitle": "Phoenix Endpoint",
+      "concept": "Request Pipeline",
+      "landmarkType": "town",
+      "code": {
+        "file": "lib/craftplan_web/endpoint.ex",
+        "content": "defmodule CraftplanWeb.Endpoint do\n  use Phoenix.Endpoint, otp_app: :craftplan\n\n  @session_options [\n    store: :cookie,\n    key: \"_craftplan_key\",\n    signing_salt: \"qsdH+y3l\",\n    same_site: \"Lax\"\n  ]\n\n  socket \"/live\", Phoenix.LiveView.Socket,\n    websocket: [connect_info: [session: @session_options]]\n\n  plug Plug.Static,\n    at: \"/\",\n    from: :craftplan,\n    gzip: false\n\n  plug Plug.RequestId\n  plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]\n\n  plug Plug.Parsers,\n    parsers: [:urlencoded, :multipart, :json],\n    json_decoder: Phoenix.json_library()\n\n  plug Plug.Session, @session_options\n  plug CORSPlug\n  plug CraftplanWeb.Router\nend",
+        "language": "elixir"
+      },
+      "narration": "Every request to Craftplan starts here at the Phoenix Endpoint. This is the front door of the bakery. The plug pipeline processes each request through session handling, telemetry, body parsing, and CORS before it reaches the router. Notice the LiveView socket mounted at slash live. That WebSocket connection is how the entire UI stays interactive without page reloads. The session is stored in a signed cookie so the server stays stateless."
+    },
+    {
+      "name": "Chimney Rock",
+      "subtitle": "Router and Auth Pipelines",
+      "concept": "Request Pipeline",
+      "landmarkType": "mountain",
+      "code": {
+        "file": "lib/craftplan_web/router.ex",
+        "content": "pipeline :browser do\n  plug :accepts, [\"html\"]\n  plug :fetch_session\n  plug :fetch_live_flash\n  plug :put_root_layout, html: {CraftplanWeb.Layouts, :root}\n  plug :protect_from_forgery\n  plug :put_secure_browser_headers\n  plug :put_csp\n  plug :load_from_session\n  plug :put_session_timezone\nend\n\npipeline :api do\n  plug :accepts, [\"json\"]\n  plug :load_from_bearer\n  plug CraftplanWeb.Plugs.ApiKeyAuth\nend\n\nscope \"/\", CraftplanWeb do\n  pipe_through :browser\n  get \"/\", PageController, :home\n  live \"/setup\", SetupLive, :index\n  auth_routes AuthController,\n    Craftplan.Accounts.User, path: \"/auth\"\nend",
+        "language": "elixir"
+      },
+      "narration": "The Router splits requests into two pipelines: browser and API. The browser pipeline adds CSRF protection, Content Security Policy headers, and loads the user from the session cookie. The API pipeline expects a Bearer token and runs the ApiKeyAuth plug instead. Notice auth_routes at the bottom. AshAuthentication generates login, register, and password reset routes automatically. One line gives you the entire auth flow."
+    },
+    {
+      "name": "Fort Laramie",
+      "subtitle": "LiveView Auth Guards",
+      "concept": "Authentication",
+      "landmarkType": "camp",
+      "code": {
+        "file": "lib/craftplan_web/live_user_auth.ex",
+        "content": "defmodule CraftplanWeb.LiveUserAuth do\n  use CraftplanWeb, :verified_routes\n  import Phoenix.Component\n\n  def on_mount(:live_staff_required, _params, _session, socket) do\n    current_user = socket.assigns[:current_user]\n    authorized? = current_user &&\n      current_user.role in [:staff, :admin]\n\n    if authorized? do\n      {:cont, socket}\n    else\n      {:halt, Phoenix.LiveView.redirect(socket, to: ~p\"/sign-in\")}\n    end\n  end\n\n  def on_mount(:live_admin_required, _params, _session, socket) do\n    current_user = socket.assigns[:current_user]\n    authorized? = current_user &&\n      current_user.role in [:admin]\n\n    if authorized? do\n      {:cont, socket}\n    else\n      {:halt, Phoenix.LiveView.redirect(socket, to: ~p\"/sign-in\")}\n    end\n  end\nend",
+        "language": "elixir"
+      },
+      "narration": "Fort Laramie is where authentication guards check your papers. LiveView uses on_mount hooks that run before any page renders. Staff routes need the staff or admin role. Settings routes need admin only. If the check fails, the socket halts and redirects to sign-in. This runs on every WebSocket reconnect too, so closing and reopening the tab still enforces auth. No client-side hacks can bypass this."
+    },
+    {
+      "name": "Independence Rock",
+      "subtitle": "Ash Domain and Product Catalog",
+      "concept": "Ash Framework",
+      "landmarkType": "mountain",
+      "code": {
+        "file": "lib/craftplan/catalog/product.ex",
+        "content": "defmodule Craftplan.Catalog.Product do\n  use Ash.Resource,\n    domain: Craftplan.Catalog,\n    data_layer: AshPostgres.DataLayer,\n    authorizers: [Ash.Policy.Authorizer],\n    extensions: [AshJsonApi.Resource, AshGraphql.Resource]\n\n  attributes do\n    uuid_primary_key :id\n    attribute :name, :string do\n      allow_nil? false\n      constraints min_length: 2, max_length: 100\n    end\n    attribute :status, Craftplan.Catalog.Product.Types.Status do\n      default :draft\n    end\n    attribute :price, :decimal do\n      allow_nil? false\n    end\n    attribute :max_daily_quantity, :integer do\n      default 0\n      constraints min: 0\n      description \"Per-product capacity per day (0 = unlimited)\"\n    end\n  end\n\n  relationships do\n    has_many :boms, BOM\n    has_one :active_bom, BOM do\n      filter expr(status == :active)\n    end\n  end\nend",
+        "language": "elixir"
+      },
+      "narration": "Independence Rock is where the bakery's product catalog lives. Each product is an Ash Resource with declarative attributes, policies, and automatic API generation. One module definition gives you JSON API, GraphQL, and PostgreSQL persistence for free. The max_daily_quantity field enforces bakery capacity limits. Notice the active_bom relationship. A product can have many Bills of Materials, but only one can be active at a time. That is how the bakery versions its recipes."
+    },
+    {
+      "name": "South Pass",
+      "subtitle": "BOM and Recipe Management",
+      "concept": "Ash Framework",
+      "landmarkType": "river",
+      "code": {
+        "file": "lib/craftplan/catalog/bom.ex",
+        "content": "defmodule Craftplan.Catalog.BOM do\n  use Ash.Resource,\n    domain: Craftplan.Catalog,\n    data_layer: AshPostgres.DataLayer\n\n  postgres do\n    table \"catalog_boms\"\n    custom_indexes do\n      index [:product_id],\n        unique: true,\n        name: \"catalog_boms_one_active_per_product\",\n        where: \"status = 'active'\"\n    end\n  end\n\n  actions do\n    create :create do\n      accept [:name, :notes, :status, :product_id]\n      argument :components, {:array, :map}\n      argument :labor_steps, {:array, :map}\n      change manage_relationship(:components, type: :direct_control)\n      change manage_relationship(:labor_steps, type: :direct_control)\n      change {AssignBOMVersion, []}\n      change after_action(fn changeset, result, _ctx ->\n        BOMRollup.refresh!(result, authorize?: false)\n        {:ok, result}\n      end)\n    end\n  end\nend",
+        "language": "elixir"
+      },
+      "narration": "South Pass is where recipes cross from draft to production. A Bill of Materials defines exactly what goes into each product: flour, sugar, butter, and the labor steps to combine them. The partial unique index on product_id guarantees only one BOM can be active per product. When you create a BOM, Ash manages the nested components and labor steps in one transaction. The after_action callback refreshes the rollup cache so cost calculations stay current."
+    },
+    {
+      "name": "Fort Bridger",
+      "subtitle": "Order Processing",
+      "concept": "Production Flow",
+      "landmarkType": "camp",
+      "code": {
+        "file": "lib/craftplan/orders/order.ex",
+        "content": "defmodule Craftplan.Orders.Order do\n  use Ash.Resource,\n    domain: Craftplan.Orders,\n    data_layer: AshPostgres.DataLayer,\n    authorizers: [Ash.Policy.Authorizer]\n\n  alias Craftplan.Orders.Changes.CalculateTotals\n  alias Craftplan.Orders.Changes.ValidateConstraints\n\n  actions do\n    create :create do\n      accept [:status, :customer_id, :delivery_date,\n              :discount_type, :discount_value,\n              :delivery_method]\n      argument :items, {:array, :map}\n      change manage_relationship(:items, type: :direct_control)\n      change {CalculateTotals, []}\n      change {ValidateConstraints, []}\n    end\n  end\n\n  attributes do\n    attribute :reference, :string do\n      default fn ->\n        year = DateTime.utc_now().year |> Integer.to_string()\n        month = DateTime.utc_now().month |> Integer.to_string()\n        day = DateTime.utc_now().day |> Integer.to_string()\n        random = for _ <- 1..6, into: \"\", do: <<Enum.random(?A..?Z)>>\n        \"OR_#{year}_#{month}_#{day}_#{random}\"\n      end\n    end\n  end\nend",
+        "language": "elixir"
+      },
+      "narration": "Fort Bridger is where customer orders get processed. Each order generates a unique reference like OR underscore 2026 underscore 04 underscore 08 underscore six random letters. The create action accepts order items as nested data and manages the entire relationship in one shot. Then two change modules fire in sequence. CalculateTotals computes subtotals, discounts, and the final total. ValidateConstraints checks daily capacity limits so the bakery never accepts more orders than it can bake."
+    },
+    {
+      "name": "The Dalles",
+      "subtitle": "Production Batching and Inventory",
+      "concept": "Production Flow",
+      "landmarkType": "forest",
+      "code": {
+        "file": "lib/craftplan/production.ex",
+        "content": "def build_production_items(orders) do\n  Enum.flat_map(orders, fn order ->\n    day = DateTime.to_date(order.delivery_date)\n\n    order.items\n    |> Enum.group_by(& &1.product)\n    |> Enum.map(fn {product, items} ->\n      group_items =\n        Enum.map(items, fn item ->\n          %{\n            id: item.id,\n            product: product,\n            quantity: item.quantity,\n            status: item.status,\n            consumed_at: item.consumed_at,\n            batch_code: item.batch_code,\n            production_batch_id: item.production_batch_id,\n            order: order\n          }\n        end)\n      {day, product, group_items}\n    end)\n  end)\nend",
+        "language": "elixir"
+      },
+      "narration": "The Dalles is the production floor. This function takes all customer orders and groups their items by delivery date and product. If three customers each ordered a dozen croissants for Tuesday, they get batched together into one production run. The tuple of day, product, and items becomes the unit of work the baker plans around. Batch production is how a bakery stays efficient. You do not bake one loaf at a time."
+    },
+    {
+      "name": "Oregon City",
+      "subtitle": "Inventory Forecasting",
+      "concept": "Production Flow",
+      "landmarkType": "town",
+      "code": {
+        "file": "lib/craftplan/inventory_forecasting.ex",
+        "content": "def prepare_materials_requirements(days_range, actor \\\\ nil) do\n  orders = load_orders_for_forecast(days_range, actor)\n  materials_by_day_data =\n    load_materials_requirements(days_range, orders, actor)\n\n  Enum.map(materials_by_day_data, fn {material, quantities} ->\n    total_quantity = total_material_quantity(quantities)\n    {balance_cells, final_balance} =\n      calculate_material_balances(material, quantities)\n\n    {material,\n     %{\n       quantities: quantities,\n       total_quantity: total_quantity,\n       balance_cells: balance_cells,\n       final_balance: final_balance\n     }}\n  end)\nend\n\ndef calculate_material_balances(material, quantities) do\n  initial_balance = material.current_stock || D.new(0)\n  Enum.map_reduce(quantities, initial_balance,\n    fn {day_quantity, _day}, acc_balance ->\n      new_balance = D.sub(acc_balance, day_quantity)\n      {acc_balance, new_balance}\n    end)\nend",
+        "language": "elixir"
+      },
+      "narration": "You made it to Oregon City, where the bakery forecasts its future. This module projects material needs across a date range by walking through every upcoming order, calculating how much flour, butter, and sugar each one needs, and checking if current stock will cover it. The balance cells track a running tally. If the balance goes negative on Thursday, you know to reorder by Wednesday. This is how a small bakery avoids running out of ingredients mid-week."
+    }
+  ],
+  "events": [
+    {
+      "type": "weather",
+      "trigger": "after_stop",
+      "triggerStop": 1,
+      "title": "Pipeline Storm!",
+      "text": "A storm hits your wagon train! The browser pipeline has nine plugs running in sequence. A request arrives but is missing the CSRF token. What happens?",
+      "choices": [
+        {
+          "text": "The protect_from_forgery plug halts the request with a 403 Forbidden before it reaches any LiveView or controller",
+          "correct": true,
+          "explanation": "Plugs run in order. protect_from_forgery checks the CSRF token and halts the connection if it is missing or invalid. Downstream plugs like load_from_session never execute. This is the Plug pipeline's key design: any plug can halt the chain early.",
+          "damage": 15,
+          "partyDamage": 1
+        },
+        {
+          "text": "The request reaches the controller which then checks the token and raises an exception",
+          "correct": false,
+          "explanation": "The CSRF check happens in the plug pipeline, not in the controller. The controller never sees the request because protect_from_forgery halts the connection first. This is a fundamental principle of the Plug architecture.",
+          "damage": 15,
+          "partyDamage": 1
+        },
+        {
+          "text": "Phoenix silently ignores the missing token and processes the request normally in development mode",
+          "correct": false,
+          "explanation": "Phoenix enforces CSRF protection in all environments by default. The protect_from_forgery plug does not distinguish between dev and prod. If the token is missing, the request is rejected. Security defaults should not change between environments.",
+          "damage": 15,
+          "partyDamage": 1
+        }
+      ],
+      "concept": "Request Pipeline",
+      "difficulty": "easy"
+    },
+    {
+      "type": "encounter",
+      "trigger": "after_stop",
+      "triggerStop": 2,
+      "title": "A Baker Appears!",
+      "text": "A veteran baker approaches your wagon: 'I see you have two auth systems running. The browser pipeline uses session cookies but the API pipeline uses Bearer tokens. Why not just use tokens for everything?'",
+      "choices": [
+        {
+          "text": "Sessions are better for browsers because cookies are sent automatically with every request, while Bearer tokens need JavaScript to attach them, making CSRF protection simpler",
+          "correct": true,
+          "explanation": "Browsers automatically send cookies with every request, so server-rendered HTML and LiveView work seamlessly. Bearer tokens require client-side JavaScript to attach to each request. For an API consumed by other programs, tokens are stateless and simpler. Each pipeline serves its audience.",
+          "damage": 0,
+          "partyDamage": 0
+        },
+        {
+          "text": "Tokens are more secure than cookies, so the API pipeline is the secure path",
+          "correct": false,
+          "explanation": "Neither is inherently more secure. Cookies can be HttpOnly and SameSite protected. Tokens can be stolen from localStorage. The choice depends on the consumer. Browsers work best with cookies. Machine clients work best with tokens. Craftplan supports both.",
+          "damage": 15,
+          "partyDamage": 1
+        },
+        {
+          "text": "Phoenix requires you to use cookies for LiveView, there is no choice",
+          "correct": false,
+          "explanation": "Phoenix LiveView does need a session for its WebSocket connection, but the API endpoints could theoretically use sessions too. The dual pipeline is a design choice, not a framework limitation. It optimizes each path for its consumer type.",
+          "damage": 15,
+          "partyDamage": 1
+        }
+      ],
+      "concept": "Authentication",
+      "difficulty": "easy"
+    },
+    {
+      "type": "weather",
+      "trigger": "after_stop",
+      "triggerStop": 3,
+      "title": "Role Blizzard!",
+      "text": "A blizzard of access requests hits! A user with the 'staff' role tries to access the /manage/settings/api_keys page. The route is wrapped in ash_authentication_live_session with live_admin_required. What happens?",
+      "choices": [
+        {
+          "text": "The on_mount hook checks current_user.role, finds it is not in [:admin], halts the socket, and redirects to /sign-in",
+          "correct": true,
+          "explanation": "The live_admin_required hook explicitly checks if the role is in [:admin]. Staff is not admin. The socket halts immediately and the user gets redirected. The LiveView never mounts, never renders, and never sends data. Authorization happens before any content is generated.",
+          "damage": 15,
+          "partyDamage": 1
+        },
+        {
+          "text": "The page renders but the settings forms are disabled since the user lacks admin permissions",
+          "correct": false,
+          "explanation": "The check happens at the mount level, not the template level. The LiveView is never mounted at all. Rendering disabled forms would leak information about what settings exist. The on_mount hook prevents the page from loading entirely.",
+          "damage": 15,
+          "partyDamage": 1
+        },
+        {
+          "text": "The Ash policy authorizer blocks each individual database query with a permission error",
+          "correct": false,
+          "explanation": "Ash policies do enforce resource-level authorization, but the LiveView mount hook fires first. The user never reaches the point where Ash queries would run. Defense in depth means checking at multiple layers, but the mount guard is the first wall.",
+          "damage": 15,
+          "partyDamage": 1
+        }
+      ],
+      "concept": "Authentication",
+      "difficulty": "medium"
+    },
+    {
+      "type": "river",
+      "trigger": "after_stop",
+      "triggerStop": 4,
+      "title": "The Recipe Crossing!",
+      "text": "You reach a wide river. The BOM table has a partial unique index: one active BOM per product. A baker tries to promote a second BOM to active status without archiving the first. How does Craftplan prevent recipe conflicts?",
+      "choices": [
+        {
+          "text": "The PostgreSQL partial unique index on product_id WHERE status equals active raises a constraint violation, so the database itself enforces the one-active-BOM rule",
+          "correct": true,
+          "explanation": "The custom_indexes block creates a partial unique index that only applies to rows where status is active. PostgreSQL enforces this at the database level. Even if application code has a bug, you cannot have two active BOMs for the same product. The database is the source of truth.",
+          "damage": 20,
+          "partyDamage": 1
+        },
+        {
+          "text": "Ash validates the uniqueness in application memory before writing to the database",
+          "correct": false,
+          "explanation": "Application-level uniqueness checks have race conditions. Two requests could check at the same time, both see no conflict, and both write. The partial unique index enforces the constraint at the database level where transactions serialize access. Database constraints are the only reliable solution.",
+          "damage": 20,
+          "partyDamage": 1
+        },
+        {
+          "text": "The promote action automatically archives the old BOM before activating the new one in a single transaction",
+          "correct": false,
+          "explanation": "Looking at the actual promote action, it only sets status to active and published_at to now. It does not archive the old BOM. The partial unique index is the safety net. If the old BOM is not archived first, the database rejects the promotion. The application relies on the database constraint, not action logic.",
+          "damage": 20,
+          "partyDamage": 1
+        }
+      ],
+      "concept": "Ash Framework",
+      "difficulty": "hard"
+    },
+    {
+      "type": "misfortune",
+      "trigger": "after_stop",
+      "triggerStop": 5,
+      "title": "Capacity Overflow!",
+      "text": "Disaster! The bakery accepted 200 croissant orders for tomorrow but can only produce 150. The max_daily_quantity on the product is set to 150. Where should this validation fire to prevent overbooking?",
+      "choices": [
+        {
+          "text": "In the ValidateConstraints change module that runs during order creation, which checks the sum of all order items for that product on that delivery date against max_daily_quantity",
+          "correct": true,
+          "explanation": "The Order create action runs ValidateConstraints as a change module. It queries existing orders for the same delivery date, sums the quantities for each product, and rejects the order if the total would exceed max_daily_quantity. This fires before the order is persisted.",
+          "damage": 15,
+          "partyDamage": 1
+        },
+        {
+          "text": "In a database trigger that runs after the insert and rolls back if capacity is exceeded",
+          "correct": false,
+          "explanation": "Craftplan does not use database triggers for capacity validation. The ValidateConstraints change module handles this in the application layer where it can provide user-friendly error messages. Database triggers would work but make it harder to return meaningful errors to the LiveView UI.",
+          "damage": 15,
+          "partyDamage": 1
+        },
+        {
+          "text": "In the LiveView form validation on the client side before submitting the order",
+          "correct": false,
+          "explanation": "Client-side validation can be bypassed. Capacity limits must be enforced server-side to prevent race conditions where two staff members submit orders simultaneously. The ValidateConstraints module runs as part of the Ash action, which is always server-side.",
+          "damage": 15,
+          "partyDamage": 1
+        }
+      ],
+      "concept": "Production Flow",
+      "difficulty": "medium"
+    },
+    {
+      "type": "encounter",
+      "trigger": "after_stop",
+      "triggerStop": 6,
+      "title": "Production Manager!",
+      "text": "A production manager stops your wagon: 'We batch croissant orders from three different customers into one production run. Why does build_production_items group by product AND day instead of just product?'",
+      "choices": [
+        {
+          "text": "Because delivery dates determine when production must happen. Grouping by day ensures Tuesday's croissants are baked separately from Thursday's, matching the bakery's daily schedule",
+          "correct": true,
+          "explanation": "A bakery plans production by day. Tuesday orders must be ready Tuesday. Grouping by product alone would mix Tuesday and Thursday orders into one batch, making it impossible to schedule. The day-product tuple is the natural unit of bakery production planning.",
+          "damage": 0,
+          "partyDamage": 0
+        },
+        {
+          "text": "For performance reasons. Smaller groups mean less memory usage in the Elixir process",
+          "correct": false,
+          "explanation": "Memory is not the concern. The grouping reflects real-world bakery operations. You cannot bake Thursday's bread on Tuesday and expect it to be fresh. The day dimension ensures production aligns with delivery commitments.",
+          "damage": 15,
+          "partyDamage": 1
+        },
+        {
+          "text": "Because the database schema requires a composite key of product_id and delivery_date",
+          "correct": false,
+          "explanation": "The grouping happens in Elixir code, not at the database level. build_production_items is a pure function that transforms order data in memory. It groups by day and product because that is how bakeries actually plan production, not because of a schema constraint.",
+          "damage": 15,
+          "partyDamage": 1
+        }
+      ],
+      "concept": "Production Flow",
+      "difficulty": "easy"
+    },
+    {
+      "type": "fortune",
+      "trigger": "after_stop",
+      "triggerStop": 7,
+      "title": "Forecast Surplus!",
+      "text": "The inventory forecast shows a comfortable surplus of flour through next week. The calculate_material_balances function reveals all balances are positive. No emergency reorders needed. The trail ahead looks clear!",
+      "choices": [],
+      "concept": "Production Flow",
+      "difficulty": "easy"
+    }
+  ],
+  "partyMembers": [
+    {
+      "name": "Request Pipeline",
+      "icon": "router",
+      "maxHealth": 3
+    },
+    {
+      "name": "Authentication",
+      "icon": "server",
+      "maxHealth": 3
+    },
+    {
+      "name": "Ash Framework",
+      "icon": "data",
+      "maxHealth": 3
+    },
+    {
+      "name": "Production Flow",
+      "icon": "layout",
+      "maxHealth": 3
+    }
+  ],
+  "deathMessages": [
+    "Died of unhandled Ash changeset errors. Should have checked the validations.",
+    "Lost in the Plug pipeline. Never called Plug.Conn.halt().",
+    "Drowned crossing the BOM versioning river. Two active recipes at once.",
+    "Killed by a mass assignment vulnerability. Forgot the accept list.",
+    "Starved waiting for the forecast. The balance went negative on Tuesday.",
+    "Buried under N+1 queries. Should have used Ash.Query.load.",
+    "Died of capacity overflow. Accepted 200 orders but could only bake 150.",
+    "Your LiveView socket expired of old age. The session cookie was never refreshed.",
+    "Lost to a race condition in lot allocation. FIFO was not enforced.",
+    "The production batch completed but costs were never snapshotted. Profits unknown."
+  ],
+  "sourceInfo": {
+    "repo": "puemos/craftplan",
+    "commit": "main",
+    "tag": "",
+    "snapshotDate": "2026-04-08"
+  }
+};
+
+// FLAVORS
+window.TRAIL_FLAVORS = [
+  "The sourdough starter is bubbling nicely...",
+  "Flour dust settles on the plug pipeline...",
+  "The oven preheats while Ash validates the changeset...",
+  "A fresh batch of croissants enters production...",
+  "The inventory forecast shows enough butter for the week...",
+  "LiveView pushes a real-time order update to the dashboard...",
+  "The BOM rollup recalculates material costs silently...",
+  "A delivery date looms on the calendar feed...",
+  "The API key authenticates. JSON flows downstream...",
+  "Lot traceability tracks flour from supplier to baguette...",
+  "The production batch groups three customer orders together...",
+  "CSRF tokens bake alongside the bread. Security by default...",
+  "The partial unique index holds firm. One active recipe only...",
+  "Purchase orders flow upstream to restock the pantry...",
+  "The balance cells project a flour shortage on Thursday...",
+  "Decimal arithmetic keeps the cost calculations precise..."
+];
+// END FLAVORS
+
+window.drawCustomEventOverlay = function(time) {
+  if (!currentEventType && !currentEventTitle) return;
+  var t = (time || 0) * 0.001;
+
+// OVERLAYS
+  if (currentEventTitle.indexOf('Pipeline Storm') !== -1) {
+    // Darken sky — storm clouds over the bakery
+    ctx.fillStyle = 'rgba(0,0,50,0.45)';
+    ctx.fillRect(0, 0, W, 110);
+    // Lightning flash (periodic)
+    var flashPhase = Math.sin(t * 1.7) + Math.sin(t * 3.1);
+    if (flashPhase > 1.6) {
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.fillRect(0, 0, W, H);
+      // Lightning bolt
+      ctx.strokeStyle = '#FFFF55';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      var lx = 80 + Math.sin(t * 2.3) * 60;
+      ctx.moveTo(lx, 10);
+      ctx.lineTo(lx - 5, 35);
+      ctx.lineTo(lx + 8, 35);
+      ctx.lineTo(lx - 3, 65);
+      ctx.lineTo(lx + 10, 65);
+      ctx.lineTo(lx + 2, 95);
+      ctx.stroke();
+    }
+    // Rain
+    ctx.strokeStyle = '#5555FF';
+    ctx.lineWidth = 1;
+    for (var i = 0; i < 40; i++) {
+      var rx = (i * 8.3 + t * 80) % W;
+      var ry = (i * 13.7 + t * 120) % 110;
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(rx), Math.floor(ry));
+      ctx.lineTo(Math.floor(rx - 1), Math.floor(ry + 5));
+      ctx.stroke();
+    }
+    return;
+  }
+
+  if (currentEventTitle.indexOf('Baker Appears') !== -1) {
+    // Baker NPC standing by a brick oven
+    var px = 195, py = 142;
+    // Baker body
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(px, py - 12, 4, 8); // white coat
+    ctx.fillStyle = '#FFCC88';
+    ctx.fillRect(px, py - 15, 4, 3); // head
+    ctx.fillRect(px - 1, py - 4, 2, 5); // left leg
+    ctx.fillRect(px + 3, py - 4, 2, 5); // right leg
+    // Chef hat
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(px - 1, py - 19, 6, 4);
+    ctx.fillRect(px, py - 22, 4, 3);
+    // Brick oven
+    ctx.fillStyle = '#AA4400';
+    ctx.fillRect(210, py - 14, 16, 16);
+    ctx.fillStyle = '#CC5500';
+    ctx.fillRect(212, py - 12, 12, 10);
+    // Oven opening
+    ctx.fillStyle = '#331100';
+    ctx.fillRect(214, py - 8, 8, 6);
+    // Fire inside oven
+    var flicker = Math.sin(t * 8) * 2;
+    ctx.fillStyle = '#FF5555';
+    ctx.fillRect(216, py - 6 + Math.floor(flicker * 0.3), 4, 3);
+    ctx.fillStyle = '#FFFF55';
+    ctx.fillRect(217, py - 7 + Math.floor(flicker * 0.5), 2, 2);
+    // Oven glow
+    ctx.fillStyle = 'rgba(255,170,0,0.08)';
+    ctx.beginPath();
+    ctx.arc(218, py - 5, 12, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+
+  if (currentEventTitle.indexOf('Role Blizzard') !== -1) {
+    // Darken sky — blizzard
+    ctx.fillStyle = 'rgba(0,0,50,0.55)';
+    ctx.fillRect(0, 0, W, 110);
+    // Multiple lightning bolts
+    for (var bolt = 0; bolt < 3; bolt++) {
+      var flashPhase = Math.sin(t * (1.7 + bolt * 0.9)) + Math.sin(t * (3.1 + bolt * 1.3));
+      if (flashPhase > 1.5) {
+        ctx.strokeStyle = '#FFFF55';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        var lx = 50 + bolt * 90 + Math.sin(t * 2.3 + bolt) * 30;
+        ctx.moveTo(lx, 5);
+        ctx.lineTo(lx - 4, 25);
+        ctx.lineTo(lx + 6, 30);
+        ctx.lineTo(lx - 2, 55);
+        ctx.lineTo(lx + 8, 58);
+        ctx.lineTo(lx + 1, 85);
+        ctx.stroke();
+      }
+    }
+    // Heavy snow
+    ctx.fillStyle = '#FFFFFF';
+    for (var i = 0; i < 50; i++) {
+      var sx = (i * 7.3 + t * 40) % W;
+      var sy = (i * 11.7 + t * 60) % 110;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), 2, 2);
+    }
+    return;
+  }
+
+  if (currentEventTitle.indexOf('Recipe Crossing') !== -1) {
+    // River crossing — turbulent water with floating ingredients
+    ctx.fillStyle = '#55FFFF';
+    for (var i = 0; i < 20; i++) {
+      var sx = (i * 17 + t * 40) % W;
+      var sy = 157 + Math.sin((i * 3 + t * 5)) * 3;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), 4, 2);
+    }
+    // Floating recipe cards / ingredient bags
+    ctx.fillStyle = '#FFEECC';
+    for (var i = 0; i < 3; i++) {
+      var cardX = (i * 110 + t * 25) % W;
+      var cardY = 158 + Math.sin(t * 2 + i) * 2;
+      ctx.fillRect(Math.floor(cardX), Math.floor(cardY), 6, 4);
+      // Text line on card
+      ctx.fillStyle = '#AA5500';
+      ctx.fillRect(Math.floor(cardX) + 1, Math.floor(cardY) + 1, 4, 1);
+      ctx.fillStyle = '#FFEECC';
+    }
+    return;
+  }
+
+  if (currentEventTitle.indexOf('Capacity Overflow') !== -1) {
+    // Red danger tint — overflowing bakery
+    ctx.fillStyle = 'rgba(170,0,0,0.25)';
+    ctx.fillRect(0, 0, W, H);
+    // Smoke rising from overworked oven
+    ctx.fillStyle = '#555555';
+    for (var i = 0; i < 15; i++) {
+      var sx = 140 + Math.sin(i * 2.7 + t) * 30;
+      var sy = 130 - ((t * 20 + i * 15) % 90);
+      var size = 2 + (i % 3);
+      ctx.globalAlpha = 0.3 + Math.sin(t + i) * 0.15;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), size, size);
+    }
+    ctx.globalAlpha = 1.0;
+    // Stacked bread loaves spilling over
+    ctx.fillStyle = '#CC8844';
+    for (var i = 0; i < 8; i++) {
+      var bx = 125 + i * 8;
+      var by = 140 - (i % 3) * 4;
+      ctx.fillRect(bx, by, 6, 3);
+    }
+    // Pulsing red border
+    var pulse = (Math.sin(t * 4) + 1) * 0.15;
+    ctx.strokeStyle = 'rgba(255,0,0,' + pulse.toFixed(2) + ')';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(1, 1, W - 2, H - 2);
+    ctx.lineWidth = 1;
+    return;
+  }
+
+  if (currentEventTitle.indexOf('Production Manager') !== -1) {
+    // Manager NPC with clipboard standing by production board
+    var px = 200, py = 142;
+    // Person body
+    ctx.fillStyle = '#4477AA';
+    ctx.fillRect(px, py - 12, 4, 8); // blue shirt
+    ctx.fillStyle = '#FFCC88';
+    ctx.fillRect(px, py - 15, 4, 3); // head
+    ctx.fillRect(px - 1, py - 4, 2, 5); // left leg
+    ctx.fillRect(px + 3, py - 4, 2, 5); // right leg
+    // Hard hat
+    ctx.fillStyle = '#FFFF00';
+    ctx.fillRect(px - 1, py - 17, 6, 2);
+    ctx.fillRect(px, py - 19, 4, 2);
+    // Clipboard in hand
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(px + 6, py - 11, 3, 5);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(px + 6, py - 10, 3, 3);
+    // Production board
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(214, py - 20, 16, 14);
+    ctx.fillStyle = '#000000';
+    // Board lines (schedule)
+    for (var i = 0; i < 4; i++) {
+      ctx.fillRect(216, py - 18 + i * 3, 12, 1);
+    }
+    // Green checkmarks
+    ctx.fillStyle = '#00AA00';
+    ctx.fillRect(226, py - 18, 2, 2);
+    ctx.fillRect(226, py - 15, 2, 2);
+    return;
+  }
+// END OVERLAYS
+};
+</script>
+<script src="../engine.js"></script>
+</body>
+</html>

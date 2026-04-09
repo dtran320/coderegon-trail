@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Coderegon Trail - GoTreeSitter Edition</title>
+</head>
+<body>
+<div id="game-container">
+  <div id="canvas-area">
+    <canvas id="game-canvas" width="320" height="200"></canvas>
+    <div id="music-indicator">M: Music</div>
+  </div>
+  <div id="text-panel"></div>
+  <div id="status-bar"></div>
+</div>
+
+<script>
+window.TRAIL_DATA = {
+  "framework": "gotreesitter",
+  "trailName": "The Parser Trail",
+  "confidence": "high",
+  "stops": [
+    {
+      "name": "Independence, MO",
+      "subtitle": "Grammar Loading",
+      "concept": "Language registration and grammar blob deserialization",
+      "landmarkType": "town",
+      "code": {
+        "file": "grammars/registry.go",
+        "startLine": 30,
+        "endLine": 48,
+        "content": "// LangEntry holds a registered language with its\n// grammar, extensions, and highlight query.\ntype LangEntry struct {\n\tName               string\n\tExtensions         []string\n\tShebangs           []string\n\tLanguage           func() *gotreesitter.Language\n\tGrammarSource      GrammarSource\n\tHighlightQuery     string\n\tInheritHighlights  string\n\tTagsQuery          string\n\tTokenSourceFactory func(\n\t\tsrc []byte,\n\t\tlang *gotreesitter.Language,\n\t) gotreesitter.TokenSource\n\tQuality ParseQuality\n}\n\nvar registry []LangEntry",
+        "language": "go"
+      },
+      "narration": "Every parsing journey starts with loading a grammar. GoTreeSitter ships 206 grammars in a lazy registry. Each LangEntry maps file extensions to a Language loader function. The loader decompresses a binary blob extracted from upstream C parser tables. No C compiler needed. The grammar loads on first use, and the Language struct holds everything the parser needs: parse tables, lex states, symbol metadata."
+    },
+    {
+      "name": "Chimney Rock",
+      "subtitle": "Language Data Structures",
+      "concept": "Core type definitions that drive the entire runtime",
+      "landmarkType": "mountain",
+      "code": {
+        "file": "language.go",
+        "startLine": 1,
+        "endLine": 25,
+        "content": "// Package gotreesitter implements a pure Go\n// tree-sitter runtime.\npackage gotreesitter\n\n// Symbol is a grammar symbol ID\n// (terminal or nonterminal).\ntype Symbol uint16\n\n// StateID is a parser state index.\ntype StateID uint32\n\n// FieldID is a named field index.\ntype FieldID uint16\n\n// ParseActionType identifies the kind\n// of parse action.\ntype ParseActionType uint8\n\nconst (\n\tParseActionShift  ParseActionType = iota\n\tParseActionReduce\n\tParseActionAccept\n\tParseActionRecover\n)",
+        "language": "go"
+      },
+      "narration": "Here are the building blocks of the entire runtime. A Symbol is a grammar symbol, either a terminal like a keyword or a nonterminal like an expression. StateID indexes into the parse table. FieldID tracks named fields like the name field of a function declaration. And ParseActionType is the four-way switch: shift a token onto the stack, reduce children into a parent, accept the parse, or recover from an error. These tiny types drive everything downstream."
+    },
+    {
+      "name": "Fort Laramie",
+      "subtitle": "The Lexer DFA",
+      "concept": "Table-driven lexer tokenizes source into a token stream",
+      "landmarkType": "camp",
+      "code": {
+        "file": "lexer.go",
+        "startLine": 43,
+        "endLine": 68,
+        "content": "// Lexer tokenizes source text using a\n// table-driven DFA.\ntype Lexer struct {\n\tstates     []LexState\n\tasciiTable [][128]int32\n\tsource     []byte\n\tpos        int\n\trow        uint32\n\tcol        uint32\n}\n\nfunc NewLexer(\n\tstates []LexState, source []byte,\n) *Lexer {\n\treturn &Lexer{\n\t\tstates: states,\n\t\tsource: source,\n\t}\n}\n\n// Next lexes the next token starting from\n// the given lex state index. It skips\n// whitespace tokens automatically.\nfunc (l *Lexer) Next(startState uint16) Token {\n\tfor {\n\t\tif l.pos >= len(l.source) {\n\t\t\treturn Token{\n\t\t\t\tStartByte: uint32(l.pos),\n\t\t\t\tEndByte:   uint32(l.pos),\n\t\t\t}\n\t\t}",
+        "language": "go"
+      },
+      "narration": "The Lexer is a table-driven deterministic finite automaton. It takes an array of LexState structs, each containing transitions on character ranges, and walks the DFA character by character. The ASCII fast-path table gives O-of-1 lookups for common characters instead of scanning transition lists. The Next method skips whitespace automatically and returns Token structs with byte offsets and row-column positions. This is where raw bytes become meaningful symbols."
+    },
+    {
+      "name": "Independence Rock",
+      "subtitle": "Parser Construction",
+      "concept": "Building the shift-reduce parser from grammar tables",
+      "landmarkType": "mountain",
+      "code": {
+        "file": "parser.go",
+        "startLine": 208,
+        "endLine": 240,
+        "content": "// NewParser creates a new Parser for\n// the given language.\nfunc NewParser(lang *Language) *Parser {\n\tp := &Parser{language: lang}\n\tif lang != nil {\n\t\tp.denseLimit = len(lang.ParseTable)\n\t\tp.smallBase = int(lang.LargeStateCount)\n\t\tif len(lang.SmallParseTableMap) > 0 {\n\t\t\tp.smallLookup =\n\t\t\t\tbuildSmallLookup(lang)\n\t\t\tp.smallTokenLookup =\n\t\t\t\tbuildSmallTokenLookup(lang)\n\t\t}\n\t\tp.reduceAliasSeq =\n\t\t\tbuildReduceAliasSequences(lang)\n\t\tp.singleTokenWrapperSymbol =\n\t\t\tbuildSingleTokenWrapperSymbols(lang)\n\t\tp.reduceHasFields =\n\t\t\tbuildReduceFieldPresence(lang)\n\t\tp.recoverByState,\n\t\t\tp.hasRecoverState,\n\t\t\tp.hasRecoverSymbol =\n\t\t\tbuildRecoverActionsByState(lang)\n\t\tp.rootSymbol, p.hasRootSymbol =\n\t\t\tp.inferRootSymbol()\n\t\tp.maxConflictWidth =\n\t\t\tcomputeMaxConflictWidth(lang)\n\t}\n\treturn p\n}",
+        "language": "go"
+      },
+      "narration": "When you call NewParser, it pre-computes everything the parse loop will need. It builds optimized lookup tables for the parse actions, indexes recovery states for error handling, detects the root symbol, and measures the widest conflict in the grammar. That conflict width determines how many GLR stack forks the parser might need. All this setup happens once so the hot parse loop can run fast. Think of it as loading ammunition before the trail gets rough."
+    },
+    {
+      "name": "South Pass",
+      "subtitle": "The Parse Loop",
+      "concept": "Driving the GLR parse with shift, reduce, and accept actions",
+      "landmarkType": "river",
+      "code": {
+        "file": "parser_api.go",
+        "startLine": 300,
+        "endLine": 323,
+        "content": "func (p *Parser) Parse(\n\tsource []byte,\n) (*Tree, error) {\n\tif err := p.checkLanguageCompatible();\n\t\terr != nil {\n\t\treturn nil, err\n\t}\n\tif err := p.checkDFALexer();\n\t\terr != nil {\n\t\treturn nil, err\n\t}\n\tlexer := NewLexer(\n\t\tp.language.LexStates, source,\n\t)\n\tts := acquireDFATokenSource(\n\t\tlexer, p.language,\n\t\tp.lookupActionIndex,\n\t\tp.hasKeywordState,\n\t)\n\ttree := p.parseInternal(\n\t\tsource, p.wrapIncludedRanges(ts),\n\t\tnil, nil, arenaClassFull,\n\t\tnil, initialMaxStacks, 0, 0, false,\n\t)\n\tnormalizeReturnedTree(\n\t\trootOrNil(tree), source, p.language,\n\t)\n\treturn tree, nil\n}",
+        "language": "go"
+      },
+      "narration": "This is the main entry point for parsing. It creates a Lexer, wraps it in a DFA token source, then calls parseInternal which runs the GLR parse loop. The loop reads tokens one by one and for each token looks up actions in the parse table. Shift pushes the token onto the stack. Reduce pops children and builds a parent node. When the table has multiple actions for the same state and symbol, the parser forks into parallel GLR stacks. The surviving stack wins."
+    },
+    {
+      "name": "Fort Bridger",
+      "subtitle": "Tree Construction",
+      "concept": "Building the syntax tree with arena-allocated nodes",
+      "landmarkType": "camp",
+      "code": {
+        "file": "tree.go",
+        "startLine": 788,
+        "endLine": 815,
+        "content": "type Tree struct {\n\troot           *Node\n\tsource         []byte\n\tlanguage       *Language\n\tedits          []InputEdit\n\tlastEditedLeaf *Node\n\tarena          *nodeArena\n\tborrowedArena  []*nodeArena\n\tparseRuntime   ParseRuntime\n\treleased       bool\n}\n\nfunc NewTree(\n\troot *Node, source []byte,\n\tlang *Language,\n) *Tree {\n\treturn &Tree{\n\t\troot:     root,\n\t\tsource:   source,\n\t\tlanguage: lang,\n\t}\n}\n\n// Node is a syntax tree node.\ntype Node struct {\n\tsymbol     Symbol\n\tparseState StateID\n\tstartByte  uint32\n\tendByte    uint32\n\tstartPoint Point\n\tendPoint   Point\n\tchildren   []*Node\n\tfieldIDs   []FieldID\n\tisNamed    bool\n\tisExtra    bool\n\tisMissing  bool\n\thasError   bool\n\tparent     *Node\n}",
+        "language": "go"
+      },
+      "narration": "The Tree is the final product of parsing. It wraps a root Node, the original source bytes, and the Language for type resolution. Every Node tracks its byte span, row-column points, children, field assignments, and error status. Nodes are allocated from a slab-based arena allocator that avoids garbage collection pressure. When incremental reparsing reuses old subtrees, the tree borrows arenas from the old tree with reference counting. You must call Release when done."
+    },
+    {
+      "name": "The Dalles",
+      "subtitle": "Query Engine",
+      "concept": "S-expression pattern matching over syntax trees",
+      "landmarkType": "forest",
+      "code": {
+        "file": "query.go",
+        "startLine": 236,
+        "endLine": 270,
+        "content": "func NewQuery(\n\tsource string, lang *Language,\n) (*Query, error) {\n\tp := &queryParser{\n\t\tinput: source,\n\t\tlang:  lang,\n\t\tq: &Query{\n\t\t\tcaptures: []string{},\n\t\t},\n\t}\n\tif err := p.parse(); err != nil {\n\t\treturn nil, err\n\t}\n\tp.q.buildAlternationIndices()\n\tp.q.buildRootPatternIndex()\n\treturn p.q, nil\n}\n\n// Exec creates a streaming cursor over\n// matches rooted at node.\nfunc (q *Query) Exec(\n\tnode *Node, lang *Language,\n\tsource []byte,\n) *QueryCursor {\n\tc := &QueryCursor{\n\t\tquery:  q,\n\t\tlang:   lang,\n\t\tsource: source,\n\t}\n\tif node != nil {\n\t\tc.worklist = make(\n\t\t\t[]queryCursorWorkItem, 1, 32,\n\t\t)\n\t\tc.worklist[0] = queryCursorWorkItem{\n\t\t\tnode: node, depth: 0,\n\t\t}\n\t}\n\treturn c\n}",
+        "language": "go"
+      },
+      "narration": "The Query engine compiles S-expression patterns like open paren function declaration name colon open paren identifier close paren at fn close paren into a list of matching steps. NewQuery parses the pattern, resolves symbol names against the Language, and builds fast-path indexes. Exec returns a streaming cursor that walks the tree in depth-first order, testing each node against the pattern steps. It supports quantifiers, alternation, field constraints, and predicates like match and eq."
+    },
+    {
+      "name": "Oregon City",
+      "subtitle": "Tree Traversal",
+      "concept": "Stateful cursor for efficient tree navigation",
+      "landmarkType": "town",
+      "code": {
+        "file": "cursor.go",
+        "startLine": 1,
+        "endLine": 30,
+        "content": "package gotreesitter\n\n// TreeCursor provides stateful, O(1) tree\n// navigation. It maintains a stack of\n// (node, childIndex) frames enabling\n// efficient parent, child, and sibling\n// movement without scanning.\ntype TreeCursor struct {\n\tstack []cursorFrame\n\ttree  *Tree\n}\n\nfunc NewTreeCursor(\n\tnode *Node, tree *Tree,\n) *TreeCursor {\n\treturn &TreeCursor{\n\t\tstack: []cursorFrame{\n\t\t\t{node: node, childIndex: -1},\n\t\t},\n\t\ttree: tree,\n\t}\n}\n\n// GotoFirstChild moves to the first child.\nfunc (c *TreeCursor) GotoFirstChild() bool {\n\tnode := c.CurrentNode()\n\tif node == nil ||\n\t\tlen(node.children) == 0 {\n\t\treturn false\n\t}\n\tc.stack = append(c.stack,\n\t\tcursorFrame{\n\t\t\tnode:       node.children[0],\n\t\t\tchildIndex: 0,\n\t\t},\n\t)\n\treturn true\n}",
+        "language": "go"
+      },
+      "narration": "You made it to Oregon City! The TreeCursor is the final piece of the parsing pipeline. After building the tree and querying it, you traverse it. The cursor maintains a stack of frames, each tracking a node and its child index. GotoFirstChild, GotoNextSibling, and GotoParent all run in constant time. No rescanning sibling lists, no pointer chasing. The cursor is how editors, highlighters, and code analysis tools walk the tree efficiently. The full circle is complete: source bytes in, structured tree out, fast traversal everywhere."
+    }
+  ],
+  "events": [
+    {
+      "type": "weather",
+      "trigger": "after_stop",
+      "triggerStop": 1,
+      "title": "Symbol Storm!",
+      "text": "A storm of grammar symbols hits your wagon! The parse table has 67,000 states for the COBOL grammar alone. Your parser needs to look up actions fast. Why does GoTreeSitter use StateID as uint32 instead of uint16?",
+      "choices": [
+        {
+          "text": "Because some grammars like COBOL have over 65,000 parser states, which overflows a 16-bit integer",
+          "correct": true,
+          "explanation": "COBOL's 1,071 grammar rules generate 67K states, exceeding uint16's 65,535 maximum. The code comment says it explicitly: 'uint32 supports grammars with >65K states (e.g. COBOL with 67K states from 1071 rules).' Most grammars fit in uint16, but COBOL breaks the limit."
+        },
+        {
+          "text": "Because Go performs better with 32-bit integers than 16-bit due to memory alignment",
+          "correct": false,
+          "explanation": "Memory alignment is a valid concern in general, but the comment in the code explicitly says the reason: COBOL has 67K states that overflow uint16. Performance is secondary to correctness here."
+        },
+        {
+          "text": "Because tree-sitter's C runtime uses uint32 and GoTreeSitter must match exactly",
+          "correct": false,
+          "explanation": "GoTreeSitter is a clean-room reimplementation, not a direct port. It makes its own type decisions. The uint32 choice is driven by real grammar sizes, not blind compatibility with C."
+        }
+      ],
+      "concept": "Language Tables",
+      "difficulty": "easy"
+    },
+    {
+      "type": "river",
+      "trigger": "after_stop",
+      "triggerStop": 2,
+      "title": "The Token Stream Crossing!",
+      "text": "You reach a wide river of tokens. The lexer DFA has hit an input character that matches no transition in the current state. What does the lexer do when no accepting state is found?",
+      "choices": [
+        {
+          "text": "It skips one rune as error recovery and tries lexing again from the next position",
+          "correct": true,
+          "explanation": "The scan method returns false when no accepting state is found. The Next method then calls skipOneRune to advance past the unrecognized character and tries again. This prevents the lexer from getting stuck on invalid input while preserving position tracking."
+        },
+        {
+          "text": "It returns an error token that halts the parser immediately",
+          "correct": false,
+          "explanation": "The lexer does not halt. It skips one rune and continues. This resilience is important because tree-sitter is designed for real-time parsing of incomplete, in-progress code in editors. Halting on bad input would break the editing experience."
+        },
+        {
+          "text": "It falls back to a default whitespace token and advances the position by one byte",
+          "correct": false,
+          "explanation": "There is no whitespace fallback. The lexer skips one full Unicode rune (not one byte) using skipOneRune and retries. Skipping by rune instead of byte is important because multi-byte UTF-8 characters must be consumed atomically."
+        }
+      ],
+      "concept": "DFA Lexer",
+      "difficulty": "medium"
+    },
+    {
+      "type": "encounter",
+      "trigger": "after_stop",
+      "triggerStop": 3,
+      "title": "A GLR Fork Appears!",
+      "text": "A weathered parser pioneer approaches: 'My grammar has an ambiguity. The parse table says I can both SHIFT and REDUCE on the same token. What happens next in the GLR parser?'",
+      "choices": [
+        {
+          "text": "The parser forks the stack: one copy shifts, the other reduces. Both paths run in parallel until one dies or they merge at a common state",
+          "correct": true,
+          "explanation": "This is GLR parsing. When a state-symbol pair has multiple actions, the parser clones the stack and explores all alternatives. Dead-end stacks are dropped. Stacks that reach the same state and byte offset are merged. The maxForkCloneDepth constant of 4096 limits runaway ambiguity."
+        },
+        {
+          "text": "The parser always prefers SHIFT over REDUCE because shift-reduce conflicts default to shift in LR parsing",
+          "correct": false,
+          "explanation": "That is the behavior of a traditional LR parser, not a GLR parser. GoTreeSitter explicitly supports GLR: it forks the stack and explores both paths. The code even has a maxForkCloneDepth limit for pathological ambiguity."
+        },
+        {
+          "text": "The parser backtracks to the last checkpoint and tries the other action",
+          "correct": false,
+          "explanation": "GLR parsing does not backtrack. It runs all alternatives forward in parallel using multiple stack copies. Backtracking would be much slower because you would re-do work. Parallel stacks with merging is the key insight that makes GLR efficient."
+        }
+      ],
+      "concept": "GLR Parser",
+      "difficulty": "hard"
+    },
+    {
+      "type": "misfortune",
+      "trigger": "after_stop",
+      "triggerStop": 4,
+      "title": "Arena Overflow!",
+      "text": "Disaster! Your arena allocator's slab is full mid-parse. A 2MB file is generating hundreds of thousands of nodes. Why does GoTreeSitter use a slab-based arena allocator instead of regular Go heap allocation?",
+      "choices": [
+        {
+          "text": "To reduce garbage collection pressure by allocating nodes in large contiguous slabs that are released together when the tree is freed",
+          "correct": true,
+          "explanation": "Each parse allocates thousands of Node structs. With regular heap allocation, the GC would need to scan all of them. The arena allocates in 2MB slabs and uses reference counting so all nodes from a parse are freed in one shot. The arena also supports incremental reparse borrowing, where a new tree borrows slabs from an old tree."
+        },
+        {
+          "text": "Because Go does not support allocating structs on the stack, so arenas simulate stack allocation",
+          "correct": false,
+          "explanation": "Go does support stack allocation via escape analysis. The issue is not stack vs heap, but GC pressure. Thousands of individually-allocated Node pointers create work for the garbage collector. Arena allocation batches them and releases them together."
+        },
+        {
+          "text": "To match tree-sitter's C implementation which uses malloc for each node",
+          "correct": false,
+          "explanation": "Tree-sitter's C runtime also uses pooled allocation, not individual malloc calls. But the Go motivation is specifically GC pressure. The arena turns thousands of small allocations into a handful of large slab allocations, dramatically reducing GC scan time."
+        }
+      ],
+      "concept": "Arena Allocator",
+      "difficulty": "medium"
+    },
+    {
+      "type": "weather",
+      "trigger": "after_stop",
+      "triggerStop": 5,
+      "title": "Incremental Reparse Blizzard!",
+      "text": "A blizzard hits! The user edited one character in a 50,000-line file. The parser needs to reparse, but re-lexing and re-parsing the entire file would be too slow. How does ParseIncremental avoid redoing all that work?",
+      "choices": [
+        {
+          "text": "It walks the old tree's spine, identifies the edit region, and reuses unchanged subtrees by reference so only the invalidated span is re-lexed and re-parsed",
+          "correct": true,
+          "explanation": "ParseIncremental uses a reuse cursor that walks the old tree. Subtrees outside the edit region are spliced directly into the new tree without re-parsing. Both leaf and non-leaf subtrees are eligible for reuse. Non-leaf reuse is driven by pre-goto state tracking on interior nodes."
+        },
+        {
+          "text": "It caches all tokens from the first parse and only re-lexes the tokens that overlap the edit",
+          "correct": false,
+          "explanation": "Tokens are not cached between parses. Incremental reparse works at the tree level, not the token level. The reuse cursor checks whether existing subtrees can be kept based on their byte spans and parser states, not individual tokens."
+        },
+        {
+          "text": "It uses a diff algorithm to compare old and new source text, then patches the tree",
+          "correct": false,
+          "explanation": "There is no source diffing. The user provides InputEdit records that describe what changed (start byte, old end, new end). The parser trusts these edits and uses them to mark dirty regions in the old tree. Only dirty regions are re-parsed."
+        }
+      ],
+      "concept": "Incremental Parsing",
+      "difficulty": "hard"
+    },
+    {
+      "type": "encounter",
+      "trigger": "after_stop",
+      "triggerStop": 6,
+      "title": "Query Pattern Pioneer!",
+      "text": "A query pattern expert appears: 'I wrote a query to find all function calls, but it matches too many nodes. How does the QueryCursor efficiently skip subtrees that cannot possibly match?'",
+      "choices": [
+        {
+          "text": "It builds a root pattern index by symbol, so only nodes whose symbol appears in a pattern's root step enter the matching pipeline",
+          "correct": true,
+          "explanation": "The buildRootPatternIndex method groups patterns by their root symbol. When the cursor visits a node during DFS, it checks rootCandidatesBySymbol to find which patterns could match. Nodes with no candidate patterns are skipped entirely. This avoids running the full step-matching logic on irrelevant nodes."
+        },
+        {
+          "text": "It compiles the S-expression pattern into a regular expression and runs it against the tree's serialized form",
+          "correct": false,
+          "explanation": "Query patterns are not converted to regex. They are compiled into sequences of QueryStep structs that are matched structurally against tree nodes. The query engine walks the tree and checks each step against node properties like symbol, field, and depth."
+        },
+        {
+          "text": "It uses byte range filtering to only visit nodes within a specified source region",
+          "correct": false,
+          "explanation": "Byte range filtering is available via SetByteRange, but it is not the primary optimization. The root pattern index by symbol is what makes typical queries fast. Most queries match one or two node types, so the index eliminates the vast majority of nodes without any per-node matching work."
+        }
+      ],
+      "concept": "Query Engine",
+      "difficulty": "medium"
+    },
+    {
+      "type": "fortune",
+      "trigger": "after_stop",
+      "triggerStop": 7,
+      "title": "Pure Go Breakthrough!",
+      "text": "You discover the trail ahead is clear of C toolchains! GoTreeSitter cross-compiles to WASM, ARM, and every target Go supports. No CGo, no gcc, no MSYS2. The race detector and fuzzer can see everything. The trail to Oregon City is wide open!",
+      "choices": [],
+      "concept": "Pure Go Runtime",
+      "difficulty": "easy"
+    }
+  ],
+  "partyMembers": [
+    { "name": "DFA Lexer", "icon": "server", "maxHealth": 3 },
+    { "name": "GLR Parser", "icon": "router", "maxHealth": 3 },
+    { "name": "Arena Allocator", "icon": "data", "maxHealth": 3 },
+    { "name": "Query Engine", "icon": "layout", "maxHealth": 3 }
+  ],
+  "deathMessages": [
+    "Died of unresolved grammar ambiguity. The GLR stacks all collapsed.",
+    "Lost in a DFA with no accepting state. The lexer skipped to oblivion.",
+    "Drowned in the token stream. Too many keywords, not enough transitions.",
+    "Arena memory budget exceeded. The slab allocator could not keep up.",
+    "Killed by a pathological grammar. maxForkCloneDepth was not enough.",
+    "Starved waiting for incremental reparse. The edit region was the whole file.",
+    "Died of query pattern ambiguity. The alternation index exploded.",
+    "Buried under 67,000 parser states. COBOL was the last grammar loaded.",
+    "Your tree cursor fell off the stack. GotoParent returned false at the root.",
+    "Perished in the normalization pass. The recovery parser could not save you."
+  ],
+  "sourceInfo": {
+    "repo": "odvcencio/gotreesitter",
+    "commit": "main",
+    "tag": "",
+    "snapshotDate": "2026-04-08"
+  }
+};
+
+// FLAVORS
+window.TRAIL_FLAVORS = [
+  "The grammar blob decompresses. 206 languages at your fingertips...",
+  "LexState transitions fire. The DFA walks character by character...",
+  "ASCII fast-path: one lookup, one transition. No scanning needed...",
+  "The lexer skips whitespace tokens. Real symbols emerge from the stream...",
+  "Parse tables loaded. Shift, reduce, accept, recover — the four actions...",
+  "GLR stacks fork on ambiguity. Two paths diverge in a parse table...",
+  "The arena slab allocates another 2MB. Nodes pour in without GC pressure...",
+  "Reduce action fires. Children collapse into a parent node...",
+  "Pre-goto state recorded. Incremental reparse will use this later...",
+  "A keyword token matches. The reserved word set confirms it...",
+  "Recovery state found. The parser inserts a missing token and continues...",
+  "The tree cursor descends. GotoFirstChild returns true...",
+  "Query patterns compile. Root symbol index built for fast matching...",
+  "External scanner checkpoint saved. Template literal state preserved...",
+  "Subtree reused. 40,000 bytes of unchanged nodes skip re-parsing..."
+];
+// END FLAVORS
+
+window.drawCustomEventOverlay = function(time) {
+  if (!currentEventType && !currentEventTitle) return;
+  var t = (time || 0) * 0.001;
+
+// OVERLAYS
+  // --- SYMBOL STORM: cascading symbols rain from the sky ---
+  if (currentEventTitle.indexOf('Symbol Storm') !== -1) {
+    // Darken sky
+    ctx.fillStyle = 'rgba(0,0,40,0.4)';
+    ctx.fillRect(0, 0, W, 110);
+    // Lightning flash (periodic)
+    var flashPhase = Math.sin(t * 2.1) + Math.sin(t * 3.7);
+    if (flashPhase > 1.5) {
+      ctx.fillStyle = 'rgba(200,255,200,0.3)';
+      ctx.fillRect(0, 0, W, H);
+      // Lightning bolt
+      ctx.strokeStyle = '#55FF55';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      var lx = 90 + Math.sin(t * 1.9) * 70;
+      ctx.moveTo(lx, 8);
+      ctx.lineTo(lx - 6, 30);
+      ctx.lineTo(lx + 7, 32);
+      ctx.lineTo(lx - 4, 58);
+      ctx.lineTo(lx + 9, 60);
+      ctx.lineTo(lx + 1, 90);
+      ctx.stroke();
+    }
+    // Falling symbol characters
+    ctx.fillStyle = '#55FF55';
+    ctx.font = '8px monospace';
+    var symbols = ['S', 'R', 'A', 'E', '{', '}', '(', ')', ';', '+'];
+    for (var i = 0; i < 25; i++) {
+      var sx = (i * 13.1 + t * 30) % W;
+      var sy = (i * 17.3 + t * 80) % 110;
+      ctx.fillText(symbols[i % symbols.length], Math.floor(sx), Math.floor(sy));
+    }
+    return;
+  }
+
+  // --- TOKEN STREAM CROSSING: rough rapids with token fragments ---
+  if (currentEventTitle.indexOf('Token Stream Crossing') !== -1) {
+    // Extra turbulence
+    ctx.fillStyle = '#55FFFF';
+    for (var i = 0; i < 20; i++) {
+      var sx = (i * 17 + t * 45) % W;
+      var sy = 157 + Math.sin((i * 3 + t * 5)) * 3;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), 4, 2);
+    }
+    // Floating token fragments
+    ctx.fillStyle = '#FFFF55';
+    ctx.font = '6px monospace';
+    var tokens = ['func', 'if', 'for', '{', '}', 'EOF', 'nil', ':='];
+    for (var i = 0; i < 5; i++) {
+      var tx = (i * 65 + t * 20) % W;
+      var ty = 156 + Math.sin(t * 2.5 + i * 1.3) * 3;
+      ctx.fillText(tokens[i % tokens.length], Math.floor(tx), Math.floor(ty));
+    }
+    return;
+  }
+
+  // --- GLR FORK: two translucent stacks diverging ---
+  if (currentEventTitle.indexOf('GLR Fork') !== -1) {
+    // Draw two diverging parse stacks
+    var cx = 160;
+    var baseY = 145;
+    // Left stack (shift path)
+    ctx.strokeStyle = '#FF5555';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, baseY);
+    var leftX = cx - 30 - Math.sin(t * 0.8) * 10;
+    ctx.lineTo(leftX, baseY - 40);
+    ctx.lineTo(leftX - 10, baseY - 60);
+    ctx.stroke();
+    // Stack boxes (left)
+    ctx.fillStyle = 'rgba(255,85,85,0.6)';
+    for (var i = 0; i < 3; i++) {
+      ctx.fillRect(leftX - 15 + i * 2, baseY - 45 - i * 12, 10, 8);
+    }
+    // Right stack (reduce path)
+    ctx.strokeStyle = '#5555FF';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, baseY);
+    var rightX = cx + 30 + Math.sin(t * 0.8) * 10;
+    ctx.lineTo(rightX, baseY - 40);
+    ctx.lineTo(rightX + 10, baseY - 60);
+    ctx.stroke();
+    // Stack boxes (right)
+    ctx.fillStyle = 'rgba(85,85,255,0.6)';
+    for (var i = 0; i < 3; i++) {
+      ctx.fillRect(rightX + 5 - i * 2, baseY - 45 - i * 12, 10, 8);
+    }
+    // Labels
+    ctx.fillStyle = '#FF8888';
+    ctx.font = '7px monospace';
+    ctx.fillText('SHIFT', leftX - 18, baseY - 65);
+    ctx.fillStyle = '#8888FF';
+    ctx.fillText('REDUCE', rightX + 2, baseY - 65);
+    // Fork point indicator
+    ctx.fillStyle = '#FFFF55';
+    ctx.beginPath();
+    ctx.arc(cx, baseY, 3, 0, Math.PI * 2);
+    ctx.fill();
+    // Person standing at fork
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(cx - 1, baseY + 2, 2, 6);
+    ctx.fillRect(cx - 3, baseY + 4, 6, 2);
+    ctx.fillRect(cx - 1, baseY, 2, 2);
+    return;
+  }
+
+  // --- ARENA OVERFLOW: memory blocks falling / stacking ---
+  if (currentEventTitle.indexOf('Arena Overflow') !== -1) {
+    // Draw slab blocks stacking up
+    ctx.fillStyle = 'rgba(50,0,0,0.3)';
+    ctx.fillRect(0, 0, W, H);
+    for (var i = 0; i < 12; i++) {
+      var bx = 40 + (i % 4) * 65;
+      var by = 140 - Math.floor(i / 4) * 18 + Math.sin(t * 2 + i) * 3;
+      // Slab block
+      var hue = (i * 30 + t * 20) % 360;
+      var r = Math.floor(128 + 60 * Math.sin(hue * 0.017));
+      var g = Math.floor(128 + 60 * Math.sin((hue + 120) * 0.017));
+      var b = Math.floor(128 + 60 * Math.sin((hue + 240) * 0.017));
+      ctx.fillStyle = 'rgb(' + r + ',' + g + ',' + b + ')';
+      ctx.fillRect(bx, by, 50, 12);
+      // Label
+      ctx.fillStyle = '#000';
+      ctx.font = '6px monospace';
+      ctx.fillText('2MB', bx + 16, by + 9);
+    }
+    // Warning text
+    if (Math.sin(t * 3) > 0) {
+      ctx.fillStyle = '#FF5555';
+      ctx.font = '8px monospace';
+      ctx.fillText('SLAB FULL', 120, 80);
+    }
+    return;
+  }
+
+  // --- INCREMENTAL REPARSE BLIZZARD: snow with tree fragments ---
+  if (currentEventTitle.indexOf('Reparse Blizzard') !== -1) {
+    // Darken sky
+    ctx.fillStyle = 'rgba(20,20,50,0.4)';
+    ctx.fillRect(0, 0, W, 110);
+    // Snowflakes
+    ctx.fillStyle = '#FFFFFF';
+    for (var i = 0; i < 50; i++) {
+      var fx = (i * 7.3 + t * 15 + Math.sin(i * 0.5) * 20) % W;
+      var fy = (i * 11.7 + t * 40) % 120;
+      var size = 1 + (i % 3);
+      ctx.fillRect(Math.floor(fx), Math.floor(fy), size, size);
+    }
+    // Tree branch diagram (showing reuse)
+    ctx.strokeStyle = '#55FF55';
+    ctx.lineWidth = 1;
+    // Trunk
+    ctx.beginPath();
+    ctx.moveTo(260, 100);
+    ctx.lineTo(260, 70);
+    ctx.stroke();
+    // Reused branch (green)
+    ctx.beginPath();
+    ctx.moveTo(260, 80);
+    ctx.lineTo(240, 60);
+    ctx.stroke();
+    ctx.fillStyle = '#55FF55';
+    ctx.font = '5px monospace';
+    ctx.fillText('reused', 224, 58);
+    // Dirty branch (red, pulsing)
+    ctx.strokeStyle = '#FF5555';
+    ctx.beginPath();
+    ctx.moveTo(260, 80);
+    ctx.lineTo(280, 60 + Math.sin(t * 4) * 3);
+    ctx.stroke();
+    ctx.fillStyle = '#FF5555';
+    ctx.fillText('dirty', 282, 58);
+    return;
+  }
+
+  // --- QUERY PATTERN PIONEER: person with scroll ---
+  if (currentEventTitle.indexOf('Query Pattern') !== -1) {
+    var px = 200, py = 142;
+    // Person
+    ctx.fillStyle = '#FFAA55';
+    ctx.fillRect(px, py - 8, 4, 4); // head
+    ctx.fillRect(px, py - 4, 4, 8); // body
+    ctx.fillRect(px - 2, py - 2, 2, 2); // left arm
+    ctx.fillRect(px + 4, py - 2, 2, 2); // right arm
+    ctx.fillRect(px, py + 4, 2, 4); // left leg
+    ctx.fillRect(px + 2, py + 4, 2, 4); // right leg
+    // Scroll in hand
+    ctx.fillStyle = '#FFFFAA';
+    ctx.fillRect(px + 6, py - 4, 12, 8);
+    ctx.fillStyle = '#AA8855';
+    ctx.fillRect(px + 6, py - 5, 12, 1);
+    ctx.fillRect(px + 6, py + 4, 12, 1);
+    // Query text on scroll
+    ctx.fillStyle = '#554400';
+    ctx.font = '4px monospace';
+    ctx.fillText('(fn @n)', px + 7, py + 1);
+    // Campfire
+    var flicker = Math.sin(t * 8) * 2;
+    ctx.fillStyle = '#FF5500';
+    ctx.fillRect(px + 24, py + 2 + flicker, 4, 4);
+    ctx.fillStyle = '#FFAA00';
+    ctx.fillRect(px + 25, py + flicker, 2, 3);
+    ctx.fillStyle = '#AA4400';
+    ctx.fillRect(px + 22, py + 6, 8, 2);
+    return;
+  }
+
+  // --- PURE GO BREAKTHROUGH: sunshine and clear skies ---
+  if (currentEventTitle.indexOf('Pure Go Breakthrough') !== -1) {
+    // Bright sun
+    ctx.fillStyle = '#FFFF55';
+    ctx.beginPath();
+    ctx.arc(80, 30, 15, 0, Math.PI * 2);
+    ctx.fill();
+    // Sun rays
+    ctx.strokeStyle = '#FFFF55';
+    ctx.lineWidth = 1;
+    for (var i = 0; i < 8; i++) {
+      var angle = (i / 8) * Math.PI * 2 + t * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(80 + Math.cos(angle) * 18, 30 + Math.sin(angle) * 18);
+      ctx.lineTo(80 + Math.cos(angle) * 25, 30 + Math.sin(angle) * 25);
+      ctx.stroke();
+    }
+    // Go gopher silhouette (simple)
+    ctx.fillStyle = '#55CCFF';
+    ctx.beginPath();
+    ctx.arc(250, 130, 8, 0, Math.PI * 2);
+    ctx.fill();
+    // Eyes
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath();
+    ctx.arc(248, 128, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(253, 128, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#000000';
+    ctx.beginPath();
+    ctx.arc(248, 128, 1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(253, 128, 1, 0, Math.PI * 2);
+    ctx.fill();
+    // Body
+    ctx.fillStyle = '#55CCFF';
+    ctx.fillRect(244, 138, 12, 8);
+    // Celebration text
+    ctx.fillStyle = '#FFFF55';
+    ctx.font = '7px monospace';
+    var msgs = ['No CGo!', 'Pure Go!', 'go build!'];
+    var msgIdx = Math.floor(t * 0.5) % msgs.length;
+    ctx.fillText(msgs[msgIdx], 220, 120);
+    return;
+  }
+// END OVERLAYS
+};
+</script>
+<script src="../engine.js"></script>
+</body>
+</html>
