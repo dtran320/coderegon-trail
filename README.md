@@ -14,7 +14,7 @@ Travel through ~8 stops representing stages of a project's architecture, answer 
 
 ## Play Now
 
-25 games ship ready to play in your browser — no Claude Code required.
+26 games ship ready to play in your browser — no Claude Code required.
 
 **[Play online](https://www.davidtran.me/coderegon-trail/)** or serve locally:
 
@@ -27,6 +27,7 @@ python3 -m http.server 8080
 
 | Game | Trail Name | Source |
 |------|------------|--------|
+| [recursive](recursive/) | The Recursive Trail | [dtran320/coderegon-trail](https://github.com/dtran320/coderegon-trail) |
 | [gstack](gstack/) | The Software Factory Trail | [garrytan/gstack](https://github.com/garrytan/gstack) |
 | [openclaw](openclaw/) | The Gateway Trail | [openclaw/openclaw](https://github.com/openclaw/openclaw) |
 | [rails](rails/) | The Convention Trail | [rails/rails](https://github.com/rails/rails) |
