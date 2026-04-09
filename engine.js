@@ -1351,11 +1351,33 @@ function renderStatusBar() {
     ? 'Music: <span style="color:#55FF55;">On</span> <span style="color:#555555;">(M to toggle off)</span>'
     : 'Music: <span style="color:#FF5555;">Off</span> <span style="color:#555555;">(M to toggle on)</span>';
 
-  statusBar.innerHTML = 'HP: ' + healthBar + ' ' + Math.max(0, health) +
+  var profMaxHp = PROFESSIONS[difficulty] ? PROFESSIONS[difficulty].partyMaxHp : 3;
+  var partyHtml = '';
+  for (var pi = 0; pi < TRAIL_DATA.partyMembers.length; pi++) {
+    var ph = partyHealth[pi];
+    var pmMax = Math.min(TRAIL_DATA.partyMembers[pi].maxHealth, profMaxHp);
+    var pName = TRAIL_DATA.partyMembers[pi].name;
+    if (ph <= 0) {
+      partyHtml += '<span style="color:#555555;text-decoration:line-through;">' + escHtml(pName) + '</span>';
+    } else {
+      var pips = '';
+      for (var pp = 0; pp < ph; pp++) pips += '\u2665';
+      for (var pp2 = 0; pp2 < pmMax - ph; pp2++) pips += '\u2661';
+      var pColor = ph > pmMax * 0.5 ? '#55FF55' : (ph > 0 ? '#FFFF55' : '#555555');
+      partyHtml += '<span style="color:#AAAAAA;">' + escHtml(pName) + '</span> <span style="color:' + pColor + ';">' + pips + '</span>';
+    }
+    if (pi < TRAIL_DATA.partyMembers.length - 1) partyHtml += '  <span style="color:#333;">|</span>  ';
+  }
+
+  statusBar.innerHTML =
+    '<div style="line-height:1.3;">' +
+    '<div>HP: ' + healthBar + ' ' + Math.max(0, health) +
     '  Hints: ' + supplies + '  ' + streakStars +
     '  |  Stop ' + (currentStop + 1) + '/' + TRAIL_DATA.stops.length +
     '  |  ' + musicHint +
-    '  |  <span style="color:#555555;">ESC: Quit</span>' + repoLink;
+    '  |  <span style="color:#555555;">ESC: Quit</span>' + repoLink + '</div>' +
+    '<div style="font-size:11px;margin-top:2px;">' + partyHtml + '</div>' +
+    '</div>';
 }
 
 // =====================================================================
