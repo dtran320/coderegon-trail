@@ -56,7 +56,7 @@ python3 -m http.server 8080
 
 ## How It Works
 
-Each game is a self-contained HTML file that defines `TRAIL_DATA` (stops, code snippets, quiz events) and loads the shared `engine.js` for rendering, state management, audio, and UI. No build step.
+Each game is a self-contained HTML file that defines `TRAIL_DATA` (stops, code snippets, quiz events) and loads the shared `engine.js` for rendering, state management, audio, and UI. No build step, no bundler, no framework.
 
 **Game loop:** Title screen -> party setup (4 members = key concepts) -> travel between stops -> quiz events between stops (weather, river crossings, encounters, misfortunes, fortunes) -> arrive at Response Frontier to win, or die of tech debt dysentery trying.
 
@@ -68,6 +68,13 @@ Each game is a self-contained HTML file that defines `TRAIL_DATA` (stops, code s
 - Health, supplies, streak bonuses, and scoring systems
 - Apple II floppy disk sound effects
 - Keyboard controls (1/2/3 for choices, H for hints, Enter to continue)
+
+## Built With
+
+- **[Three.js](https://threejs.org/)** — 3D hub page with an Apple IIe desk scene, CRT monitor with scanlines and phosphorescent glow, and a floppy disk carousel with insertion animations
+- **Canvas** — all pixel art is procedural (wagon, oxen, mountains, trees, clouds drawn from `fillRect`/`arc` primitives, no sprite sheets), with 5-layer parallax scrolling
+- **Raw Web Audio API** — square wave melody + triangle wave bass at 110 BPM, and procedurally synthesized floppy disk sounds (mechanical slide, latch click, stepper motor seeks, drive hum) — no audio samples or libraries
+- **[Shiki](https://shiki.style/)** — syntax highlighting for code snippets at trail stops, with a regex fallback
 
 ## Generate Trails with Claude Code
 
