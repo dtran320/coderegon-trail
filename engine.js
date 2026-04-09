@@ -1289,7 +1289,7 @@ function renderWinScreen() {
     masteryHtml += '<div style="color:' + color + ';">    ' + conceptNames[i] + '  ' + stars + '</div>';
   }
 
-  var tip = weakestHp < TRAIL_DATA.partyMembers[0].maxHealth ? '"Study up on ' + weakestName + '!"' : '"Perfect understanding!"';
+  var tip = weakestHp < profMaxHp ? '"Study up on ' + weakestName + '!"' : '"Perfect understanding!"';
 
   setTextPanel(
     '<div style="padding:8px 16px;">' +
