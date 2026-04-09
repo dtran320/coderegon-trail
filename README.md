@@ -3,7 +3,7 @@
 Learn codebases by playing Oregon Trail. A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin that turns codebases into retro pixel art trail games.
 
 <p align="center">
-  <img src="screenshots/homescreen.png" alt="Coderegon Trail hub — 3D desk scene with floppy disk selector" width="720">
+  <img src="screenshots/homescreen.jpeg" alt="Coderegon Trail hub — 3D desk scene with floppy disk selector" width="720">
 </p>
 
 Travel through ~8 stops representing stages of a project's architecture, answer quiz events disguised as trail decisions, and try to keep your party alive long enough to reach Response Frontier.
