@@ -29,11 +29,11 @@ python3 -m http.server 8080
 |------|------------|--------|
 | [gstack](gstack/) | The Software Factory Trail | [garrytan/gstack](https://github.com/garrytan/gstack) |
 | [openclaw](openclaw/) | The Gateway Trail | [openclaw/openclaw](https://github.com/openclaw/openclaw) |
-| [rails](rails/) | The Convention Trail | built-in |
-| [django](django/) | The WSGI Wagon Trail | built-in |
-| [express](express/) | The Middleware Prairie | built-in |
-| [react](react/) | The Component Canyon | built-in |
-| [laravel](laravel/) | The Artisan Trail | built-in |
+| [rails](rails/) | The Convention Trail | [rails/rails](https://github.com/rails/rails) |
+| [django](django/) | The WSGI Wagon Trail | [django/django](https://github.com/django/django) |
+| [express](express/) | The Middleware Prairie | [expressjs/express](https://github.com/expressjs/express) |
+| [react](react/) | The Component Canyon | [facebook/react](https://github.com/facebook/react) |
+| [laravel](laravel/) | The Artisan Trail | [laravel/laravel](https://github.com/laravel/laravel) |
 | [cmux](cmux/) | The Terminal Trail | [manaflow-ai/cmux](https://github.com/manaflow-ai/cmux) |
 | [craftplan](craftplan/) | The Production Trail | [puemos/craftplan](https://github.com/puemos/craftplan) |
 | [ferrite](ferrite/) | The Rendering Trail | [OlaProeis/Ferrite](https://github.com/OlaProeis/Ferrite) |
@@ -46,12 +46,12 @@ python3 -m http.server 8080
 | [moongate](moongate/) | The Packet Trail | [moongate-community/moongatev2](https://github.com/moongate-community/moongatev2) |
 | [nanochat](nanochat/) | The Transformer Trail | [karpathy/nanochat](https://github.com/karpathy/nanochat) |
 | [pg-textsearch](pg-textsearch/) | The Relevance Trail | [timescale/pg_textsearch](https://github.com/timescale/pg_textsearch) |
-| [pi-mono](pi-mono/) | The Agent Loop Trail | external |
-| [qmd](qmd/) | The Hybrid Search Trail | external |
-| [ruview](ruview/) | The WiFi Sensing Trail | external |
-| [shannon](shannon/) | The Exploit Trail | external |
-| [spacetimedb](spacetimedb/) | The Spacetime Trail | external |
-| [superpowers](superpowers/) | The Superpowers Trail | external |
+| [pi-mono](pi-mono/) | The Agent Loop Trail | [badlogic/pi-mono](https://github.com/badlogic/pi-mono) |
+| [qmd](qmd/) | The Hybrid Search Trail | [tobi/qmd](https://github.com/tobi/qmd) |
+| [ruview](ruview/) | The WiFi Sensing Trail | [ruvnet/RuView](https://github.com/ruvnet/RuView) |
+| [shannon](shannon/) | The Exploit Trail | [KeygraphHQ/shannon](https://github.com/KeygraphHQ/shannon) |
+| [spacetimedb](spacetimedb/) | The Spacetime Trail | [clockworklabs/SpacetimeDB](https://github.com/clockworklabs/SpacetimeDB) |
+| [superpowers](superpowers/) | The Superpowers Trail | [obra/superpowers](https://github.com/obra/superpowers) |
 
 ## How It Works
 
