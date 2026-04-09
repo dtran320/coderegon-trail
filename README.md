@@ -177,7 +177,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## Disclaimer
 
-The Oregon Trail is a registered trademark of Houghton Mifflin Harcourt. This project is not affiliated with or endorsed by the trademark holders.
+The Oregon Trail is a registered trademark with a [long history of ownership](https://www.reddit.com/r/k12sysadmin/comments/1127qtc/comment/j8lh6rd/) including MECC, The Learning Company, Houghton Mifflin Harcourt, and HarperCollins. This project is not affiliated with or endorsed by any of the trademark holders.
 
 ## License
 
