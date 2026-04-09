@@ -16,7 +16,7 @@ Travel through ~8 stops representing stages of a project's architecture, answer 
 
 26 games ship ready to play in your browser — no Claude Code required.
 
-**[Play online](https://www.davidtran.me/coderegon-trail/)** or serve locally:
+**[Play online](https://www.davidtran.me/coderegon-trail/)** or serve locally (Just open index.html or run a python server for nicer URLs/potential issues with JS loading):
 
 ```bash
 git clone https://github.com/dtran320/coderegon-trail.git
@@ -59,15 +59,6 @@ python3 -m http.server 8080
 Each game is a self-contained HTML file that defines `TRAIL_DATA` (stops, code snippets, quiz events) and loads the shared `engine.js` for rendering, state management, audio, and UI. No build step, no bundler, no framework.
 
 **Game loop:** Title screen -> party setup (4 members = key concepts) -> travel between stops -> quiz events between stops (weather, river crossings, encounters, misfortunes, fortunes) -> arrive at Response Frontier to win, or die of tech debt dysentery trying.
-
-**Game features:**
-- Canvas parallax landscape with pixel art wagon and oxen
-- Code snippets with Shiki syntax highlighting at each stop
-- 5 event types with different damage/reward mechanics
-- Party of 4 members representing key project concepts
-- Health, supplies, streak bonuses, and scoring systems
-- Apple II floppy disk sound effects
-- Keyboard controls (1/2/3 for choices, H for hints, Enter to continue)
 
 ## Built With
 
