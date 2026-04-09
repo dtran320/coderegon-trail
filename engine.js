@@ -1066,7 +1066,7 @@ function renderTitleScreen() {
   setTextPanel(
     '<div style="text-align:center; padding-top:20px;">' +
     '<div style="color:#FFFF55; font-size:16px; letter-spacing:2px;">THE CODEREGON TRAIL</div>' +
-    '<div style="color:#AAAAAA; margin-top:8px;">' + escHtml(TRAIL_DATA.trailName) + ' - A ' + escHtml(TRAIL_DATA.framework) + ' Learning Adventure</div>' +
+    '<div style="color:#AAAAAA; margin-top:8px;">' + escHtml(TRAIL_DATA.trailName) + '</div>' +
     (TRAIL_DATA.sourceInfo ? '<div style="color:#555555; margin-top:4px; font-size:10px;">Source: ' + TRAIL_DATA.sourceInfo.repo + ' @ ' + TRAIL_DATA.sourceInfo.commit + (TRAIL_DATA.sourceInfo.tag ? ' (' + TRAIL_DATA.sourceInfo.tag + ')' : '') + ' \u2014 ' + TRAIL_DATA.sourceInfo.snapshotDate + '</div>' : '') +
     '<div style="margin-top:30px;" class="blink">Press SPACE BAR to begin</div>' +
     '</div>'
@@ -1295,7 +1295,7 @@ function renderWinScreen() {
     '<div style="padding:8px 16px;">' +
     '<div style="color:#FFFF55; text-align:center; font-size:16px;">\u2605 YOU MADE IT TO ' + escHtml(TRAIL_DATA.stops[TRAIL_DATA.stops.length - 1].name).toUpperCase() + '! \u2605</div>' +
     '<div style="margin-top:10px; color:#AAAAAA;">' +
-    '<div>  Framework:    <span style="color:#55FFFF;">' + escHtml(TRAIL_DATA.framework) + ' (' + escHtml(TRAIL_DATA.trailName) + ')</span></div>' +
+    '<div>  Trail:        <span style="color:#55FFFF;">' + escHtml(TRAIL_DATA.trailName) + '</span></div>' +
     '<div>  Survivors:    <span style="color:#55FF55;">' + survivors + '/' + partyHealth.length + '</span></div>' +
     '<div>  Quiz Score:   <span style="color:#FFFF55;">' + score + '/' + totalQuestions + ' (' + pctScore + '%)</span></div>' +
     '<div>  Best Streak:  <span style="color:#FF55FF;">' + bestStreak + '</span></div>' +
