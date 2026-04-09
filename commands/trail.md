@@ -1,6 +1,6 @@
 ---
-description: "Launch a Coderegon Trail game to learn a web framework's request pipeline — or review a PR"
-argument-hint: "[next | rails | django | express | react | laravel | openclaw | PR# | PR-URL | git-range]"
+description: "Launch a Coderegon Trail game to learn a codebase — or review a PR"
+argument-hint: "[PR# | PR-URL | git-range | (empty to analyze current repo)]"
 allowed-tools:
   - Bash(git:*)
   - Bash(gh:*)
@@ -19,15 +19,15 @@ model: opus
 
 # Trail — Coderegon Trail Game
 
-You generate and launch a retro pixel art Oregon Trail-style game that teaches a web framework's request pipeline — or reviews a pull request. The game is a self-contained HTML file opened in the browser.
+You generate and launch a retro pixel art Oregon Trail-style game that teaches a codebase — or reviews a pull request. The game is a self-contained HTML file opened in the browser.
 
 **User input:** "$ARGUMENTS"
 
-Use the `visualization` skill for game generation guidelines. Follow the trail data in `skills/visualization/references/framework-trails.md` for framework trails, and `skills/visualization/references/pr-trail.md` for PR trails.
+Use the `visualization` skill for game generation guidelines. Follow `skills/visualization/references/pr-trail.md` for PR trails.
 
 ## Step 1: Parse Arguments and Determine Mode
 
-Parse the user's input. **Check for PR inputs first** (before framework name matching):
+Parse the user's input. **Check for PR inputs first:**
 
 | Input | Detection | Mode | Action |
 |-------|-----------|------|--------|
@@ -35,17 +35,7 @@ Parse the user's input. **Check for PR inputs first** (before framework name mat
 | URL containing `/pull/` | PR URL | PR | → pr-trail-extractor (extract PR number from URL) |
 | Contains `..` (e.g., `main..feature`) | Git range | PR | → pr-trail-extractor |
 | `HEAD~N` pattern | Recent commits | PR | → pr-trail-extractor |
-| `next`, `nextjs`, `next.js` | Framework name | Framework | The App Router Trail |
-| `rails`, `ruby`, `ror` | Framework name | Framework | The Convention Trail |
-| `django`, `python` | Framework name | Framework | The WSGI Wagon Trail |
-| `express`, `node` | Framework name | Framework | The Middleware Prairie |
-| `react`, `vite` | Framework name | Framework | The Component Canyon |
-| `laravel`, `php` | Framework name | Framework | The Artisan Trail |
-| `openclaw`, `claw`, `gateway` | Framework name | Framework | The Gateway Trail |
-| (empty) | No input | Framework | Auto-detect from repo |
-
-### Auto-Detection (if no framework specified)
-Spawn a `trail-data-extractor` agent (via Task tool, subagent_type: general-purpose) to detect the framework from the current repository. If detection confidence is low, ask the user to specify.
+| (empty or other) | No PR input | Repo | → trail-data-extractor |
 
 ## Step 2: Extract Trail Data
 
@@ -55,14 +45,9 @@ Spawn a `trail-data-extractor` agent (via Task tool, subagent_type: general-purp
 3. Agent fetches the diff, groups changes, and returns a TRAIL_DATA JSON block with `trailTheme: "pr"`
 4. Parse the returned JSON
 
-### For Canonical Trails (framework specified by name)
-1. Read `skills/visualization/references/framework-trails.md`
-2. Extract the trail data for the specified framework
-3. Format it as the TRAIL_DATA JSON structure defined in the visualization skill
-
-### For Repo Analysis (auto-detected or Phase 3)
+### For Repo Analysis (default)
 1. Spawn a `trail-data-extractor` agent (via Task tool, subagent_type: general-purpose)
-2. Agent analyzes the repo and returns a TRAIL_DATA JSON block
+2. Agent analyzes the current repo and returns a TRAIL_DATA JSON block
 3. Parse the returned JSON
 
 ## Step 3: Generate the HTML Game
@@ -250,8 +235,6 @@ Support: `typescript`, `ruby`, `python`, `javascript`, `php`
 
 ## Step 5: Terminal Feedback
 
-### For Framework Trails
-
 Display in the terminal:
 
 ```
@@ -261,9 +244,8 @@ Display in the terminal:
 
 Game opened in your browser!
 
-Framework:  {Framework Name}
 Trail:      {Trail Name}
-Stops:      {N} stops along the request pipeline
+Stops:      {N} stops
 Events:     {N} quiz events
 
 Party Members:
@@ -276,37 +258,9 @@ Type 'done' when you've finished the trail.
 ================================================================
 ```
 
-### For PR Trails
-
-Display in the terminal:
-
-```
-================================================================
-  CODEREGON TRAIL — {Trail Name}
-================================================================
-
-Game opened in your browser!
-
-PR:         #{number} — {PR title}
-Trail:      {Trail Name}
-Stops:      {N} change groups to review
-Events:     {N} comprehension challenges
-Destination: The Merge Frontier
-
-Party Members:
-  1. {domain 1}
-  2. {domain 2}
-  3. {domain 3}
-  4. {domain 4}
-
-Type 'done' when you've finished the trail.
-================================================================
-```
-
 Then wait for the user to type `done` to end the session.
 
 ## Error Handling
 
-- If framework is not supported yet (Phase 2 frameworks without trail data), say: "The {framework} trail is coming soon! Currently available: Next.js, OpenClaw. Try `/trail next` or `/trail openclaw`."
-- If auto-detection fails, list available frameworks and ask user to pick.
-- If HTML generation fails, show error and suggest retrying with a specific framework.
+- If repo analysis fails or returns low confidence, ask the user for context about the project's architecture.
+- If HTML generation fails, show error and suggest retrying.
