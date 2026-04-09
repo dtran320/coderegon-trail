@@ -1,14 +1,82 @@
 # Coderegon Trail
 
-A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin for learning codebases through play.
+Learn codebases by playing Oregon Trail. A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin that turns codebases into retro pixel art trail games.
 
-The flagship feature is **Coderegon Trail** — a retro pixel art Oregon Trail-style game that teaches web framework request pipelines. Travel through ~8 stops representing stages of a framework's request lifecycle, answer quiz events disguised as trail decisions, and try to keep your party alive long enough to reach Response Frontier.
+<p align="center">
+  <img src="screenshots/homescreen.png" alt="Coderegon Trail hub — 3D desk scene with floppy disk selector" width="720">
+</p>
 
-Also includes TTS-narrated code walkthroughs for PRs, diffs, and codebases.
+Travel through ~8 stops representing stages of a project's architecture, answer quiz events disguised as trail decisions, and try to keep your party alive long enough to reach Response Frontier.
 
-## Coderegon Trail (`/fly-visual`)
+<p align="center">
+  <img src="screenshots/tech_debt_dysentery.png" alt="You have died of tech debt dysentery" width="720">
+</p>
 
-Launch a retro pixel art game that teaches a web framework's request pipeline:
+## Play Now
+
+25 games ship ready to play in your browser — no Claude Code required.
+
+**[Play online](https://dtran320.github.io/coderegon-trail/)** or serve locally:
+
+```bash
+git clone https://github.com/dtran320/coderegon-trail.git
+cd coderegon-trail
+python3 -m http.server 8080
+# visit http://localhost:8080
+```
+
+| Game | Trail Name | Source |
+|------|------------|--------|
+| [gstack](gstack/) | The Software Factory Trail | [garrytan/gstack](https://github.com/garrytan/gstack) |
+| [openclaw](openclaw/) | The Gateway Trail | [openclaw/openclaw](https://github.com/openclaw/openclaw) |
+| [rails](rails/) | The Convention Trail | built-in |
+| [django](django/) | The WSGI Wagon Trail | built-in |
+| [express](express/) | The Middleware Prairie | built-in |
+| [react](react/) | The Component Canyon | built-in |
+| [laravel](laravel/) | The Artisan Trail | built-in |
+| [cmux](cmux/) | The Terminal Trail | [manaflow-ai/cmux](https://github.com/manaflow-ai/cmux) |
+| [craftplan](craftplan/) | The Production Trail | [puemos/craftplan](https://github.com/puemos/craftplan) |
+| [ferrite](ferrite/) | The Rendering Trail | [OlaProeis/Ferrite](https://github.com/OlaProeis/Ferrite) |
+| [gotreesitter](gotreesitter/) | The Parser Trail | [odvcencio/gotreesitter](https://github.com/odvcencio/gotreesitter) |
+| [kittentts](kittentts/) | The Synthesis Trail | [KittenML/KittenTTS](https://github.com/KittenML/KittenTTS) |
+| [korb](korb/) | The Checkout Trail | [yannick-cw/korb](https://github.com/yannick-cw/korb) |
+| [localgpt](localgpt/) | The Inference Trail | [localgpt-app/localgpt](https://github.com/localgpt-app/localgpt) |
+| [mini-browser](mini-browser/) | The Layout Trail | [beginner-jhj/mini_browser](https://github.com/beginner-jhj/mini_browser) |
+| [minidiffusion](minidiffusion/) | The Diffusion Trail | [yousef-rafat/miniDiffusion](https://github.com/yousef-rafat/miniDiffusion) |
+| [moongate](moongate/) | The Packet Trail | [moongate-community/moongatev2](https://github.com/moongate-community/moongatev2) |
+| [nanochat](nanochat/) | The Transformer Trail | [karpathy/nanochat](https://github.com/karpathy/nanochat) |
+| [pg-textsearch](pg-textsearch/) | The Relevance Trail | [timescale/pg_textsearch](https://github.com/timescale/pg_textsearch) |
+| [pi-mono](pi-mono/) | The Agent Loop Trail | external |
+| [qmd](qmd/) | The Hybrid Search Trail | external |
+| [ruview](ruview/) | The WiFi Sensing Trail | external |
+| [shannon](shannon/) | The Exploit Trail | external |
+| [spacetimedb](spacetimedb/) | The Spacetime Trail | external |
+| [superpowers](superpowers/) | The Superpowers Trail | external |
+
+## How It Works
+
+Each game is a self-contained HTML file that defines `TRAIL_DATA` (stops, code snippets, quiz events) and loads the shared `engine.js` for rendering, state management, audio, and UI. No build step.
+
+**Game loop:** Title screen -> party setup (4 members = key concepts) -> travel between stops -> quiz events between stops (weather, river crossings, encounters, misfortunes, fortunes) -> arrive at Response Frontier to win, or die of tech debt dysentery trying.
+
+**Game features:**
+- Canvas parallax landscape with pixel art wagon and oxen
+- Code snippets with Shiki syntax highlighting at each stop
+- 5 event types with different damage/reward mechanics
+- Party of 4 members representing key project concepts
+- Health, supplies, streak bonuses, and scoring systems
+- Apple II floppy disk sound effects
+- Keyboard controls (1/2/3 for choices, H for hints, Enter to continue)
+
+## Generate Trails with Claude Code
+
+Install as a Claude Code plugin to generate trails for any codebase or PR:
+
+```bash
+claude plugin add /path/to/coderegon-trail
+```
+
+Then in Claude Code:
 
 ```
 /fly-visual next          # Next.js App Router Trail
@@ -21,129 +89,77 @@ Launch a retro pixel art game that teaches a web framework's request pipeline:
 /fly-visual               # auto-detect from current repo
 ```
 
-You can also play against a PR:
+**PR mode** — turn a pull request into a trail:
 
 ```
 /fly-visual pr 123        # PR #123 becomes the trail
 /fly-visual pr main..feat # branch comparison
 ```
 
-**How it works:**
-1. Generates a self-contained HTML game file (no build step)
-2. Opens it in your browser
-3. You travel through the framework's request pipeline as trail stops
-4. Quiz events test your understanding — wrong answers cost health and can kill party members
-5. Arrive at Response Frontier to win, or die of unhandled exceptions trying
-
-**Game features:**
-- Canvas parallax landscape with pixel art wagon
-- Code snippets with syntax highlighting at each stop
-- 5 event types: weather, river crossings, encounters, misfortunes, fortunes
-- Party of 4 members representing key framework concepts
-- Health, supplies, morale, and scoring systems
-- Keyboard controls (1/2/3 for choices, H for hints, Enter to continue)
-
-### Pre-built games
-
-13 games ship ready to play in your browser — no Claude Code required:
-
-| Game | Framework | Trail Name |
-|------|-----------|------------|
-| [gstack](gstack/) | GStack | GStack Trail |
-| [openclaw](openclaw/) | OpenClaw | Gateway Trail |
-| [rails](rails/) | Rails | Convention Trail |
-| [django](django/) | Django | WSGI Wagon Trail |
-| [express](express/) | Express | Middleware Prairie |
-| [react](react/) | React/Vite | Component Canyon |
-| [laravel](laravel/) | Laravel | Artisan Trail |
-| [qmd](qmd/) | QMD | QMD Trail |
-| [pi-mono](pi-mono/) | Pi Mono | Pi Mono Trail |
-| [ruview](ruview/) | RuView | RuView Trail |
-| [shannon](shannon/) | Shannon | Shannon Trail |
-| [spacetimedb](spacetimedb/) | SpacetimeDB | SpacetimeDB Trail |
-| [superpowers](superpowers/) | Superpowers | Superpowers Trail |
-
-To play, serve the repo locally and open any game in your browser:
+## Testing & Auditing
 
 ```bash
-python3 -m http.server 8080
-# then visit http://localhost:8080/gstack/index.html
+node tests/validate-trails.js      # validate trail data structure (3083 checks)
+node tests/test-scoring.js         # test gameplay scoring logic (35 tests)
+node scripts/audit-trails.js       # extract all Q&A for human review
+node scripts/audit-trails.js --json # machine-readable output
+node scripts/check-staleness.js    # check if upstream repos have newer commits
 ```
 
-Or open the [hub page](index.html) at `http://localhost:8080` to browse all games.
+## Architecture
 
-## Diff Review (`/diff-review`)
+```
+engine.js          Shared game engine (rendering, state, canvas, audio, Shiki, UI)
+<game>/index.html  Per-game HTML (TRAIL_DATA + overrides, loads engine.js)
+index.html         Hub page — 3D desk scene with floppy disk selector
+commands/          CLI commands (markdown specs)
+agents/            Claude-powered analysis agents
+skills/            Game generation + narration guidelines
+scripts/           Shell infrastructure (TTS, config, audit tools)
+tests/             Trail validation and scoring tests
+config/            Default configuration
+```
 
-Walk through a PR or local diff with TTS narration, ranked from most to least important:
+## Other Skills
+
+This plugin also includes TTS-narrated code review tools:
+
+### Diff Review (`/diff-review`)
+
+Walk through a PR or diff with TTS narration, ranked by importance:
 
 ```
 /diff-review              # uncommitted changes
 /diff-review 123          # GitHub PR #123
 /diff-review main..feat   # branch comparison
-/diff-review HEAD~3       # last 3 commits
 /diff-review --team       # multi-voice team mode
 ```
 
-## Walkthrough (`/walkthrough`)
+### Walkthrough (`/walkthrough`)
 
-Explore an unfamiliar codebase with a TTS-narrated guided tour:
+Explore an unfamiliar codebase with a guided TTS-narrated tour:
 
 ```
 /walkthrough              # full repo tour
 /walkthrough src/api      # scoped to a directory
-/walkthrough auth         # scoped to a topic
-/walkthrough --quick      # abbreviated overview
 /walkthrough --team       # multi-voice team mode
 ```
 
-## Navigation
+### Navigation
 
 Both TTS commands support interactive navigation during playback:
 
 | Command | Action |
 |---------|--------|
-| `next` | Next section |
-| `prev` | Previous section |
+| `next` / `prev` | Navigate sections |
 | `detail` | Deep dive into current section |
-| `related` | Show connected code |
+| `fly` | Code fly-through with auto-advancing snippets |
 | `question <text>` | Ask about current section |
-| `jump <N>` | Jump to section N |
-| `list` | Show all sections |
 | `done` | End with summary |
 
-## Team Mode
+### TTS Engines
 
-Pass `--team` to split content into domains, each narrated by a different voice:
-
-- **Lead** (Samantha/alloy) — big picture and transitions
-- **Backend** (Daniel/echo) — API, services, data flow
-- **Frontend** (Karen/nova) — components, state, UX
-- **Infrastructure** (Tom/fable) — deploy, config, schemas
-
-## Installation
-
-Install as a Claude Code plugin:
-
-```bash
-claude plugin add /path/to/coderegon-trail
-```
-
-Or clone and install:
-
-```bash
-git clone https://github.com/anthropics/coderegon-trail.git
-claude plugin add ./coderegon-trail
-```
-
-### Requirements
-
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
-- `bash`, `jq`, `git`, `gh` (GitHub CLI)
-- `say` (macOS, for TTS — optional)
-
-### Optional TTS engines
-
-Default TTS uses the macOS `say` command. You can configure alternatives:
+Default TTS uses the macOS `say` command. Optional alternatives:
 
 ```bash
 # OpenAI TTS
@@ -155,25 +171,13 @@ export DIFF_REVIEW_TTS_ENGINE=elevenlabs
 export ELEVENLABS_API_KEY=...
 ```
 
-See `config/tts.json` for all options. Local overrides go in `config/tts.local.json` (gitignored).
-
-## Architecture
-
-```
-commands/          CLI commands (markdown specs)
-agents/            Claude-powered analysis agents
-skills/            Game generation + narration guidelines
-engine.js          Shared game engine (rendering, state, audio, UI)
-<game>/index.html  Per-game HTML (trail data + overrides, loads engine.js)
-scripts/           Shell infrastructure (TTS, config, utilities)
-config/            Default configuration
-```
-
-Each game HTML file is a thin wrapper that defines `TRAIL_DATA` (stops, events, quiz questions) and loads the shared `engine.js` for all rendering, state management, audio, and UI. No build step — everything runs directly in the browser.
-
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines, especially if you spot inaccuracies in the game content.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## Disclaimer
+
+The Oregon Trail is a registered trademark of Houghton Mifflin Harcourt. This project is not affiliated with or endorsed by the trademark holders.
 
 ## License
 

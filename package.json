@@ -1,5 +1,5 @@
 {
-  "name": "diff-pair-review-elevenlabs-tts",
+  "name": "coderegon-trail",
   "private": true,
   "dependencies": {
     "@elevenlabs/elevenlabs-js": "^2.35.0"

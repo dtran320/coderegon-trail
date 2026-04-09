@@ -1,5 +1,5 @@
 #!/bin/bash
-# Configuration loader for diff-pair-review TTS
+# Configuration loader for coderegon-trail TTS
 # Priority: CLI flags > env vars > config file > defaults
 
 load_config() {

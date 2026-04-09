@@ -1161,7 +1161,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 
-try { animate(); console.log('Scene started, objects:', scene.children.length); } catch(e) { console.error('Scene error:', e); }
+try { animate(); } catch(e) { console.error('Scene error:', e); }
 </script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 #!/bin/bash
-# scripts/tts.sh - Universal TTS wrapper for diff-pair-review
+# scripts/tts.sh - Universal TTS wrapper for coderegon-trail
 # Supports macOS say (default), OpenAI TTS API, and ElevenLabs with automatic fallback
 set -euo pipefail
 

@@ -1,4 +1,4 @@
-# Shared Instructions for diff-pair-review Commands
+# Shared Instructions for Coderegon Trail Commands
 
 These instructions are used by both `/diff-review` and `/walkthrough` commands.
 

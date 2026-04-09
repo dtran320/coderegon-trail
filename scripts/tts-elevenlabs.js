@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// scripts/tts-elevenlabs.js - ElevenLabs TTS engine for diff-pair-review
+// scripts/tts-elevenlabs.js - ElevenLabs TTS engine for coderegon-trail
 // Standalone CLI: parses args, calls ElevenLabs API, plays audio via afplay
 
 const { execFile } = require("child_process");

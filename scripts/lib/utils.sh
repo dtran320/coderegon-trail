@@ -1,5 +1,5 @@
 #!/bin/bash
-# Shared utilities for diff-pair-review scripts
+# Shared utilities for coderegon-trail scripts
 
 debug() {
   if [[ "${DEBUG:-false}" == "true" ]]; then

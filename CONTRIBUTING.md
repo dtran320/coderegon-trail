@@ -53,7 +53,7 @@ Look at `gstack/index.html` or `rails/index.html` as examples.
 No build step. The entire project is markdown specs, shell scripts, and static HTML/JS.
 
 ```bash
-git clone https://github.com/anthropics/coderegon-trail.git
+git clone https://github.com/dtran320/coderegon-trail.git
 cd coderegon-trail
 python3 -m http.server 8080
 # visit http://localhost:8080 to browse games
