@@ -123,23 +123,23 @@ window.TRAIL_DATA = {
       "type": "weather",
       "trigger": "after_stop",
       "triggerStop": 1,
-      "title": "Markdown Storm!",
-      "text": "A storm of malformed YAML frontmatter sweeps across the trail! Your command spec is missing the allowed-tools field. What happens when a Claude Code plugin command has no allowed-tools in its frontmatter?",
+      "title": "Architecture Storm!",
+      "text": "A storm sweeps across the trail! You need to add a new game for a codebase. The skills/visualization/SKILL.md file enforces a key constraint about how game HTML files must be structured. What is it?",
       "choices": [
         {
-          "text": "The agent gets no tool access at all \u2014 it can only respond with text, making the command useless for game generation",
+          "text": "Games must be thin HTML wrappers that only define TRAIL_DATA and load the shared engine.js \u2014 no inline rendering or game logic",
           "correct": true,
-          "explanation": "The allowed-tools field in YAML frontmatter constrains which tools the agent can use. No field means no tools. The agent cannot read files, write HTML, or run scripts. The command becomes a text-only chatbot \u2014 useless for generating games."
+          "explanation": "Each game's index.html is roughly 200-300 lines of unique data: TRAIL_DATA (stops, events, party members), optional TRAIL_FLAVORS, and a drawCustomEventOverlay function. All rendering, state management, audio, and UI logic lives in the shared engine.js. This means bug fixes and features in engine.js automatically apply to all 26 games."
         },
         {
-          "text": "The agent gets access to all tools by default \u2014 no constraint means full access",
+          "text": "Games must be under 100 lines of HTML to ensure fast loading",
           "correct": false,
-          "explanation": "Claude Code plugins are secure by default. Missing allowed-tools means zero tool access, not full access. The principle is least privilege \u2014 you must explicitly declare what the agent can use."
+          "explanation": "There is no strict line limit. Game HTML files are typically 200-600 lines depending on how many events and code snippets they include. The constraint is about separation of concerns \u2014 data in the HTML, logic in engine.js \u2014 not about a line count."
         },
         {
-          "text": "The command fails to load entirely with a YAML parse error",
+          "text": "Games must include a full copy of engine.js inline for offline play",
           "correct": false,
-          "explanation": "The YAML is still valid without allowed-tools \u2014 it is an optional field. The command loads fine, but the agent has no tools available. It can think and respond, but cannot interact with the filesystem or run commands."
+          "explanation": "Embedding the engine inline would create 26 copies of 1900 lines of shared logic. A single bug fix would require editing every game file. The thin HTML pattern keeps games small and maintainable by loading engine.js as a shared script."
         }
       ],
       "concept": "Skill System",
@@ -231,9 +231,9 @@ window.TRAIL_DATA = {
       "text": "A sandstorm of wrong answers blows through your wagon! A party member named 'File Router' has taken damage on two quiz questions about routing. What happens if they take one more hit at max health of 3?",
       "choices": [
         {
-          "text": "The party member dies, their portrait turns grey with strikethrough text, and future questions about their concept give no partial credit",
+          "text": "The party member dies permanently \u2014 their name gets strikethrough text and they show as dead on the win screen score card",
           "correct": true,
-          "explanation": "Each party member has 3 HP max. At 0 HP they die permanently. Dead members show as ghosts in the status bar. Questions about their concept become harder with no partial credit. This creates real stakes \u2014 losing a concept member means you lose your safety net for that topic."
+          "explanation": "Each party member has 3 HP max. At 0 HP they die permanently and their name is shown with line-through styling. On the win screen, dead members display empty stars and '(died)' in grey. If all four party members die, the game ends. This creates real stakes for every question."
         },
         {
           "text": "The party member revives at the next stop with 1 HP since the game is educational and should not punish too harshly",
@@ -243,7 +243,7 @@ window.TRAIL_DATA = {
         {
           "text": "The game ends immediately because all questions require at least one living party member",
           "correct": false,
-          "explanation": "One party member dying does not end the game. The game continues until health reaches zero or all four party members die. You can complete the trail with dead members \u2014 you just lose the safety net for their concept area on the score card."
+          "explanation": "One party member dying does not end the game. The game continues as long as your wagon health is above zero and at least one party member survives. You can complete the trail with dead members \u2014 they just show as casualties on the final score card."
         }
       ],
       "concept": "Trail Data",
@@ -253,23 +253,23 @@ window.TRAIL_DATA = {
       "type": "encounter",
       "trigger": "after_stop",
       "triggerStop": 7,
-      "title": "A TTS Engineer Appears!",
-      "text": "A voice engineer emerges from the forest: 'Your TTS system supports three engines. What is the fallback chain, and why does macOS say always come last?'",
+      "title": "The Procedural Audio Frontier!",
+      "text": "A sound engineer rides up on horseback: 'The hub page plays Apple II floppy disk sounds when you insert a disk. How are these sounds created?'",
       "choices": [
         {
-          "text": "ElevenLabs to OpenAI to macOS say \u2014 say is the universal fallback because it requires no API keys, no network, and ships with every Mac",
+          "text": "Procedural synthesis using raw Web Audio API \u2014 filtered noise buffers for the mechanical slide, oscillators for the stepper motor seeks, and a 60Hz sawtooth for the drive hum",
           "correct": true,
-          "explanation": "The fallback chain prioritizes quality: ElevenLabs has the most natural voices, OpenAI is reliable and widely available, and macOS say works offline with zero configuration. say is always the final fallback because it has no dependencies. If your internet is down and your API keys expired, say still works."
+          "explanation": "The disk insert sound is a 4-phase procedural sequence: a bandpass-filtered noise burst for the mechanical slide, a sharp noise click for the latch, 8 sequential bandpass-filtered clicks with increasing frequencies for stepper motor seeks, and a 60Hz sawtooth oscillator through a lowpass filter for the drive motor hum. Zero audio files \u2014 everything is synthesized in real time."
         },
         {
-          "text": "macOS say to OpenAI to ElevenLabs \u2014 starting with the simplest engine first to minimize latency",
+          "text": "Pre-recorded WAV samples of a real Apple II disk drive, compressed and embedded as base64 data URIs",
           "correct": false,
-          "explanation": "The chain goes from highest quality to most reliable, not from simplest to complex. If the user has configured ElevenLabs, they want the premium voice quality. Falling back to say first would ignore their preference. The chain respects the user's configured engine and only falls back when it fails."
+          "explanation": "There are no audio files anywhere in the repo. All sounds \u2014 both the hub page floppy disk effects and the in-game music \u2014 are procedurally generated using the Web Audio API. This keeps the repo lightweight and avoids copyright issues with sampled audio."
         },
         {
-          "text": "All three engines run simultaneously and the fastest response wins",
+          "text": "The HTML5 Audio element playing MP3 files from a sounds directory",
           "correct": false,
-          "explanation": "Running all engines in parallel would waste API credits and bandwidth. The TTS wrapper tries one engine at a time and only falls back on failure. This is a sequential fallback chain, not a parallel race. Each engine gets one shot before the next one tries."
+          "explanation": "There is no sounds directory and no audio files in the repo. The project uses the Web Audio API directly, creating oscillators and noise buffers programmatically. This gives precise control over timing, filtering, and envelope shaping that pre-recorded files cannot match."
         }
       ],
       "concept": "TTS Narration",
