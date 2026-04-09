@@ -1197,11 +1197,14 @@ function showEventResult(event, displayIdx) {
   var isRiver = event.type === 'river';
 
   var resultHtml = '';
+  var prof = PROFESSIONS[difficulty];
   if (correct) {
+    var heal = prof.healOnCorrect || 0;
     var bonus = streak >= 3 ? ' (+5 streak bonus!)' : '';
-    resultHtml = '<div style="color:#55FF55; margin-top:8px; font-size:14px;">CORRECT! +10 Health' + bonus + '</div>';
+    var healText = heal > 0 ? ' +' + heal + ' Health' : '';
+    resultHtml = '<div style="color:#55FF55; margin-top:8px; font-size:14px;">CORRECT!' + healText + bonus + '</div>';
   } else {
-    var dmg = isRiver ? 20 : 15;
+    var dmg = isRiver ? prof.riverDmg : prof.wrongDmg;
     resultHtml = '<div style="color:#FF5555; margin-top:8px; font-size:14px;">WRONG! -' + dmg + ' Health</div>';
     document.getElementById('game-container').classList.add('shake');
     setTimeout(function() { document.getElementById('game-container').classList.remove('shake'); }, 500);
