@@ -87,20 +87,8 @@ claude plugin add /path/to/coderegon-trail
 Then in Claude Code:
 
 ```
-/trail next          # Next.js App Router Trail
-/trail rails         # Rails Convention Trail
-/trail django        # Django WSGI Wagon Trail
-/trail express       # Express Middleware Prairie
-/trail react         # React/Vite Component Canyon
-/trail laravel       # Laravel Artisan Trail
-/trail openclaw      # OpenClaw Gateway Trail
-/trail               # auto-detect from current repo
-```
-
-**PR mode** — turn a pull request into a trail:
-
-```
-/trail pr 123        # PR #123 becomes the trail
+/trail               # generate a trail from the current repo
+/trail pr 123        # turn PR #123 into a trail
 /trail pr main..feat # branch comparison
 ```
 
