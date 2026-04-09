@@ -1373,7 +1373,7 @@ function renderStatusBar() {
     '<div style="line-height:1.3;">' +
     '<div>HP: ' + healthBar + ' ' + Math.max(0, health) +
     '  Hints: ' + supplies + '  ' + streakStars +
-    '  |  Stop ' + (currentStop + 1) + '/' + TRAIL_DATA.stops.length +
+    '  |  Stop ' + Math.min(currentStop + 1, TRAIL_DATA.stops.length) + '/' + TRAIL_DATA.stops.length +
     '  |  ' + musicHint +
     '  |  <span style="color:#555555;">ESC: Quit</span>' + repoLink + '</div>' +
     '<div style="font-size:11px;margin-top:2px;">' + partyHtml + '</div>' +
