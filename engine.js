@@ -1317,8 +1317,11 @@ function renderWinScreen() {
 // STATUS BAR
 // =====================================================================
 function renderStatusBar() {
-  var repoLink = TRAIL_DATA.repoUrl
-    ? '  |  <a href="' + TRAIL_DATA.repoUrl + '" target="_blank" style="color:#55AAFF; text-decoration:none;">GitHub</a>'
+  var repoLabel = TRAIL_DATA.repoUrl
+    ? TRAIL_DATA.repoUrl.replace(/^https?:\/\/github\.com\//, '')
+    : '';
+  var repoLink = repoLabel
+    ? '  |  <a href="' + TRAIL_DATA.repoUrl + '" target="_blank" style="color:#55AAFF; text-decoration:none;">' + repoLabel + '</a>'
     : '';
 
   if (gameState === STATES.TITLE) {
