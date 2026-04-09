@@ -57,6 +57,7 @@ html, body {
   line-height: 1.4;
   color: #FFFFFF;
 }
+#text-panel > div { max-width: 720px; margin: 0 auto; }
 #text-panel.code-expanded {
   position: absolute;
   top: 0;
@@ -216,6 +217,7 @@ const travelFlavors = window.TRAIL_FLAVORS || [
 // =====================================================================
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = false;
 const W = 320, H = 200;
 
 // Seeded PRNG for consistent landscape
@@ -305,57 +307,57 @@ function drawTree(x, baseY, h) {
 }
 
 function drawWagon(wx, wy) {
-  // Oxen (two brown lumps)
+  // Wagon body (left/rear)
   ctx.fillStyle = '#AA5500';
-  ctx.fillRect(Math.floor(wx - 24), Math.floor(wy - 6), 8, 6);
-  ctx.fillRect(Math.floor(wx - 14), Math.floor(wy - 6), 8, 6);
-  // Oxen legs
-  ctx.fillStyle = '#553300';
-  ctx.fillRect(Math.floor(wx - 22), Math.floor(wy), 2, 4);
-  ctx.fillRect(Math.floor(wx - 18), Math.floor(wy), 2, 4);
-  ctx.fillRect(Math.floor(wx - 12), Math.floor(wy), 2, 4);
-  ctx.fillRect(Math.floor(wx - 8), Math.floor(wy), 2, 4);
-  // Oxen heads
-  ctx.fillStyle = '#885500';
-  ctx.fillRect(Math.floor(wx - 26), Math.floor(wy - 7), 3, 3);
-  ctx.fillRect(Math.floor(wx - 16), Math.floor(wy - 7), 3, 3);
-  // Yoke
-  ctx.fillStyle = '#AA5500';
-  ctx.fillRect(Math.floor(wx - 4), Math.floor(wy - 4), 6, 2);
-  // Wagon body
-  ctx.fillStyle = '#AA5500';
-  ctx.fillRect(Math.floor(wx + 2), Math.floor(wy - 8), 24, 10);
+  ctx.fillRect(Math.floor(wx - 26), Math.floor(wy - 8), 24, 10);
   // Wagon sides darker
   ctx.fillStyle = '#885500';
-  ctx.fillRect(Math.floor(wx + 2), Math.floor(wy - 8), 24, 1);
-  ctx.fillRect(Math.floor(wx + 2), Math.floor(wy + 1), 24, 1);
+  ctx.fillRect(Math.floor(wx - 26), Math.floor(wy - 8), 24, 1);
+  ctx.fillRect(Math.floor(wx - 26), Math.floor(wy + 1), 24, 1);
   // Canvas cover (white curved top)
   ctx.fillStyle = '#FFFFFF';
   ctx.beginPath();
-  ctx.moveTo(Math.floor(wx + 3), Math.floor(wy - 8));
-  ctx.quadraticCurveTo(Math.floor(wx + 14), Math.floor(wy - 22), Math.floor(wx + 25), Math.floor(wy - 8));
+  ctx.moveTo(Math.floor(wx - 25), Math.floor(wy - 8));
+  ctx.quadraticCurveTo(Math.floor(wx - 14), Math.floor(wy - 22), Math.floor(wx - 3), Math.floor(wy - 8));
   ctx.closePath();
   ctx.fill();
   // Canvas cover outline
   ctx.strokeStyle = '#AAAAAA';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(Math.floor(wx + 3), Math.floor(wy - 8));
-  ctx.quadraticCurveTo(Math.floor(wx + 14), Math.floor(wy - 22), Math.floor(wx + 25), Math.floor(wy - 8));
+  ctx.moveTo(Math.floor(wx - 25), Math.floor(wy - 8));
+  ctx.quadraticCurveTo(Math.floor(wx - 14), Math.floor(wy - 22), Math.floor(wx - 3), Math.floor(wy - 8));
   ctx.stroke();
   // Canvas ribs
   ctx.strokeStyle = '#AAAAAA';
   for (let ri = 0; ri < 3; ri++) {
-    const rx = wx + 8 + ri * 5;
+    const rx = wx - 20 + ri * 5;
     ctx.beginPath();
     ctx.moveTo(Math.floor(rx), Math.floor(wy - 8));
     ctx.lineTo(Math.floor(rx), Math.floor(wy - 14 - ri % 2 * 2));
     ctx.stroke();
   }
+  // Yoke
+  ctx.fillStyle = '#AA5500';
+  ctx.fillRect(Math.floor(wx - 2), Math.floor(wy - 4), 6, 2);
+  // Oxen (right/front — leading the wagon)
+  ctx.fillStyle = '#AA5500';
+  ctx.fillRect(Math.floor(wx + 6), Math.floor(wy - 6), 8, 6);
+  ctx.fillRect(Math.floor(wx + 16), Math.floor(wy - 6), 8, 6);
+  // Oxen legs
+  ctx.fillStyle = '#553300';
+  ctx.fillRect(Math.floor(wx + 8), Math.floor(wy), 2, 4);
+  ctx.fillRect(Math.floor(wx + 12), Math.floor(wy), 2, 4);
+  ctx.fillRect(Math.floor(wx + 18), Math.floor(wy), 2, 4);
+  ctx.fillRect(Math.floor(wx + 22), Math.floor(wy), 2, 4);
+  // Oxen heads (facing right)
+  ctx.fillStyle = '#885500';
+  ctx.fillRect(Math.floor(wx + 23), Math.floor(wy - 7), 3, 3);
+  ctx.fillRect(Math.floor(wx + 13), Math.floor(wy - 7), 3, 3);
   // Wheels
   const wheelR = 5;
   for (let wi = 0; wi < 2; wi++) {
-    const wcx = wx + 7 + wi * 14;
+    const wcx = wx - 21 + wi * 14;
     const wcy = wy + 4;
     // Outer rim
     ctx.fillStyle = '#553300';
@@ -381,11 +383,11 @@ function drawWagon(wx, wy) {
     ctx.fillStyle = '#553300';
     ctx.fillRect(Math.floor(wcx - 1), Math.floor(wcy - 1), 2, 2);
   }
-  // Purple flag
+  // Purple flag (on wagon cover peak)
   ctx.fillStyle = '#AA00AA';
-  ctx.fillRect(Math.floor(wx + 14), Math.floor(wy - 22), 1, -7);
+  ctx.fillRect(Math.floor(wx - 14), Math.floor(wy - 22), 1, -7);
   ctx.fillStyle = '#FF55FF';
-  ctx.fillRect(Math.floor(wx + 15), Math.floor(wy - 29), 6, 4);
+  ctx.fillRect(Math.floor(wx - 13), Math.floor(wy - 29), 6, 4);
 }
 
 function drawLandmark(type, x, baseY) {
@@ -592,37 +594,8 @@ function drawDeathScene(time) {
   ctx.fillStyle = GD;
   ctx.fillRect(0, 148, W, 1);
 
-  // --- OX (left side) ---
-  var ox = 100, oy = 128;
-  // Body
-  ctx.fillStyle = G;
-  ctx.fillRect(ox, oy, 24, 14);
-  // Head
-  ctx.fillRect(ox - 10, oy - 2, 12, 10);
-  // Horns
-  ctx.fillRect(ox - 12, oy - 6, 3, 5);
-  ctx.fillRect(ox - 4, oy - 6, 3, 5);
-  // Snout
-  ctx.fillStyle = GD;
-  ctx.fillRect(ox - 10, oy + 4, 6, 3);
-  // Eye
-  ctx.fillStyle = '#000';
-  ctx.fillRect(ox - 7, oy, 2, 2);
-  // Legs
-  ctx.fillStyle = G;
-  ctx.fillRect(ox + 2, oy + 14, 4, 8);
-  ctx.fillRect(ox + 10, oy + 14, 4, 8);
-  ctx.fillRect(ox + 16, oy + 14, 4, 8);
-  // Tail
-  ctx.fillRect(ox + 24, oy + 2, 6, 2);
-  ctx.fillRect(ox + 29, oy, 2, 4);
-
-  // --- HITCH ---
-  ctx.fillStyle = G;
-  ctx.fillRect(ox + 28, oy + 8, 14, 2);
-
-  // --- WAGON ---
-  var wx = 142, wy = 108;
+  // --- WAGON (left side / rear) ---
+  var wx = 82, wy = 108;
   // Wagon bed
   ctx.fillStyle = G;
   ctx.fillRect(wx, wy + 20, 50, 16);
@@ -652,10 +625,39 @@ function drawDeathScene(time) {
   ctx.fillRect(wx + 8, wy + 12, 34, 2);
   ctx.fillRect(wx + 8, wy + 16, 34, 1);
 
+  // --- HITCH ---
+  ctx.fillStyle = G;
+  ctx.fillRect(wx + 50, wy + 28, 14, 2);
+
+  // --- OX (right side / front, facing right) ---
+  var ox = wx + 64, oy = 128;
+  // Body
+  ctx.fillStyle = G;
+  ctx.fillRect(ox, oy, 24, 14);
+  // Head (facing right)
+  ctx.fillRect(ox + 22, oy - 2, 12, 10);
+  // Horns
+  ctx.fillRect(ox + 25, oy - 6, 3, 5);
+  ctx.fillRect(ox + 33, oy - 6, 3, 5);
+  // Snout
+  ctx.fillStyle = GD;
+  ctx.fillRect(ox + 28, oy + 4, 6, 3);
+  // Eye
+  ctx.fillStyle = '#000';
+  ctx.fillRect(ox + 29, oy, 2, 2);
+  // Legs
+  ctx.fillStyle = G;
+  ctx.fillRect(ox + 4, oy + 14, 4, 8);
+  ctx.fillRect(ox + 10, oy + 14, 4, 8);
+  ctx.fillRect(ox + 18, oy + 14, 4, 8);
+  // Tail (on left/back)
+  ctx.fillRect(ox - 6, oy + 2, 6, 2);
+  ctx.fillRect(ox - 7, oy, 2, 4);
+
   // Wheels
   var wheelR = 8;
   var wheels = [wx + 8, wx + 42];
-  var wa = t * 0.5; // slow rotation
+  var wa = -t * 0.5; // clockwise rotation for rightward travel
   ctx.strokeStyle = G;
   ctx.lineWidth = 1.5;
   for (var wi = 0; wi < wheels.length; wi++) {
@@ -2016,7 +2018,7 @@ function gameLoop(timestamp) {
 
   if (gameState === STATES.TRAVEL) {
     scrollX += dt * 0.03;
-    wagonWheelAngle += dt * 0.004;
+    wagonWheelAngle -= dt * 0.004;
   } else if (gameState === STATES.TITLE) {
     scrollX += dt * 0.01;
   } else {
