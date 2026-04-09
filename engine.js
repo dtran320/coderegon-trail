@@ -1317,11 +1317,15 @@ function renderWinScreen() {
 // STATUS BAR
 // =====================================================================
 function renderStatusBar() {
+  var repoLink = TRAIL_DATA.repoUrl
+    ? '  |  <a href="' + TRAIL_DATA.repoUrl + '" target="_blank" style="color:#55AAFF; text-decoration:none;">GitHub</a>'
+    : '';
+
   if (gameState === STATES.TITLE) {
     var titleMusic = musicPlaying
       ? 'Music: <span style="color:#55FF55;">On</span> <span style="color:#555555;">(M to toggle off)</span>'
       : 'Music: <span style="color:#FF5555;">Off</span> <span style="color:#555555;">(M to toggle on)</span>';
-    statusBar.innerHTML = '<span style="color:#555555;">The Coderegon Trail v1.0</span>  |  ' + titleMusic + '  |  <span style="color:#555555;">ESC: Trail Select</span>';
+    statusBar.innerHTML = '<span style="color:#555555;">The Coderegon Trail v1.0</span>  |  ' + titleMusic + '  |  <span style="color:#555555;">ESC: Trail Select</span>' + repoLink;
     return;
   }
 
@@ -1348,7 +1352,7 @@ function renderStatusBar() {
     '  Hints: ' + supplies + '  ' + streakStars +
     '  |  Stop ' + (currentStop + 1) + '/' + TRAIL_DATA.stops.length +
     '  |  ' + musicHint +
-    '  |  <span style="color:#555555;">ESC: Quit</span>';
+    '  |  <span style="color:#555555;">ESC: Quit</span>' + repoLink;
 }
 
 // =====================================================================
