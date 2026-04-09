@@ -1335,6 +1335,34 @@ function renderStatusBar() {
     return;
   }
 
+  if (gameState === STATES.SETUP) {
+    var sp = PROFESSIONS[selectedDifficulty];
+    var spMaxH = sp.health;
+    var spBarLen = 10;
+    var spColor = spMaxH > 60 ? '#00AA00' : (spMaxH > 30 ? '#FFFF55' : '#FF5555');
+    var spBar = '<span style="color:' + spColor + ';">';
+    var spFilled = Math.round((spMaxH / 100) * spBarLen);
+    for (var si = 0; si < spFilled; si++) spBar += '\u2588';
+    spBar += '</span><span style="color:#555555;">';
+    for (var si2 = 0; si2 < spBarLen - spFilled; si2++) spBar += '\u2591';
+    spBar += '</span>';
+    var spHints = sp.hintFree ? '<span style="color:#55FF55;">\u221E</span>' : sp.supplies;
+    var spPartyHp = '';
+    for (var spi = 0; spi < sp.partyMaxHp; spi++) spPartyHp += '\u2665';
+    var spHeal = sp.healOnCorrect > 0 ? '+' + sp.healOnCorrect : '<span style="color:#FF5555;">0</span>';
+    var spDmg = '-' + sp.wrongDmg;
+    statusBar.innerHTML =
+      '<div style="line-height:1.3;">' +
+      '<div>HP: ' + spBar + ' ' + spMaxH +
+      '  Hints: ' + spHints +
+      '  |  Heal: ' + spHeal +
+      '  Dmg: <span style="color:#FF5555;">' + spDmg + '</span>' +
+      '  Party: <span style="color:#55FF55;">' + spPartyHp + '</span>' +
+      '  |  <span style="color:#555555;">\u2190\u2192 to change</span>' + repoLink + '</div>' +
+      '</div>';
+    return;
+  }
+
   var maxH = maxHealthForGame;
   var healthPct = Math.max(0, health / maxH);
   var barLen = 10;
@@ -1429,6 +1457,7 @@ function selectDifficulty(idx) {
   selectedDifficulty = Math.max(0, Math.min(PROFESSIONS.length - 1, idx));
   try { localStorage.setItem('coderegon-trail:difficulty', selectedDifficulty); } catch(e) {}
   renderSetupScreen();
+  renderStatusBar();
 }
 
 function startGame() {
