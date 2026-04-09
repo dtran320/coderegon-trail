@@ -87,21 +87,21 @@ claude plugin add /path/to/coderegon-trail
 Then in Claude Code:
 
 ```
-/fly-visual next          # Next.js App Router Trail
-/fly-visual rails         # Rails Convention Trail
-/fly-visual django        # Django WSGI Wagon Trail
-/fly-visual express       # Express Middleware Prairie
-/fly-visual react         # React/Vite Component Canyon
-/fly-visual laravel       # Laravel Artisan Trail
-/fly-visual openclaw      # OpenClaw Gateway Trail
-/fly-visual               # auto-detect from current repo
+/trail next          # Next.js App Router Trail
+/trail rails         # Rails Convention Trail
+/trail django        # Django WSGI Wagon Trail
+/trail express       # Express Middleware Prairie
+/trail react         # React/Vite Component Canyon
+/trail laravel       # Laravel Artisan Trail
+/trail openclaw      # OpenClaw Gateway Trail
+/trail               # auto-detect from current repo
 ```
 
 **PR mode** — turn a pull request into a trail:
 
 ```
-/fly-visual pr 123        # PR #123 becomes the trail
-/fly-visual pr main..feat # branch comparison
+/trail pr 123        # PR #123 becomes the trail
+/trail pr main..feat # branch comparison
 ```
 
 ## Testing & Auditing

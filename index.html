@@ -136,19 +136,19 @@ import * as THREE from 'three';
 // TRAIL DATA
 // ============================================================
 const ALL_TRAILS = [
+  // Community
   { name: "The Software Factory Trail", subtitle: "gstack", href: "gstack/", color: "#F59E0B", cat: "community" },
+  { name: "The Recursive Trail", subtitle: "Coderegon Trail", href: "recursive/", color: "#33FF33", cat: "community" },
   { name: "The Gateway Trail", subtitle: "OpenClaw", href: "openclaw/", color: "#8B95A2", cat: "community" },
-  { name: "The Convention Trail", subtitle: "Ruby on Rails", href: "rails/", color: "#CC0000", cat: "frameworks" },
-  { name: "The WSGI Wagon Trail", subtitle: "Django", href: "django/", color: "#2BA977", cat: "frameworks" },
-  { name: "The Middleware Prairie", subtitle: "Express.js", href: "express/", color: "#F7DF1E", cat: "frameworks" },
-  { name: "The Component Canyon", subtitle: "React", href: "react/", color: "#61DAFB", cat: "frameworks" },
-  { name: "The Artisan Trail", subtitle: "Laravel", href: "laravel/", color: "#FF2D20", cat: "frameworks" },
   { name: "The Hybrid Search Trail", subtitle: "QMD", href: "qmd/", color: "#A78BFA", cat: "community" },
   { name: "The Agent Loop Trail", subtitle: "Pi Mono", href: "pi-mono/", color: "#60A5FA", cat: "community" },
   { name: "The WiFi Sensing Trail", subtitle: "RuView", href: "ruview/", color: "#34D399", cat: "community" },
   { name: "The Exploit Trail", subtitle: "Shannon", href: "shannon/", color: "#F87171", cat: "community" },
   { name: "The Spacetime Trail", subtitle: "SpacetimeDB", href: "spacetimedb/", color: "#FBBF24", cat: "community" },
   { name: "The Superpowers Trail", subtitle: "Superpowers", href: "superpowers/", color: "#C084FC", cat: "community" },
+  { name: "The Transformer Trail", subtitle: "nanochat", href: "nanochat/", color: "#F59E0B", cat: "community" },
+  { name: "The Diffusion Trail", subtitle: "miniDiffusion", href: "minidiffusion/", color: "#A855F7", cat: "community" },
+  // HN Popular
   { name: "The Synthesis Trail", subtitle: "KittenTTS", href: "kittentts/", color: "#FF69B4", cat: "hn" },
   { name: "The Production Trail", subtitle: "Craftplan", href: "craftplan/", color: "#D97706", cat: "hn" },
   { name: "The Inference Trail", subtitle: "LocalGPT", href: "localgpt/", color: "#F97316", cat: "hn" },
@@ -159,11 +159,15 @@ const ALL_TRAILS = [
   { name: "The Layout Trail", subtitle: "Mini Browser", href: "mini-browser/", color: "#E879F9", cat: "hn" },
   { name: "The Checkout Trail", subtitle: "Korb", href: "korb/", color: "#10B981", cat: "hn" },
   { name: "The Terminal Trail", subtitle: "cmux", href: "cmux/", color: "#6EE7B7", cat: "hn" },
-  { name: "The Transformer Trail", subtitle: "nanochat", href: "nanochat/", color: "#F59E0B", cat: "community" },
-  { name: "The Diffusion Trail", subtitle: "miniDiffusion", href: "minidiffusion/", color: "#A855F7", cat: "community" },
+  // Frameworks
+  { name: "The Convention Trail", subtitle: "Ruby on Rails", href: "rails/", color: "#CC0000", cat: "frameworks" },
+  { name: "The WSGI Wagon Trail", subtitle: "Django", href: "django/", color: "#2BA977", cat: "frameworks" },
+  { name: "The Middleware Prairie", subtitle: "Express.js", href: "express/", color: "#F7DF1E", cat: "frameworks" },
+  { name: "The Component Canyon", subtitle: "React", href: "react/", color: "#61DAFB", cat: "frameworks" },
+  { name: "The Artisan Trail", subtitle: "Laravel", href: "laravel/", color: "#FF2D20", cat: "frameworks" },
 ];
 
-const CATEGORIES = { all: 'All', frameworks: 'Frameworks', hn: 'HN Popular', community: 'Community' };
+const CATEGORIES = { all: 'All', community: 'Community', hn: 'HN Popular', frameworks: 'Frameworks' };
 let currentCategory = 'all';
 let TRAILS = ALL_TRAILS;
 

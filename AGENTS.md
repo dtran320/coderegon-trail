@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A Claude Code plugin for learning codebases through play. The flagship feature is **Coderegon Trail** (`/fly-visual`) — a retro pixel art Oregon Trail-style game that teaches codebases and technical concepts via an interactive HTML game. Also includes TTS-narrated code walkthroughs (`/diff-review`, `/walkthrough`) for PRs, diffs, and codebases. No build step; the plugin is entirely markdown specs + shell scripts following Claude Code plugin conventions.
+A Claude Code plugin for learning codebases through play. The flagship feature is **Coderegon Trail** (`/trail`) — a retro pixel art Oregon Trail-style game that teaches codebases and technical concepts via an interactive HTML game. Also includes TTS-narrated code walkthroughs (`/diff-review`, `/walkthrough`) for PRs, diffs, and codebases. No build step; the plugin is entirely markdown specs + shell scripts following Claude Code plugin conventions.
 
 26 pre-built games ship ready to play in the browser via a 3D hub page (`index.html`). Games are also deployed to GitHub Pages. Each game's `index.html` is a thin wrapper that defines `TRAIL_DATA` and loads the shared `engine.js`. Games cover web frameworks (Rails, Django, Express, React, Laravel), developer tools (GStack, OpenClaw), databases (SpacetimeDB, pg_textsearch), security (Shannon), AI/ML (Pi Mono, KittenTTS, LocalGPT, NanoChat, MiniDiffusion), search (QMD), parsers (GoTreeSitter), browsers (Mini Browser), rendering (Ferrite), networking (Moongate, Cmux), e-commerce (Korb), deployment (CraftPlan), and more.
 
@@ -12,7 +12,7 @@ A Claude Code plugin for learning codebases through play. The flagship feature i
 
 ```
 commands/          User-facing CLI commands (markdown specs)
-  fly-visual.md      /fly-visual - Coderegon Trail game (primary command)
+  trail.md           /trail - Coderegon Trail game (primary command)
   diff-review.md     /diff-review - walk through diffs ranked by importance
   walkthrough.md     /walkthrough - guided codebase tour (8 sections)
 
@@ -74,7 +74,7 @@ examples/          Example generated game files
 
 ## Key Execution Flows
 
-**Coderegon Trail (`/fly-visual`):** Parse project arg (or auto-detect from repo) → extract trail data from `framework-trails.md` or via `trail-data-extractor` agent → generate thin HTML game file (defines TRAIL_DATA + overrides, loads shared `engine.js`) → write HTML file and open in browser → game plays in browser (title → setup → travel/stop/event loop → win or death)
+**Coderegon Trail (`/trail`):** Parse project arg (or auto-detect from repo) → extract trail data from `framework-trails.md` or via `trail-data-extractor` agent → generate thin HTML game file (defines TRAIL_DATA + overrides, loads shared `engine.js`) → write HTML file and open in browser → game plays in browser (title → setup → travel/stop/event loop → win or death)
 
 **Coderegon Trail Game Loop:** Title screen → party setup (4 members = key concepts) → travel between ~8 stops (each = a pipeline/architecture stage with code + narration) → quiz events between stops (weather/river/encounter/misfortune/fortune), filtered by profession difficulty tier → wrong answers damage health and party members → arrive at Response Frontier to win, or die trying
 
@@ -125,7 +125,7 @@ All "code" is markdown prompts and shell scripts. To modify behavior:
 - `node tests/test-scoring.js` — tests gameplay scoring logic (35 tests)
 - `node scripts/audit-trails.js` — extracts all Q&A for human review
 - `node scripts/check-staleness.js` — checks upstream repos for newer commits (requires `gh` auth)
-- Plugin commands: test `/fly-visual`, `/diff-review`, `/walkthrough` manually in Claude Code
+- Plugin commands: test `/trail`, `/diff-review`, `/walkthrough` manually in Claude Code
 
 ## Conventions
 
