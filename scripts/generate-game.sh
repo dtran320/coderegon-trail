@@ -7,14 +7,15 @@ set -euo pipefail
 # Usage: ./scripts/generate-game.sh <game-dir> <trail-data.json> <customizations.js>
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+source "$SCRIPT_DIR/lib/utils.sh"
 
 GAME_DIR="${1:?Usage: generate-game.sh <game-dir> <trail-data.json> <customizations.js>}"
 TRAIL_DATA_FILE="${2:?Missing trail-data.json}"
 CUSTOMIZATIONS_FILE="${3:?Missing customizations.js}"
 
-mkdir -p "$PROJECT_ROOT/$GAME_DIR"
-OUTPUT="$PROJECT_ROOT/$GAME_DIR/index.html"
+mkdir -p "$PLUGIN_ROOT/$GAME_DIR"
+OUTPUT="$PLUGIN_ROOT/$GAME_DIR/index.html"
 
 # Extract sections from customizations file
 TITLE=$(sed -n '/^\/\/ TITLE$/,/^\/\/ END TITLE$/{ /^\/\//d; p; }' "$CUSTOMIZATIONS_FILE" | head -1)

@@ -187,21 +187,6 @@ function getCompletionCount() {
 }
 
 // ============================================================
-// FALLBACK LIST (populated dynamically for completion status)
-// ============================================================
-const fallbackTrails = document.getElementById('fallback-trails');
-TRAILS.forEach(t => {
-  const comp = getCompletion(t);
-  const a = document.createElement('a');
-  a.href = t.href; a.className = 'tc';
-  a.innerHTML = '<div class="n" style="color:' + t.color + '">' +
-    t.name + (comp ? ' \u2713' : '') +
-    '</div><div class="d">' + t.subtitle +
-    (comp ? '  \u2605 ' + comp.score + '%' : '') + '</div>';
-  fallbackTrails.appendChild(a);
-});
-
-// ============================================================
 // HUD
 // ============================================================
 const hud = document.getElementById('hud');

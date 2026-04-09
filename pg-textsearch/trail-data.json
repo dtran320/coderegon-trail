@@ -1,5 +1,5 @@
 {
-  "framework": "pg_textsearch",
+  "framework": "pg-textsearch",
   "trailName": "The Relevance Trail",
   "stops": [
     {
