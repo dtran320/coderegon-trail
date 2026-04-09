@@ -35,7 +35,7 @@ window.TRAIL_DATA = {
     {
       "name": "Planner Hook Pass",
       "subtitle": "Implicit Index Resolution",
-      "concept": "Planner Hooks",
+      "concept": "BM25 Scoring",
       "landmarkType": "mountain",
       "code": {
         "file": "src/planner/hooks.c",
@@ -47,7 +47,7 @@ window.TRAIL_DATA = {
     {
       "name": "Tokenization Camp",
       "subtitle": "Text to Lexemes",
-      "concept": "Tokenization",
+      "concept": "Segment Storage",
       "landmarkType": "camp",
       "code": {
         "file": "src/types/vector.c",
@@ -107,7 +107,7 @@ window.TRAIL_DATA = {
     {
       "name": "Result Frontier",
       "subtitle": "Ranked Results Returned",
-      "concept": "Index Scan",
+      "concept": "BMW Optimization",
       "landmarkType": "town",
       "code": {
         "file": "src/am/scan.c",
@@ -141,7 +141,7 @@ window.TRAIL_DATA = {
           "explanation": "No error is thrown. Any UTF-8 text goes through the configured stemmer. It just produces less-optimal tokens for the wrong language."
         }
       ],
-      "concept": "Tokenization",
+      "concept": "Segment Storage",
       "difficulty": "easy"
     },
     {
@@ -167,7 +167,7 @@ window.TRAIL_DATA = {
           "explanation": "BM25 indexes are designed for ORDER BY with the <@> operator. They support amcanorderbyop, which means they return results in score order."
         }
       ],
-      "concept": "Planner Hooks",
+      "concept": "BM25 Scoring",
       "difficulty": "easy"
     },
     {
@@ -307,7 +307,7 @@ window.TRAIL_DATA = {
           "explanation": "Using ABS() would prevent the planner from using the index scan. The negative convention is by design — the planner recognizes <@> as an ORDER BY operator and uses the index directly."
         }
       ],
-      "concept": "Index Scan",
+      "concept": "BMW Optimization",
       "difficulty": "medium"
     }
   ],
@@ -347,6 +347,8 @@ window.TRAIL_DATA = {
   ],
   "sourceInfo": {
     "repo": "timescale/pg_textsearch",
+      "snapshotDate": "2026-04-08",
+      "commit": "c7f6104",
     "language": "C",
     "description": "PostgreSQL extension for BM25 relevance-ranked full-text search",
     "defaultBranch": "main"

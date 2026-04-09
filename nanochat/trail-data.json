@@ -5,7 +5,7 @@
     {
       "name": "Tokenizer Outpost",
       "subtitle": "Text to Token IDs with BPE",
-      "concept": "Tokenization",
+      "concept": "KV Cache",
       "landmarkType": "town",
       "code": {
         "file": "nanochat/tokenizer.py",
@@ -19,7 +19,7 @@
     {
       "name": "Data Packing Camp",
       "subtitle": "BOS-Aligned Best-Fit Batching",
-      "concept": "Data Loading",
+      "concept": "Residual Stream",
       "landmarkType": "camp",
       "code": {
         "file": "nanochat/dataloader.py",
@@ -33,7 +33,7 @@
     {
       "name": "Embedding Ford",
       "subtitle": "Token Embedding and Rotary Positions",
-      "concept": "Embeddings",
+      "concept": "Residual Stream",
       "landmarkType": "river",
       "code": {
         "file": "nanochat/gpt.py",
@@ -47,7 +47,7 @@
     {
       "name": "Attention Gorge",
       "subtitle": "Causal Self-Attention with Flash Attention",
-      "concept": "Self-Attention",
+      "concept": "Attention Heads",
       "landmarkType": "mountain",
       "code": {
         "file": "nanochat/gpt.py",
@@ -61,7 +61,7 @@
     {
       "name": "Transformer Pass",
       "subtitle": "Residual Stream and Lambda Scaling",
-      "concept": "Transformer Blocks",
+      "concept": "Residual Stream",
       "landmarkType": "forest",
       "code": {
         "file": "nanochat/gpt.py",
@@ -75,7 +75,7 @@
     {
       "name": "Muon Optimizer Ridge",
       "subtitle": "Newton-Schulz Orthogonalization for Weight Updates",
-      "concept": "Optimization",
+      "concept": "Muon Optimizer",
       "landmarkType": "mountain",
       "code": {
         "file": "nanochat/optim.py",
@@ -103,7 +103,7 @@
     {
       "name": "Response Frontier",
       "subtitle": "Inference Engine and Token Generation",
-      "concept": "Inference",
+      "concept": "KV Cache",
       "landmarkType": "town",
       "code": {
         "file": "nanochat/engine.py",
@@ -139,7 +139,7 @@
           "explanation": "A massive vocabulary wastes embedding parameters on rarely-used tokens. Nanochat uses 32K tokens with byte fallback. The BPE algorithm learns efficient merges from training data while byte fallback handles the long tail."
         }
       ],
-      "concept": "Tokenization",
+      "concept": "KV Cache",
       "difficulty": "easy"
     },
     {
@@ -165,7 +165,7 @@
           "explanation": "Padding positions would simply be masked with ignore_index in the loss. The real benefit of the best-fit approach is that it maximizes the number of useful tokens trained on per batch, not that it changes the loss function itself."
         }
       ],
-      "concept": "Data Loading",
+      "concept": "Residual Stream",
       "difficulty": "medium"
     },
     {
@@ -191,7 +191,7 @@
           "explanation": "Batch normalization normalizes across the batch dimension, which would make each token's representation depend on what other tokens are in the batch. RMS norm operates independently on each token, which is correct for autoregressive language models."
         }
       ],
-      "concept": "Embeddings",
+      "concept": "Residual Stream",
       "difficulty": "medium"
     },
     {
@@ -217,11 +217,11 @@
           "explanation": "The pattern is configurable via --window-pattern and defaults to SSSL, which tiles across all layers. It is not just first and last. The tiling gives periodic full-context layers throughout the network depth."
         }
       ],
-      "concept": "Self-Attention",
+      "concept": "Attention Heads",
       "difficulty": "hard"
     },
     {
-      "type": "fortune",
+      "type": "encounter",
       "trigger": "after_stop",
       "triggerStop": 5,
       "title": "Backout Lambda Bonus!",
@@ -243,7 +243,7 @@
           "explanation": "Subtracting at every layer would destroy the residual stream. The single midpoint subtraction is a targeted intervention that cleanly separates low-level and high-level features without disrupting the layer-by-layer refinement."
         }
       ],
-      "concept": "Transformer Blocks",
+      "concept": "Residual Stream",
       "difficulty": "easy"
     },
     {
@@ -269,7 +269,7 @@
           "explanation": "Full fp32 training would be roughly two times slower on modern GPUs. The bf16 tensor cores on A100 and H100 are specifically designed for mixed precision. Nanochat's approach gets the speed of bf16 matmuls with the safety of fp32 optimizer states."
         }
       ],
-      "concept": "Optimization",
+      "concept": "Muon Optimizer",
       "difficulty": "medium"
     },
     {
@@ -295,7 +295,7 @@
           "explanation": "ast.literal_eval cannot evaluate math expressions like 2+3 or string methods like 'strawberry'.count('r'). It only handles literal values. Nanochat needs eval for computation, but wraps it in a careful sandbox."
         }
       ],
-      "concept": "Inference",
+      "concept": "KV Cache",
       "difficulty": "hard"
     }
   ],
@@ -335,6 +335,7 @@
   ],
   "sourceInfo": {
     "repo": "karpathy/nanochat",
+      "commit": "a445144",
     "language": "Python",
     "description": "The simplest experimental harness for training LLMs: tokenization, pretraining, SFT, RL, evaluation, inference, and chat UI on a single GPU node",
     "url": "https://github.com/karpathy/nanochat",

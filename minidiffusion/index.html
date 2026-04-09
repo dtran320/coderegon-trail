@@ -23,7 +23,7 @@ window.TRAIL_DATA = {
     {
       "name": "Tokenizer Trading Post",
       "subtitle": "BPE and Unigram Text Encoding",
-      "concept": "Tokenization",
+      "concept": "CLIP Embeddings",
       "landmarkType": "town",
       "code": {
         "file": "src/model/tokenizer.py",
@@ -37,7 +37,7 @@ window.TRAIL_DATA = {
     {
       "name": "CLIP Encoding Camp",
       "subtitle": "Dual CLIP Text Embeddings",
-      "concept": "Text Encoding",
+      "concept": "CLIP Embeddings",
       "landmarkType": "camp",
       "code": {
         "file": "src/model/dit_components.py",
@@ -51,7 +51,7 @@ window.TRAIL_DATA = {
     {
       "name": "VAE Encoder Gorge",
       "subtitle": "Compressing Images to Latent Space",
-      "concept": "Variational Autoencoder",
+      "concept": "VAE Encoder",
       "landmarkType": "mountain",
       "code": {
         "file": "src/model/vae.py",
@@ -65,7 +65,7 @@ window.TRAIL_DATA = {
     {
       "name": "Noise Schedule River",
       "subtitle": "Logit-Normal Timestep Sampling and Forward Diffusion",
-      "concept": "Noise Scheduling",
+      "concept": "Noise Scheduler",
       "landmarkType": "river",
       "code": {
         "file": "src/model/noise.py",
@@ -79,7 +79,7 @@ window.TRAIL_DATA = {
     {
       "name": "Patch Embed Crossing",
       "subtitle": "Patchifying Latents with Sinusoidal Positions",
-      "concept": "Patch Embedding",
+      "concept": "DiT Backbone",
       "landmarkType": "forest",
       "code": {
         "file": "src/model/dit_components.py",
@@ -107,7 +107,7 @@ window.TRAIL_DATA = {
     {
       "name": "DiT Block Pass",
       "subtitle": "MMDiT with Adaptive Layer Norm and Dual Attention",
-      "concept": "Diffusion Transformer",
+      "concept": "DiT Backbone",
       "landmarkType": "forest",
       "code": {
         "file": "src/model/dit.py",
@@ -121,7 +121,7 @@ window.TRAIL_DATA = {
     {
       "name": "Generation Frontier",
       "subtitle": "Euler ODE Solver and VAE Decoding",
-      "concept": "Reverse Diffusion",
+      "concept": "Noise Scheduler",
       "landmarkType": "town",
       "code": {
         "file": "src/inference.py",
@@ -157,7 +157,7 @@ window.TRAIL_DATA = {
           "explanation": "The tokenizer uses the end-of-text token ID as unk_token, but byte-level encoding means no byte is ever truly unknown. The to_utf_bytes function ensures complete coverage of all 256 byte values, so the UNK fallback is rarely needed."
         }
       ],
-      "concept": "Tokenization",
+      "concept": "CLIP Embeddings",
       "difficulty": "easy"
     },
     {
@@ -183,7 +183,7 @@ window.TRAIL_DATA = {
           "explanation": "The CLIP pooled embeddings are critical. They get concatenated and fed into CombinedTimestepTextProjEmbeddings, which creates the conditioning signal that modulates every AdaLayerNorm in the DiT. Without CLIP, the model loses its global text conditioning."
         }
       ],
-      "concept": "Text Encoding",
+      "concept": "CLIP Embeddings",
       "difficulty": "medium"
     },
     {
@@ -209,7 +209,7 @@ window.TRAIL_DATA = {
           "explanation": "There is no learned projection. The split is a simple torch.chunk operation. The VAE follows the standard variational approach where the encoder outputs distribution parameters, not features. The stochastic sampling is what makes it a variational autoencoder."
         }
       ],
-      "concept": "Variational Autoencoder",
+      "concept": "VAE Encoder",
       "difficulty": "medium"
     },
     {
@@ -235,7 +235,7 @@ window.TRAIL_DATA = {
           "explanation": "Skipping timesteps would create gaps in the model's ability to denoise. The logit-normal sampling is about weighting which timesteps appear more often during training, not removing timesteps. The shift parameter controls the distribution shape."
         }
       ],
-      "concept": "Noise Scheduling",
+      "concept": "Noise Scheduler",
       "difficulty": "hard"
     },
     {
@@ -261,7 +261,7 @@ window.TRAIL_DATA = {
           "explanation": "MiniDiffusion does not use rotary embeddings. It uses absolute 2D sinusoidal position embeddings that are added once after patch projection. The positions are center-cropped from a large precomputed grid using cropped_pos_embed to handle variable image sizes."
         }
       ],
-      "concept": "Patch Embedding",
+      "concept": "DiT Backbone",
       "difficulty": "easy"
     },
     {
@@ -287,11 +287,11 @@ window.TRAIL_DATA = {
           "explanation": "The final block still performs attention. In fact, it uses add_q_context=True which adds a separate query projection for the context in the attention layer. The key difference is that after this block, the encoder hidden states are discarded, having been fully absorbed into the image representation."
         }
       ],
-      "concept": "Diffusion Transformer",
+      "concept": "DiT Backbone",
       "difficulty": "hard"
     },
     {
-      "type": "fortune",
+      "type": "encounter",
       "trigger": "after_stop",
       "triggerStop": 7,
       "title": "Euler Solver Tailwind!",
@@ -313,7 +313,7 @@ window.TRAIL_DATA = {
           "explanation": "Skipping steps would break the ODE integration. The Euler method needs small, consistent steps. The step_index advances sequentially through the sigma schedule. If you want fewer steps, you should use fewer inference timesteps from the start, not skip during solving."
         }
       ],
-      "concept": "Reverse Diffusion",
+      "concept": "Noise Scheduler",
       "difficulty": "easy"
     }
   ],
@@ -353,6 +353,7 @@ window.TRAIL_DATA = {
   ],
   "sourceInfo": {
     "repo": "yousef-rafat/miniDiffusion",
+      "commit": "24a71d3",
     "language": "Python",
     "description": "A reimplementation of Stable Diffusion 3.5 in pure PyTorch with minimal dependencies",
     "url": "https://github.com/yousef-rafat/miniDiffusion",

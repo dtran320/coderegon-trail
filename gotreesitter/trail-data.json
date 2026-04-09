@@ -140,7 +140,7 @@
           "explanation": "GoTreeSitter is a clean-room reimplementation, not a direct port. It makes its own type decisions. The uint32 choice is driven by real grammar sizes, not blind compatibility with C."
         }
       ],
-      "concept": "Language Tables",
+      "concept": "DFA Lexer",
       "difficulty": "easy"
     },
     {
@@ -244,7 +244,7 @@
           "explanation": "There is no source diffing. The user provides InputEdit records that describe what changed (start byte, old end, new end). The parser trusts these edits and uses them to mark dirty regions in the old tree. Only dirty regions are re-parsed."
         }
       ],
-      "concept": "Incremental Parsing",
+      "concept": "GLR Parser",
       "difficulty": "hard"
     },
     {
@@ -280,7 +280,7 @@
       "title": "Pure Go Breakthrough!",
       "text": "You discover the trail ahead is clear of C toolchains! GoTreeSitter cross-compiles to WASM, ARM, and every target Go supports. No CGo, no gcc, no MSYS2. The race detector and fuzzer can see everything. The trail to Oregon City is wide open!",
       "choices": [],
-      "concept": "Pure Go Runtime",
+      "concept": "Arena Allocator",
       "difficulty": "easy"
     }
   ],

@@ -5,7 +5,7 @@
     {
       "name": "HTTP Gateway Fort",
       "subtitle": "Request Intake and Session Routing",
-      "concept": "HTTP Server",
+      "concept": "Context Compaction",
       "landmarkType": "town",
       "code": {
         "file": "crates/server/src/http.rs",
@@ -33,7 +33,7 @@
     {
       "name": "Memory Search Crossing",
       "subtitle": "Semantic Retrieval with Temporal Decay",
-      "concept": "Memory Search",
+      "concept": "Memory System",
       "landmarkType": "river",
       "code": {
         "file": "crates/core/src/memory/search.rs",
@@ -47,7 +47,7 @@
     {
       "name": "System Prompt Summit",
       "subtitle": "Assembling the Agent's Instructions",
-      "concept": "Prompt Assembly",
+      "concept": "LLM Providers",
       "landmarkType": "mountain",
       "code": {
         "file": "crates/core/src/agent/system_prompt.rs",
@@ -139,7 +139,7 @@
           "explanation": "Cloning entire sessions and agents on every request would be extremely expensive. Arc provides zero-cost shared ownership by reference counting instead of deep copying."
         }
       ],
-      "concept": "HTTP Server",
+      "concept": "Context Compaction",
       "difficulty": "easy"
     },
     {
@@ -191,7 +191,7 @@
           "explanation": "Recency alone misses relevant older context. The temporal decay already down-weights old results. Semantic search finds conceptually related content regardless of when it was written."
         }
       ],
-      "concept": "Memory Search",
+      "concept": "Memory System",
       "difficulty": "hard"
     },
     {
@@ -217,11 +217,11 @@
           "explanation": "Truncation destroys useful tool output. LocalGPT does support configurable max_chars, but the primary defense is content delimiting and the per-turn security block appended to every API call."
         }
       ],
-      "concept": "Prompt Assembly",
+      "concept": "LLM Providers",
       "difficulty": "medium"
     },
     {
-      "type": "fortune",
+      "type": "encounter",
       "trigger": "after_stop",
       "triggerStop": 5,
       "title": "Failover Provider Found!",
@@ -335,6 +335,7 @@
   ],
   "sourceInfo": {
     "repo": "localgpt-app/localgpt",
+      "commit": "63a390f",
     "language": "Rust",
     "description": "Local-first AI assistant with persistent markdown memory, multi-provider LLM support, and autonomous heartbeat",
     "url": "https://github.com/localgpt-app/localgpt",

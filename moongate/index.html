@@ -59,7 +59,7 @@ window.TRAIL_DATA = {
     {
       "name": "Middleware Pipeline Pass",
       "subtitle": "Network Middleware Chain",
-      "concept": "Middleware Pipeline",
+      "concept": "Network Transport",
       "landmarkType": "river",
       "code": {
         "file": "src/Moongate.Network/Pipeline/NetMiddlewarePipeline.cs",
@@ -71,7 +71,7 @@ window.TRAIL_DATA = {
     {
       "name": "Packet Registry Fort",
       "subtitle": "Opcode Routing and Dispatch",
-      "concept": "Packet Dispatch",
+      "concept": "Network Transport",
       "landmarkType": "town",
       "code": {
         "file": "src/Moongate.Server/Services/Packets/PacketDispatchService.cs",
@@ -83,7 +83,7 @@ window.TRAIL_DATA = {
     {
       "name": "Login Handler Crossing",
       "subtitle": "Authentication and Server Select",
-      "concept": "Authentication",
+      "concept": "Packet Encryption",
       "landmarkType": "camp",
       "code": {
         "file": "src/Moongate.Server/Handlers/LoginHandler.cs",
@@ -193,7 +193,7 @@ window.TRAIL_DATA = {
           "explanation": "Lock-free iteration after snapshot is an intentional optimization. The array is immutable after creation since AddMiddleware builds a new array each time. This is a well-known copy-on-write pattern."
         }
       ],
-      "concept": "Middleware Pipeline",
+      "concept": "Network Transport",
       "difficulty": "medium"
     },
     {
@@ -219,7 +219,7 @@ window.TRAIL_DATA = {
           "explanation": "Moongate uses a single-threaded game loop for deterministic processing. Running handlers on separate threads would introduce race conditions on game state. The correct approach is async background jobs that marshal results back to the game loop."
         }
       ],
-      "concept": "Packet Dispatch",
+      "concept": "Network Transport",
       "difficulty": "medium"
     },
     {
@@ -245,7 +245,7 @@ window.TRAIL_DATA = {
           "explanation": "Sleeping on the game loop thread would block ALL game processing for ALL players. The game loop is single-threaded. You would freeze the entire world to slow one attacker."
         }
       ],
-      "concept": "Authentication",
+      "concept": "Packet Encryption",
       "difficulty": "medium"
     },
     {
@@ -337,6 +337,8 @@ window.TRAIL_DATA = {
   ],
   "sourceInfo": {
     "repo": "moongate-community/moongatev2",
+      "snapshotDate": "2026-04-08",
+      "commit": "8c1a0ca",
     "language": "C#",
     "description": "Modern Ultima Online server emulator built from scratch in .NET 10 with AOT compilation, Lua scripting, and deterministic game loop",
     "url": "https://github.com/moongate-community/moongatev2"

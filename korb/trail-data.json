@@ -65,7 +65,7 @@
     {
       "name": "Product Search Prairie",
       "subtitle": "Searching and Browsing",
-      "concept": "Product Search",
+      "concept": "Checkout Pipeline",
       "landmarkType": "camp",
       "code": {
         "file": "src/ReweApi.hs",
@@ -77,7 +77,7 @@
     {
       "name": "Basket Management Camp",
       "subtitle": "Cart Operations",
-      "concept": "Cart Management",
+      "concept": "Checkout Pipeline",
       "landmarkType": "camp",
       "code": {
         "file": "src/ReweApi.hs",
@@ -253,7 +253,7 @@
           "explanation": "Random selection would suggest items you rarely buy. Frequency ranking surfaces your staples, the items most likely to be useful additions."
         }
       ],
-      "concept": "Product Search",
+      "concept": "Checkout Pipeline",
       "difficulty": "easy"
     },
     {
@@ -279,7 +279,7 @@
           "explanation": "Silently adding items the user didn't request would be surprising and potentially costly. The correct approach is to inform the user and let them decide."
         }
       ],
-      "concept": "Cart Management",
+      "concept": "Checkout Pipeline",
       "difficulty": "easy"
     }
   ],
@@ -319,6 +319,8 @@
   ],
   "sourceInfo": {
     "repo": "yannick-cw/korb",
+      "snapshotDate": "2026-04-08",
+      "commit": "a13fb51",
     "language": "Haskell",
     "description": "REWE delivery CLI - a Haskell CLI for ordering groceries via reverse-engineered REWE API",
     "url": "https://github.com/yannick-cw/korb"

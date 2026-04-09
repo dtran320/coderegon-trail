@@ -1701,34 +1701,34 @@ function generateProofMarkdown() {
   var survivors = partyHealth.filter(function(h) { return h > 0; }).length;
   var pct = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 100;
   var isPR = TRAIL_DATA.trailTheme === 'pr';
-  var header = isPR ? '## PR Understanding Proof' : '## Trail Understanding Proof';
-  var identityLabel = isPR ? 'PR' : 'Framework';
-  var identityValue = isPR
-    ? '[' + (TRAIL_DATA.prSource || '') + ' \u2014 ' + (TRAIL_DATA.prTitle || '') + '](' + (TRAIL_DATA.prUrl || '#') + ')'
+  var identity = isPR
+    ? (TRAIL_DATA.prSource || TRAIL_DATA.framework)
     : TRAIL_DATA.trailName;
   var date = new Date().toISOString().slice(0, 10);
   var hash = generateHash();
 
-  var md = header + '\n\n';
-  md += '| Field | Value |\n|-------|-------|\n';
-  md += '| ' + identityLabel + ' | ' + identityValue + ' |\n';
-  md += '| Score | ' + score + '/' + totalQuestions + ' (' + pct + '%) |\n';
-  md += '| Survivors | ' + survivors + '/' + partyHealth.length + ' |\n';
-  md += '| Best Streak | ' + bestStreak + ' |\n';
-  md += '| Date | ' + date + ' |\n\n';
-  md += '### Concept Mastery\n';
+  var md = 'Coderegon Trail \u2014 ' + identity + '\n';
+  md += 'Score: ' + score + '/' + totalQuestions + ' (' + pct + '%) | Survivors: ' + survivors + '/' + partyHealth.length + ' | Streak: ' + bestStreak + '\n';
+
+  var concepts = [];
   for (var i = 0; i < TRAIL_DATA.partyMembers.length; i++) {
     var name = TRAIL_DATA.partyMembers[i].name;
     var hp = partyHealth[i];
     var cpMaxHp = PROFESSIONS[difficulty] ? PROFESSIONS[difficulty].partyMaxHp : 3;
     var maxHp = Math.min(TRAIL_DATA.partyMembers[i].maxHealth, cpMaxHp);
-    var stars, summary;
-    if (hp >= maxHp) { stars = '\u2B50\u2B50\u2B50'; summary = '(all correct)'; }
-    else if (hp > 0) { stars = '\u2B50\u2B50'; summary = '(mostly correct)'; }
-    else { stars = '\u2B50'; summary = '(needs review)'; }
-    md += '- ' + stars + ' ' + name + ' ' + summary + '\n';
+    var stars;
+    if (hp >= maxHp) { stars = '\u2B50\u2B50\u2B50'; }
+    else if (hp > 0) { stars = '\u2B50\u2B50'; }
+    else { stars = '\u2B50'; }
+    concepts.push(stars + ' ' + name);
   }
-  md += '\n*Coderegon Trail | Hash: `' + hash + '`*\n';
+  md += concepts.join(' \u00B7 ') + '\n';
+
+  if (isPR && TRAIL_DATA.prUrl) {
+    md += TRAIL_DATA.prUrl + '\n';
+  }
+
+  md += hash + ' \u00B7 ' + date + '\n';
   return md;
 }
 

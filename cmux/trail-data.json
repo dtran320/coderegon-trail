@@ -19,7 +19,7 @@
     {
       "name": "Config Loading Camp",
       "subtitle": "Ghostty Configuration",
-      "concept": "Configuration",
+      "concept": "Input Handling",
       "landmarkType": "camp",
       "code": {
         "file": "Sources/GhosttyConfig.swift",
@@ -103,7 +103,7 @@
     {
       "name": "Socket Control Frontier",
       "subtitle": "Unix Socket API",
-      "concept": "Socket API",
+      "concept": "Notification System",
       "landmarkType": "town",
       "code": {
         "file": "Sources/TerminalController.swift",
@@ -127,7 +127,7 @@
         {"text": "It only reads from ~/Library/Application Support because that is the macOS standard", "correct": false, "explanation": "cmux supports both XDG-style dotfile paths and macOS Application Support paths. The dual lookup ensures compatibility with users who came from Linux Ghostty or prefer dotfile management."},
         {"text": "It generates a default config at launch if no config file exists anywhere", "correct": false, "explanation": "GhosttyConfig uses hardcoded defaults in the struct definition, like Menlo font at 12pt. No default config file is generated. The app works with zero configuration."}
       ],
-      "concept": "Configuration",
+      "concept": "Input Handling",
       "difficulty": "easy"
     },
     {
@@ -211,7 +211,7 @@
         {"text": "The macOS Gatekeeper service rejects socket paths longer than 255 characters", "correct": false, "explanation": "Gatekeeper checks app signatures, not socket paths. The limit comes from the POSIX sockaddr_un structure, which has a fixed-size character array for the path."},
         {"text": "NSFileManager enforces a 200-character path limit for security reasons", "correct": false, "explanation": "NSFileManager has no such limit. The constraint is at the kernel level in the sockaddr_un structure, which cmux measures at compile time using MemoryLayout."}
       ],
-      "concept": "Socket API",
+      "concept": "Notification System",
       "difficulty": "hard"
     }
   ],
@@ -235,6 +235,7 @@
   ],
   "sourceInfo": {
     "repo": "manaflow-ai/cmux",
+      "commit": "c2e97be",
     "snapshotDate": "2026-04-08"
   }
 }
