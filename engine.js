@@ -12,6 +12,18 @@ const TRAIL_DATA = window.TRAIL_DATA;
 const _TRAIL_CONFIG = window.TRAIL_CONFIG || {};
 const _MC = _TRAIL_CONFIG.mountainColors || { far: '#AA00AA', near: '#FF55FF' };
 
+// Mobile detection
+var isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || ('ontouchstart' in window && window.innerWidth < 900);
+// Inject viewport meta for mobile
+(function injectViewport() {
+  if (!document.querySelector('meta[name="viewport"]')) {
+    var m = document.createElement('meta');
+    m.name = 'viewport';
+    m.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+    document.head.appendChild(m);
+  }
+})();
+
 // Inject CSS
 (function injectStyles() {
   var s = document.createElement('style');
@@ -145,6 +157,40 @@ html, body {
   color: #555555;
   z-index: 10;
   pointer-events: none;
+}
+#mobile-controls {
+  display: none;
+  position: absolute;
+  bottom: 66px;
+  right: 8px;
+  z-index: 20;
+  gap: 6px;
+}
+#mobile-controls button {
+  background: #111;
+  border: 1px solid #555;
+  color: #AAAAAA;
+  font-family: 'Courier New', monospace;
+  font-size: 18px;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  border-radius: 4px;
+  -webkit-tap-highlight-color: transparent;
+}
+#mobile-controls button:active {
+  background: #333;
+  color: #FFFF55;
+}
+@media (max-width: 600px), (hover: none) and (pointer: coarse) {
+  #text-panel { font-size: 15px; padding: 10px 12px; }
+  .choice-item { padding: 10px 8px !important; margin: 6px 0 !important; font-size: 15px; min-height: 44px; display: flex; align-items: center; }
+  .stop-opt { padding: 10px 16px !important; font-size: 15px; display: inline-block; min-height: 44px; }
+  #status-bar { font-size: 12px; height: 52px; min-height: 52px; padding: 0 8px; }
+  #canvas-area { height: 35vh; }
+  #text-panel > div { max-width: 100%; }
+  .code-box { font-size: 11px; max-height: 100px; }
+  #mobile-controls { display: flex; }
 }
   `;
   document.head.appendChild(s);
@@ -1051,6 +1097,112 @@ function highlightCode(code) {
 var textPanel = document.getElementById('text-panel');
 var statusBar = document.getElementById('status-bar');
 
+// Mobile controls overlay
+(function initMobileControls() {
+  var mc = document.createElement('div');
+  mc.id = 'mobile-controls';
+  mc.innerHTML =
+    '<button id="mc-hint" title="Hint">?</button>' +
+    '<button id="mc-music" title="Music">\u266B</button>' +
+    '<button id="mc-back" title="Back">\u2190</button>';
+  document.getElementById('game-container').appendChild(mc);
+  document.getElementById('mc-hint').addEventListener('click', function(e) { e.stopPropagation(); handleEventHint(); });
+  document.getElementById('mc-music').addEventListener('click', function(e) { e.stopPropagation(); if (!musicInitialized) initAudio(); toggleMusic(); });
+  document.getElementById('mc-back').addEventListener('click', function(e) { e.stopPropagation(); window.location.href = '../'; });
+})();
+
+// Touch: tap on canvas or text panel = space/enter
+(function initTouchInput() {
+  var tapTarget = document.getElementById('game-container');
+  tapTarget.addEventListener('click', function(e) {
+    // Don't intercept clicks on interactive elements
+    var tag = e.target.tagName;
+    if (tag === 'BUTTON' || tag === 'A') return;
+    if (e.target.classList.contains('choice-item') || e.target.classList.contains('stop-opt')) return;
+    if (e.target.closest && (e.target.closest('.choice-item') || e.target.closest('.stop-opt') || e.target.closest('.code-box') || e.target.closest('#mobile-controls'))) return;
+    // Don't intercept setup difficulty taps (handled by their own onclick)
+    if (e.target.closest && e.target.closest('[onclick*="selectDifficulty"]')) return;
+
+    // Simulate space bar press
+    switch (gameState) {
+      case STATES.TITLE:
+        ensureAudio();
+        gameState = STATES.SETUP;
+        renderSetupScreen();
+        renderStatusBar();
+        break;
+      case STATES.SETUP:
+        ensureAudio();
+        startGame();
+        break;
+      case STATES.TRAVEL:
+        advanceFromTravel();
+        break;
+      case STATES.STOP:
+        handleStopChoice(selectedStopChoice + 1);
+        break;
+      case STATES.EVENT:
+      case STATES.RIVER:
+        if (!eventAnswered) {
+          var ev = pendingEvents[currentEventIndex];
+          if (ev && ev.type === 'fortune') advanceFromEvent();
+          // For quiz events, tapping the container does nothing — tap choices directly
+        } else {
+          if (checkDeath()) return;
+          advanceFromEvent();
+        }
+        break;
+      case STATES.DEATH:
+        resetGame();
+        renderTitleScreen();
+        renderStatusBar();
+        break;
+      case STATES.WIN:
+        resetGame();
+        renderTitleScreen();
+        renderStatusBar();
+        break;
+    }
+  });
+
+  // Swipe up/down on text panel for choice navigation
+  var touchStartY = 0;
+  var touchStartX = 0;
+  var swipeHandled = false;
+  textPanel.addEventListener('touchstart', function(e) {
+    touchStartY = e.touches[0].clientY;
+    touchStartX = e.touches[0].clientX;
+    swipeHandled = false;
+  }, { passive: true });
+  textPanel.addEventListener('touchmove', function(e) {
+    if (swipeHandled) return;
+    var dy = e.touches[0].clientY - touchStartY;
+    var dx = e.touches[0].clientX - touchStartX;
+    if (Math.abs(dy) < 30 || Math.abs(dx) > Math.abs(dy)) return; // too small or horizontal
+    swipeHandled = true;
+    var dir = dy < 0 ? 1 : -1; // swipe up = next, swipe down = prev
+    if (gameState === STATES.SETUP) {
+      selectDifficulty((selectedDifficulty + dir + PROFESSIONS.length) % PROFESSIONS.length);
+    } else if ((gameState === STATES.EVENT || gameState === STATES.RIVER) && !eventAnswered) {
+      var ev = pendingEvents[currentEventIndex];
+      if (ev && ev.choices.length > 0) {
+        var n = ev.choices.length;
+        selectedEventChoice = (selectedEventChoice + dir + n) % n;
+        if (eventHinted && dimmedChoice === selectedEventChoice) selectedEventChoice = (selectedEventChoice + dir + n) % n;
+        updateChoiceHighlight();
+      }
+    } else if (gameState === STATES.STOP) {
+      selectedStopChoice = selectedStopChoice === 0 ? 1 : 0;
+      updateStopHighlight();
+    }
+  }, { passive: true });
+})();
+
+// Helper: returns mobile-friendly action text
+function actionText(verb) {
+  return isMobile ? 'Tap to ' + verb : 'Press SPACE BAR to ' + verb;
+}
+
 function setTextPanel(html) {
   textPanel.classList.remove('code-expanded');
   textPanel.innerHTML = html;
@@ -1071,7 +1223,7 @@ function renderTitleScreen() {
     '<div style="color:#FFFF55; font-size:16px; letter-spacing:2px;">THE CODEREGON TRAIL</div>' +
     '<div style="color:#AAAAAA; margin-top:8px;">' + escHtml(TRAIL_DATA.trailName) + '</div>' +
     (TRAIL_DATA.sourceInfo ? '<div style="color:#555555; margin-top:4px; font-size:10px;">Source: ' + TRAIL_DATA.sourceInfo.repo + ' @ ' + TRAIL_DATA.sourceInfo.commit + (TRAIL_DATA.sourceInfo.tag ? ' (' + TRAIL_DATA.sourceInfo.tag + ')' : '') + ' \u2014 ' + TRAIL_DATA.sourceInfo.snapshotDate + '</div>' : '') +
-    '<div style="margin-top:30px;" class="blink">Press SPACE BAR to begin</div>' +
+    '<div style="margin-top:30px;" class="blink">' + actionText('begin') + '</div>' +
     '</div>'
   );
 }
@@ -1102,7 +1254,7 @@ function renderSetupScreen() {
     '</div>' +
     '<div style="color:#55FFFF; margin-top:14px; margin-bottom:6px;">What is your profession?</div>' +
     '<div style="margin-left:16px;">' + profsHtml + '</div>' +
-    '<div style="margin-top:18px; text-align:center;" class="blink">Press ENTER to hit the trail!</div>' +
+    '<div style="margin-top:18px; text-align:center;" class="blink">' + (isMobile ? 'Tap to hit the trail!' : 'Press ENTER to hit the trail!') + '</div>' +
     '</div>'
   );
 }
@@ -1113,7 +1265,7 @@ function renderTravelScreen() {
     '<div style="text-align:center; padding-top:30px;">' +
     '<div style="color:#FFFF55;">Day ' + day + '...</div>' +
     '<div style="color:#AAAAAA; margin-top:12px;">' + escHtml(flavor) + '</div>' +
-    '<div style="margin-top:24px; color:#555555;" class="blink">Press SPACE BAR to continue</div>' +
+    '<div style="margin-top:24px; color:#555555;" class="blink">' + actionText('continue') + '</div>' +
     '</div>'
   );
 }
@@ -1177,10 +1329,10 @@ function renderEventScreen(event) {
     }
     var hintAvail = (PROFESSIONS[difficulty] && PROFESSIONS[difficulty].hintFree) || supplies > 0;
     var hintLabel = (PROFESSIONS[difficulty] && PROFESSIONS[difficulty].hintFree) ? 'H = Free Hint' : 'H = Hint (-1 supply)';
-    choicesHtml += '<div style="margin-top:10px; color:#555555;">Arrow keys + Enter to choose' + (hintAvail ? '  |  ' + hintLabel : '') + '</div>';
+    choicesHtml += '<div style="margin-top:10px; color:#555555;">' + (isMobile ? 'Tap a choice or swipe \u2191\u2193' : 'Arrow keys + Enter to choose') + (hintAvail ? '  |  ' + (isMobile ? 'Use ? button for hint' : hintLabel) : '') + '</div>';
   } else if (isFortune) {
     choicesHtml = '<div style="color:#55FF55; margin-top:8px;">+20 Health restored!</div>' +
-                  '<div style="margin-top:10px;" class="blink">Press SPACE BAR to continue</div>';
+                  '<div style="margin-top:10px;" class="blink">' + actionText('continue') + '</div>';
   }
 
   setTextPanel(
@@ -1213,7 +1365,7 @@ function showEventResult(event, displayIdx) {
     setTimeout(function() { document.getElementById('game-container').classList.remove('shake'); }, 500);
   }
   resultHtml += '<div style="color:#AAAAAA; margin-top:6px; line-height:1.4;">' + escHtml(choice.explanation) + '</div>';
-  resultHtml += '<div style="margin-top:10px;" class="blink">Press SPACE BAR to continue</div>';
+  resultHtml += '<div style="margin-top:10px;" class="blink">' + actionText('continue') + '</div>';
 
   // Update choices display in shuffled order
   var labels = ['A', 'B', 'C', 'D'];
@@ -1250,8 +1402,8 @@ function renderDeathScreen() {
     '<span id="death-text" style="color:#33FF33; font-size:16px;"></span>' +
     '</div>' +
     '<div style="color:#1a8a1a; margin-top:14px; font-size:13px;">Stops: ' + currentStop + '/' + TRAIL_DATA.stops.length + '  Score: ' + score + '/' + totalQuestions + '  Streak: ' + bestStreak + '</div>' +
-    '<div style="color:#33FF33; margin-top:14px;" class="blink">Press SPACE BAR to try again</div>' +
-    '<div style="color:#555555; margin-top:6px; font-size:12px;">Press Q to return to trail select</div>' +
+    '<div style="color:#33FF33; margin-top:14px;" class="blink">' + actionText('try again') + '</div>' +
+    '<div style="color:#555555; margin-top:6px; font-size:12px;">' + (isMobile ? 'Use \u2190 button for trail select' : 'Press Q to return to trail select') + '</div>' +
     '</div>'
   );
 
@@ -1314,7 +1466,7 @@ function renderWinScreen() {
     '<button onclick="copyProofToClipboard()" style="background:#003300; border:1px solid #55FF55; color:#55FF55; font-family:monospace; font-size:13px; padding:4px 14px; cursor:pointer;">[ Copy Proof of Understanding ]</button>' +
     '</div>' +
     (TRAIL_DATA.sourceInfo ? '<div style="margin-top:8px; color:#555555; font-size:10px; text-align:center;">Source: ' + TRAIL_DATA.sourceInfo.repo + ' @ ' + TRAIL_DATA.sourceInfo.commit + (TRAIL_DATA.sourceInfo.tag ? ' (' + TRAIL_DATA.sourceInfo.tag + ')' : '') + ' \u2014 ' + TRAIL_DATA.sourceInfo.snapshotDate + '</div>' : '') +
-    '<div style="margin-top:8px; text-align:center; color:#555555; font-size:12px;">Press C to copy  |  Press SPACE to play again  |  Press Q for trail select</div>' +
+    '<div style="margin-top:8px; text-align:center; color:#555555; font-size:12px;">' + (isMobile ? 'Tap to play again  |  Use \u2190 for trail select' : 'Press C to copy  |  Press SPACE to play again  |  Press Q for trail select') + '</div>' +
     '</div>'
   );
 }
@@ -1331,10 +1483,11 @@ function renderStatusBar() {
     : '';
 
   if (gameState === STATES.TITLE) {
+    var mToggle = isMobile ? '' : ' <span style="color:#555555;">(M)</span>';
     var titleMusic = musicPlaying
-      ? 'Music: <span style="color:#55FF55;">On</span> <span style="color:#555555;">(M to toggle off)</span>'
-      : 'Music: <span style="color:#FF5555;">Off</span> <span style="color:#555555;">(M to toggle on)</span>';
-    statusBar.innerHTML = '<span style="color:#555555;">The Coderegon Trail v1.0</span>  |  ' + titleMusic + '  |  <span style="color:#555555;">ESC: Trail Select</span>' + repoLink;
+      ? 'Music: <span style="color:#55FF55;">On</span>' + mToggle
+      : 'Music: <span style="color:#FF5555;">Off</span>' + mToggle;
+    statusBar.innerHTML = '<span style="color:#555555;">The Coderegon Trail v1.0</span>  |  ' + titleMusic + (isMobile ? '' : '  |  <span style="color:#555555;">ESC: Trail Select</span>') + repoLink;
     return;
   }
 
@@ -1361,7 +1514,7 @@ function renderStatusBar() {
       '  |  Heal: ' + spHeal +
       '  Dmg: <span style="color:#FF5555;">' + spDmg + '</span>' +
       '  Party: <span style="color:#55FF55;">' + spPartyHp + '</span>' +
-      '  |  <span style="color:#555555;">\u2190\u2192 to change</span>' + repoLink + '</div>' +
+      '  |  <span style="color:#555555;">' + (isMobile ? 'Swipe or tap' : '\u2190\u2192 to change') + '</span>' + repoLink + '</div>' +
       '</div>';
     return;
   }
@@ -1381,9 +1534,10 @@ function renderStatusBar() {
   for (var s = 0; s < Math.min(streak, 5); s++) streakStars += '\u2605';
   streakStars += '</span>';
 
+  var mToggleHint = isMobile ? '' : ' <span style="color:#555555;">(M)</span>';
   var musicHint = musicPlaying
-    ? 'Music: <span style="color:#55FF55;">On</span> <span style="color:#555555;">(M to toggle off)</span>'
-    : 'Music: <span style="color:#FF5555;">Off</span> <span style="color:#555555;">(M to toggle on)</span>';
+    ? 'Music: <span style="color:#55FF55;">On</span>' + mToggleHint
+    : 'Music: <span style="color:#FF5555;">Off</span>' + mToggleHint;
 
   var profMaxHp = PROFESSIONS[difficulty] ? PROFESSIONS[difficulty].partyMaxHp : 3;
   var partyHtml = '';
@@ -1409,7 +1563,7 @@ function renderStatusBar() {
     '  Hints: ' + supplies + '  ' + streakStars +
     '  |  Stop ' + Math.min(currentStop + 1, TRAIL_DATA.stops.length) + '/' + TRAIL_DATA.stops.length +
     '  |  ' + musicHint +
-    '  |  <span style="color:#555555;">ESC: Quit</span>' + repoLink + '</div>' +
+    '  ' + (isMobile ? '' : '|  <span style="color:#555555;">ESC: Quit</span>  ') + repoLink + '</div>' +
     '<div style="font-size:11px;margin-top:2px;">' + partyHtml + '</div>' +
     '</div>';
 }
