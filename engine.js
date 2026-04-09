@@ -169,6 +169,7 @@ let currentStop = 0;
 let day = 1;
 let score = 0;
 let totalQuestions = 0;
+let conceptScores = {};
 let streak = 0;
 let bestStreak = 0;
 let hintsUsed = 0;
@@ -1273,26 +1274,26 @@ function renderWinScreen() {
 
   var masteryHtml = '';
   var weakestName = '';
-  var weakestHp = 999;
-  var profMaxHp = PROFESSIONS[difficulty] ? PROFESSIONS[difficulty].partyMaxHp : 3;
+  var weakestPct = 101;
   for (var i = 0; i < conceptNames.length; i++) {
-    var hp = partyHealth[i];
-    var maxHp = Math.min(TRAIL_DATA.partyMembers[i].maxHealth, profMaxHp);
-    var stars, color;
-    if (hp <= 0) {
-      stars = '<span style="color:#555555">\u2606\u2606\u2606 (died)</span>';
+    var cs = conceptScores[conceptNames[i]] || { correct: 0, total: 0 };
+    var pct = cs.total > 0 ? Math.round((cs.correct / cs.total) * 100) : 100;
+    var scoreText, color;
+    if (cs.total === 0) {
+      scoreText = '<span style="color:#555555;">(no questions)</span>';
       color = '#555555';
+    } else if (cs.correct === cs.total) {
+      scoreText = '<span style="color:#55FF55;">' + cs.correct + '/' + cs.total + ' \u2713</span>';
+      color = '#55FF55';
     } else {
-      stars = '';
-      for (var s = 0; s < hp; s++) stars += '\u2605';
-      for (var s2 = 0; s2 < maxHp - hp; s2++) stars += '\u2606';
+      scoreText = '<span style="color:#FFFF55;">' + cs.correct + '/' + cs.total + '</span>';
       color = '#FFFF55';
     }
-    if (hp < weakestHp) { weakestHp = hp; weakestName = conceptNames[i]; }
-    masteryHtml += '<div style="color:' + color + ';">    ' + conceptNames[i] + '  ' + stars + '</div>';
+    if (cs.total > 0 && pct < weakestPct) { weakestPct = pct; weakestName = conceptNames[i]; }
+    masteryHtml += '<div style="color:' + color + ';">    ' + conceptNames[i] + '  ' + scoreText + '</div>';
   }
 
-  var tip = weakestHp < profMaxHp ? '"Study up on ' + weakestName + '!"' : '"Perfect understanding!"';
+  var tip = weakestPct < 100 ? '"Study up on ' + weakestName + '!"' : '"Perfect understanding!"';
 
   setTextPanel(
     '<div style="padding:8px 16px;">' +
@@ -1428,6 +1429,7 @@ function resetGame() {
   day = 1;
   score = 0;
   totalQuestions = 0;
+  conceptScores = {};
   streak = 0;
   bestStreak = 0;
   hintsUsed = 0;
@@ -1472,6 +1474,7 @@ function startGame() {
   day = 1;
   score = 0;
   totalQuestions = 0;
+  conceptScores = {};
   streak = 0;
   bestStreak = 0;
   hintsUsed = 0;
@@ -1588,6 +1591,12 @@ function handleEventChoice(displayIdx) {
   eventAnswered = true;
 
   totalQuestions++;
+
+  // Track per-concept scores
+  var concept = event.concept;
+  if (!conceptScores[concept]) conceptScores[concept] = { correct: 0, total: 0 };
+  conceptScores[concept].total++;
+  if (choice.correct) conceptScores[concept].correct++;
 
   var prof = PROFESSIONS[difficulty];
   if (choice.correct) {
@@ -1780,14 +1789,16 @@ function generateProofMarkdown() {
   var concepts = [];
   for (var i = 0; i < TRAIL_DATA.partyMembers.length; i++) {
     var name = TRAIL_DATA.partyMembers[i].name;
-    var hp = partyHealth[i];
-    var cpMaxHp = PROFESSIONS[difficulty] ? PROFESSIONS[difficulty].partyMaxHp : 3;
-    var maxHp = Math.min(TRAIL_DATA.partyMembers[i].maxHealth, cpMaxHp);
-    var stars;
-    if (hp >= maxHp) { stars = '\u2B50\u2B50\u2B50'; }
-    else if (hp > 0) { stars = '\u2B50\u2B50'; }
-    else { stars = '\u2B50'; }
-    concepts.push(stars + ' ' + name);
+    var cs = conceptScores[name] || { correct: 0, total: 0 };
+    var label;
+    if (cs.total === 0) {
+      label = name;
+    } else if (cs.correct === cs.total) {
+      label = '\u2713 ' + name + ' ' + cs.correct + '/' + cs.total;
+    } else {
+      label = name + ' ' + cs.correct + '/' + cs.total;
+    }
+    concepts.push(label);
   }
   md += concepts.join(' \u00B7 ') + '\n';
 
