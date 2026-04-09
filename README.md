@@ -16,7 +16,7 @@ Travel through ~8 stops representing stages of a project's architecture, answer 
 
 25 games ship ready to play in your browser — no Claude Code required.
 
-**[Play online](https://dtran320.github.io/coderegon-trail/)** or serve locally:
+**[Play online](https://www.davidtran.me/coderegon-trail/)** or serve locally:
 
 ```bash
 git clone https://github.com/dtran320/coderegon-trail.git
