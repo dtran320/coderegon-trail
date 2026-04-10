@@ -19,7 +19,7 @@ var isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.
   if (!document.querySelector('meta[name="viewport"]')) {
     var m = document.createElement('meta');
     m.name = 'viewport';
-    m.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+    m.content = 'width=device-width, initial-scale=1.0';
     document.head.appendChild(m);
   }
 })();
@@ -172,8 +172,8 @@ html, body {
   color: #AAAAAA;
   font-family: 'Courier New', monospace;
   font-size: 18px;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   cursor: pointer;
   border-radius: 4px;
   -webkit-tap-highlight-color: transparent;
@@ -1102,9 +1102,9 @@ var statusBar = document.getElementById('status-bar');
   var mc = document.createElement('div');
   mc.id = 'mobile-controls';
   mc.innerHTML =
-    '<button id="mc-hint" title="Hint">?</button>' +
-    '<button id="mc-music" title="Music">\u266B</button>' +
-    '<button id="mc-back" title="Back">\u2190</button>';
+    '<button id="mc-hint" title="Hint" aria-label="Use hint">?</button>' +
+    '<button id="mc-music" title="Music" aria-label="Toggle music">\u266B</button>' +
+    '<button id="mc-back" title="Back" aria-label="Back to trail select">\u2190</button>';
   document.getElementById('game-container').appendChild(mc);
   document.getElementById('mc-hint').addEventListener('click', function(e) { e.stopPropagation(); handleEventHint(); });
   document.getElementById('mc-music').addEventListener('click', function(e) { e.stopPropagation(); if (!musicInitialized) initAudio(); toggleMusic(); });
@@ -1180,6 +1180,7 @@ var statusBar = document.getElementById('status-bar');
     var dx = e.touches[0].clientX - touchStartX;
     if (Math.abs(dy) < 30 || Math.abs(dx) > Math.abs(dy)) return; // too small or horizontal
     swipeHandled = true;
+    e.preventDefault(); // prevent scroll during choice navigation
     var dir = dy < 0 ? 1 : -1; // swipe up = next, swipe down = prev
     if (gameState === STATES.SETUP) {
       selectDifficulty((selectedDifficulty + dir + PROFESSIONS.length) % PROFESSIONS.length);
@@ -1195,7 +1196,7 @@ var statusBar = document.getElementById('status-bar');
       selectedStopChoice = selectedStopChoice === 0 ? 1 : 0;
       updateStopHighlight();
     }
-  }, { passive: true });
+  }, { passive: false });
 })();
 
 // Helper: returns mobile-friendly action text
