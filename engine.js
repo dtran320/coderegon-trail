@@ -229,7 +229,7 @@ let currentEventIndex = 0;
 let eventAnswered = false;
 let eventHinted = false;
 let dimmedChoice = -1;
-let selectedEventChoice = 0;
+let selectedEventChoice = -1;
 let selectedStopChoice = 0;
 let shuffledIndices = []; // maps display position -> original choice index
 let selectedDifficulty = (function() {
@@ -1188,7 +1188,7 @@ var statusBar = document.getElementById('status-bar');
       var ev = pendingEvents[currentEventIndex];
       if (ev && ev.choices.length > 0) {
         var n = ev.choices.length;
-        selectedEventChoice = (selectedEventChoice + dir + n) % n;
+        selectedEventChoice = selectedEventChoice < 0 ? (dir > 0 ? 0 : n - 1) : (selectedEventChoice + dir + n) % n;
         if (eventHinted && dimmedChoice === selectedEventChoice) selectedEventChoice = (selectedEventChoice + dir + n) % n;
         updateChoiceHighlight();
       }
@@ -1601,7 +1601,7 @@ function resetGame() {
   eventAnswered = false;
   eventHinted = false;
   dimmedChoice = -1;
-  selectedEventChoice = 0;
+  selectedEventChoice = -1;
   selectedStopChoice = 0;
   shuffledIndices = [];
   currentEventType = '';
@@ -1683,7 +1683,7 @@ function showNextEvent() {
   eventAnswered = false;
   eventHinted = false;
   dimmedChoice = -1;
-  selectedEventChoice = 0;
+  selectedEventChoice = -1;
   currentEventType = event.type;
   currentEventTitle = event.title;
 
@@ -2098,18 +2098,18 @@ document.addEventListener('keydown', function(e) {
           var numChoices = ev.choices.length;
           if (key === 'ArrowDown' || key === 'ArrowRight') {
             e.preventDefault();
-            selectedEventChoice = (selectedEventChoice + 1) % numChoices;
+            selectedEventChoice = selectedEventChoice < 0 ? 0 : (selectedEventChoice + 1) % numChoices;
             // Skip dimmed choice
             if (eventHinted && dimmedChoice === selectedEventChoice) selectedEventChoice = (selectedEventChoice + 1) % numChoices;
             updateChoiceHighlight();
           } else if (key === 'ArrowUp' || key === 'ArrowLeft') {
             e.preventDefault();
-            selectedEventChoice = (selectedEventChoice - 1 + numChoices) % numChoices;
+            selectedEventChoice = selectedEventChoice < 0 ? numChoices - 1 : (selectedEventChoice - 1 + numChoices) % numChoices;
             if (eventHinted && dimmedChoice === selectedEventChoice) selectedEventChoice = (selectedEventChoice - 1 + numChoices) % numChoices;
             updateChoiceHighlight();
           } else if (key === 'Enter' || key === ' ') {
             e.preventDefault();
-            if (!(eventHinted && dimmedChoice === selectedEventChoice)) {
+            if (selectedEventChoice >= 0 && !(eventHinted && dimmedChoice === selectedEventChoice)) {
               handleEventChoice(selectedEventChoice);
             }
           } else if (key === '1' || key === 'a' || key === 'A') handleEventChoice(0);
