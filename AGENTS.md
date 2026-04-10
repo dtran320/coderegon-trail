@@ -138,3 +138,4 @@ All "code" is markdown prompts and shell scripts. To modify behavior:
 - Shell scripts use `set -euo pipefail`, source helpers from `scripts/lib/`, use `$PLUGIN_ROOT` for paths
 - Fly-through snippets use clickable `file:line` format for VS Code terminal integration
 - Quiz questions test understanding (why/what-if/trace), never memorization; evaluation is generous with partial credit
+- Commit messages use **conventional commit** prefixes: `feat:`, `fix:`, `chore:`, `refactor:`, `docs:`, `test:`, `style:`
