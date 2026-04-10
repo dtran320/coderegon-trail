@@ -1498,7 +1498,7 @@ function renderStatusBar() {
     var spBarLen = 10;
     var spColor = spMaxH > 60 ? '#00AA00' : (spMaxH > 30 ? '#FFFF55' : '#FF5555');
     var spBar = '<span style="color:' + spColor + ';">';
-    var spFilled = Math.round((spMaxH / 100) * spBarLen);
+    var spFilled = Math.min(Math.round((spMaxH / 100) * spBarLen), spBarLen);
     for (var si = 0; si < spFilled; si++) spBar += '\u2588';
     spBar += '</span><span style="color:#555555;">';
     for (var si2 = 0; si2 < spBarLen - spFilled; si2++) spBar += '\u2591';
