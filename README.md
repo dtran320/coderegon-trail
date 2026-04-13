@@ -71,8 +71,9 @@ Each game is a self-contained HTML file that defines `TRAIL_DATA` (stops, code s
 
 Install as a Claude Code plugin to generate trails for any codebase or PR:
 
-```bash
-claude plugin add /path/to/coderegon-trail
+```
+/plugin marketplace add dtran320/coderegon-trail
+/plugin install coderegon-trail@coderegon-trail
 ```
 
 Then in Claude Code:

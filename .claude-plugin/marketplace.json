@@ -1,0 +1,13 @@
+{
+  "name": "coderegon-trail",
+  "owner": {
+    "name": "Flow Club"
+  },
+  "plugins": [
+    {
+      "name": "coderegon-trail",
+      "source": ".",
+      "description": "Learn codebases through play - Coderegon Trail games, TTS-narrated code walkthroughs, and comprehension quizzes"
+    }
+  ]
+}
