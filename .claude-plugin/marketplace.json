@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "coderegon-trail",
-      "source": ".",
+      "source": "./.",
       "description": "Learn codebases through play - Coderegon Trail games, TTS-narrated code walkthroughs, and comprehension quizzes"
     }
   ]
