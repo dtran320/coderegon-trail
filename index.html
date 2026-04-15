@@ -3,6 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Google Analytics (GA4) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-LKPR91782L"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-LKPR91782L');
+</script>
 <title>The Coderegon Trail</title>
 <meta name="description" content="Learn codebases through play. An Oregon Trail-style game that teaches web frameworks and technical concepts.">
 <meta property="og:title" content="The Coderegon Trail">
@@ -1088,6 +1096,16 @@ canvas.addEventListener('pointerdown', () => {
 function insertDisk(disk) {
   isAnimating = true;
   animatingDisk = disk;
+  try {
+    const slug = (disk.userData.href || '').replace(/\/index\.html$/, '').replace(/\/$/, '').split('/').pop() || 'unknown';
+    if (typeof gtag === 'function') {
+      gtag('event', 'select_game', {
+        game: slug,
+        trail_name: disk.userData.name || '',
+        source: 'hub_disk'
+      });
+    }
+  } catch (e) {}
   playDiskInsert();
   hud.style.opacity = '0';
   hud.style.transition = 'opacity 0.3s';
