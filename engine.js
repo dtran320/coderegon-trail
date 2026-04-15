@@ -1026,15 +1026,40 @@ function updateMusicIndicator() {
 const shikiCache = {};
 let shikiReady = false;
 
+const SHIKI_LANG_ALIASES = {
+  'c#': 'csharp',
+  'c++': 'cpp',
+  'objective-c': 'objc',
+  'shell': 'bash',
+  'sh': 'bash',
+  'zsh': 'bash',
+  'plaintext': 'text',
+  'txt': 'text',
+};
+
+function normalizeShikiLang(lang) {
+  if (!lang) return 'typescript';
+  const lower = String(lang).toLowerCase().trim();
+  return SHIKI_LANG_ALIASES[lower] || lower;
+}
+
 (async function loadShiki() {
   try {
-    const { codeToHtml } = await import('https://esm.sh/shiki@3.2.1/bundle/web');
+    const { codeToHtml } = await import('https://esm.sh/shiki@3.2.1/bundle/full');
     for (const stop of TRAIL_DATA.stops) {
-      const lang = stop.code.language || 'typescript';
-      shikiCache[stop.name] = await codeToHtml(stop.code.content, {
-        lang,
-        theme: 'github-dark',
-      });
+      const lang = normalizeShikiLang(stop.code.language);
+      try {
+        shikiCache[stop.name] = await codeToHtml(stop.code.content, {
+          lang,
+          theme: 'github-dark',
+        });
+      } catch (langErr) {
+        console.warn('Shiki: language "' + lang + '" failed for stop "' + stop.name + '", falling back to text:', langErr);
+        shikiCache[stop.name] = await codeToHtml(stop.code.content, {
+          lang: 'text',
+          theme: 'github-dark',
+        });
+      }
     }
     shikiReady = true;
     if (gameState === STATES.STOP) renderStopScreen();
