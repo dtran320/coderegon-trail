@@ -24,6 +24,31 @@ var isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.
   }
 })();
 
+// Google Analytics (GA4) — loaded dynamically so every game page is covered via engine.js
+(function injectGA() {
+  var GA_ID = 'G-LKPR91782L';
+  if (window.gtag) return;
+  var s = document.createElement('script');
+  s.async = true;
+  s.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_ID;
+  document.head.appendChild(s);
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = function() { window.dataLayer.push(arguments); };
+  window.gtag('js', new Date());
+  window.gtag('config', GA_ID);
+})();
+
+function trackEvent(name, params) {
+  if (typeof window.gtag !== 'function') return;
+  try { window.gtag('event', name, params || {}); } catch (e) {}
+}
+
+function getGameSlug() {
+  var path = window.location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '');
+  var parts = path.split('/');
+  return parts[parts.length - 1] || (TRAIL_DATA && TRAIL_DATA.framework) || 'unknown';
+}
+
 // Inject CSS
 (function injectStyles() {
   var s = document.createElement('style');
@@ -1637,6 +1662,13 @@ function startGame() {
   hintsUsed = 0;
   scrollX = 0;
   deathPending = false;
+  trackEvent('trail_start', {
+    game: getGameSlug(),
+    framework: TRAIL_DATA.framework,
+    trail_name: TRAIL_DATA.trailName,
+    difficulty: difficulty,
+    total_stops: TRAIL_DATA.stops.length
+  });
   enterTravel();
 }
 
@@ -1856,6 +1888,15 @@ function enterStop() {
     showRiver = true;
   }
 
+  trackEvent('trail_stop_reached', {
+    game: getGameSlug(),
+    framework: TRAIL_DATA.framework,
+    stop_index: currentStop,
+    stop_name: stop ? stop.name : '',
+    total_stops: TRAIL_DATA.stops.length,
+    progress_pct: Math.round(((currentStop + 1) / TRAIL_DATA.stops.length) * 100)
+  });
+
   renderStopScreen();
   renderStatusBar();
 }
@@ -1878,6 +1919,16 @@ function handleStopChoice(choice) {
 function enterDeath() {
   gameState = STATES.DEATH;
   showRiver = false;
+  trackEvent('trail_death', {
+    game: getGameSlug(),
+    framework: TRAIL_DATA.framework,
+    stop_reached: currentStop,
+    total_stops: TRAIL_DATA.stops.length,
+    progress_pct: Math.round((currentStop / TRAIL_DATA.stops.length) * 100),
+    score: score,
+    total_questions: totalQuestions,
+    difficulty: difficulty
+  });
   renderDeathScreen();
   renderStatusBar();
 }
@@ -1886,6 +1937,15 @@ function enterWin() {
   gameState = STATES.WIN;
   showRiver = false;
   saveCompletion();
+  trackEvent('trail_win', {
+    game: getGameSlug(),
+    framework: TRAIL_DATA.framework,
+    total_stops: TRAIL_DATA.stops.length,
+    score: score,
+    total_questions: totalQuestions,
+    best_streak: bestStreak,
+    difficulty: difficulty
+  });
   renderWinScreen();
   renderStatusBar();
 }
